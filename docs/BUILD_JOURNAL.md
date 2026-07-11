@@ -109,21 +109,8 @@ Straight from the MCP builder guide, enforced by the seed instructions:
 | 3 | Core: env/log/crypto/state/auth/oauth libs — full OAuth 2.1 AS with approval page | `bf14711` |
 | 4 | Host: module loader + hot reload, per-request McpServer, settings vault, module CRUD + jailed editor; assistant SSE backend + seed instructions; backup/restore; Telegram + Gemini + _template modules; index.js wiring | `8dca196` |
 | 5 | Fought the mount: stale `.git/HEAD.lock` (sandbox couldn't unlink) — enabled cowork file-delete, cleared, committing clean since | — |
-| 6 | Frontend SPA + Claude popup | *(next)* |
-| 7 | Docker + docs + end-to-end verification (npm i, boot, PKCE flow scripted, MCP handshake, backup cycle) | *(next)* |
-
-## 7. Deliberate trade-offs
-
-- **No per-MCP OAuth scoping** — any valid token reaches every enabled MCP. Fine for a single-operator homelab; revisit if the station ever serves multiple users.
-- **Open dynamic registration** — anyone can register a client, but tokens only issue after the password-gated approval, same as the Companion. The rate limiter covers brute force.
-- **Editor is a textarea, not Monaco** — zero dependencies beats syntax highlighting; the Claude popup writes the code anyway.
-- **Restore replaces module folders present in the archive** but doesn't delete extras — safer default; delete manually if truly gone.
-- **Port 8788** (Companion uses 8787) so both can run on the same box.
-
-## 8. Status / next
-
-- [x] Backend complete (server boots pending verification)
-- [ ] Frontend SPA + popup ← in progress
-- [ ] Docker + docs
-- [ ] End-to-end verification in sandbox
-- [ ] SiYuan project doc, Todoist closure, push to origin
+| 6 | Frontend SPA (login, cards, settings drawer, editor, add-new, backup, station modal) + ✦ popup with SSE streaming + retained instructions | `55e5a0c` |
+| 7 | Docker packaging (alpine + tar, seeding entrypoint, healthcheck), README/BUILDING_MCPS/OAUTH/CLAUDE.md/CHANGELOG | `55e5a0c` |
+| 8 | Docker Hub lane: no daemon/creds in the build sandbox → GitHub Actions workflow (amd64+arm64, pushes on main; needs `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` repo secrets), backup engine made busybox-pure (stage + plain tar; apk dropped from image), Unraid guide in README. Fought a mount-truncation gremlin on `backup.js`/`smoke.sh` (files stuck part-written on the VM view) — resolved by writing via shell + verifying byte-for-byte before commit | `cd9918c` |
+| 9 | Trackers closed: SiYuan project set (hub + ⚙️ Setup & Operations + 🧱 Build Log, wired to 🗂 Projects — Index, orphan-check clean), Todoist build tasks completed + deploy task added (due 12 Jul). `git push` blocked in sandbox (no GitHub auth) — David pushes from his machine | — |
+| 10 | **Verification: `scripts/smoke.sh` — 34/34 green.** Aut
