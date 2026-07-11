@@ -1,7 +1,5 @@
 FROM node:22-alpine
-
-# tar + gzip for the backup/restore engine
-RUN apk add --no-cache tar gzip
+# busybox tar+gzip in the base image cover the backup engine — no extra packages
 
 WORKDIR /app
 
