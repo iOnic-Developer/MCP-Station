@@ -6,7 +6,8 @@
 set -u
 PORT=8797
 B="http://127.0.0.1:$PORT"
-J="$(mktemp)"; DATA="$(mktemp -d)"; LOG="$(mktemp)"
+J="$(mktemp)"; DATA="$(mktemp -d)"; LOG="$(mktemp)"; MCPS="$(mktemp -d)"
+cp -r mcps/. "$MCPS"/   # throwaway copy so created modules don't pollute the repo
 PASS=0; FAIL=0
 
 say()  { printf '%s\n' "$*"; }
@@ -15,9 +16,9 @@ bad()  { FAIL=$((FAIL+1)); say "  ❌ $1 — got: ${2:-}"; }
 has()  { case "$1" in *"$2"*) return 0;; *) return 1;; esac; }
 
 APP_PASSWORD=test1234 PUBLIC_URL="$B" MCP_TOKEN=sekret-token \
-DATA_DIR="$DATA" PORT=$PORT node server/index.js >"$LOG" 2>&1 &
+DATA_DIR="$DATA" MCPS_DIR="$MCPS" PORT=$PORT node server/index.js >"$LOG" 2>&1 &
 SRV=$!
-trap 'kill $SRV 2>/dev/null; rm -rf "$J" "$DATA" "$LOG"' EXIT
+trap 'kill $SRV 2>/dev/null; rm -rf "$J" "$DATA" "$LOG" "$MCPS"' EXIT
 
 for i in $(seq 1 40); do curl -sf "$B/healthz" >/dev/null 2>&1 && break; sleep 0.25; done
 
@@ -144,6 +145,6 @@ R=$(curl -s "$B/nonexistent_mcp" -X POST -H 'content-type: application/json' -d 
 has "$R" 'Nothing here' && ok "404 fallthrough" || bad "404 fallthrough" "$R"
 
 say ""
-say "══ RESULT: $PASS passed, $FAIL failed ══"
+say "== RESULT: $PASS passed, $FAIL failed =="
 grep -Ei 'error|warn' "$LOG" | grep -v 'PUBLIC_URL is not set' | head -5 || true
 exit $FAIL

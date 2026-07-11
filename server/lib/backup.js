@@ -2,9 +2,10 @@
  * Import / export / backup.
  *  - Export: portable JSON of instructions + module registry (+ optional secrets).
  *  - Import: apply an export (settings matched by module id; masked '••••••' skipped).
- *  - Backup: tar.gz of DATA_DIR (minus backups/) + the whole mcps/ folder,
- *    kept server-side in DATA_DIR/backups and downloadable. Restore accepts an
- *    uploaded archive, extracts to staging, then swaps in and reloads.
+ *  - Backup: tar.gz of DATA_DIR (minus backups/ and trash/) + the whole mcps/
+ *    folder, kept server-side in DATA_DIR/backups and downloadable. Restore
+ *    accepts an uploaded archive or a server-side name, extracts to staging,
+ *    then swaps in and reloads.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -99,12 +100,20 @@ export async function createBackup() {
   fs.mkdirSync(backupsDir(), { recursive: true });
   const name = `mcp-station-backup-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.tar.gz`;
   const file = path.join(backupsDir(), name);
-  await run('tar', [
-    '-czf', file,
-    '--exclude=./backups',
-    '-C', cfg.dataDir, '.',
-    '-C', path.dirname(cfg.mcpsDir), path.basename(cfg.mcpsDir)
-  ]);
+  // Stage with cp, then a single plain `tar -czf` — works with busybox tar
+  // (alpine base) and GNU tar alike; no --exclude / multi -C exotica.
+  const staging = fs.mkdtempSync(path.join(os.tmpdir(), 'station-bk-'));
+  const skip = [path.resolve(backupsDir()), path.resolve(cfg.dataDir, 'trash')];
+  fs.cpSync(cfg.dataDir, staging, {
+    recursive: true,
+    filter: (src) => !skip.some((s) => path.resolve(src) === s || path.resolve(src).startsWith(s + path.sep))
+  });
+  fs.cpSync(cfg.mcpsDir, path.join(staging, path.basename(cfg.mcpsDir)), { recursive: true });
+  try {
+    await run('tar', ['-czf', file, '-C', staging, '.']);
+  } finally {
+    fs.rmSync(staging, { recursive: true, force: true });
+  }
   // prune old backups
   const all = listBackups();
   for (const b of all.slice(KEEP)) fs.rmSync(path.join(backupsDir(), b.name), { force: true });
