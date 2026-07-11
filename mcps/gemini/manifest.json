@@ -1,0 +1,25 @@
+{
+  "id": "gemini",
+  "slug": "gemini_mcp",
+  "name": "Gemini",
+  "icon": "✨",
+  "description": "Google Gemini — text generation, multi-turn chat, embeddings and model listing.",
+  "version": "1.0.0",
+  "settings": [
+    {
+      "key": "api_key",
+      "label": "API key",
+      "type": "secret",
+      "required": true,
+      "help": "Free key from aistudio.google.com/apikey."
+    },
+    {
+      "key": "default_model",
+      "label": "Default model",
+      "type": "text",
+      "required": false,
+      "default": "gemini-2.5-flash",
+      "help": "Used when a tool call omits model. See gemini_list_models."
+    }
+  ]
+}

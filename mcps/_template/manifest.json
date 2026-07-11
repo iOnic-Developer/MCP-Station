@@ -1,0 +1,25 @@
+{
+  "id": "__ID__",
+  "slug": "__SLUG__",
+  "name": "__NAME__",
+  "icon": "__ICON__",
+  "description": "__DESCRIPTION__",
+  "version": "0.1.0",
+  "settings": [
+    {
+      "key": "api_key",
+      "label": "API key",
+      "type": "secret",
+      "required": false,
+      "help": "Delete or edit this example setting to fit your service."
+    },
+    {
+      "key": "base_url",
+      "label": "Base URL",
+      "type": "text",
+      "required": false,
+      "default": "https://api.example.com",
+      "help": "Example text setting with a default."
+    }
+  ]
+}

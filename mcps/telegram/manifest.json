@@ -1,0 +1,24 @@
+{
+  "id": "telegram",
+  "slug": "telegram_mcp",
+  "name": "Telegram",
+  "icon": "✈️",
+  "description": "Send and read Telegram messages through a bot — messages, photos, chat lookups.",
+  "version": "1.0.0",
+  "settings": [
+    {
+      "key": "bot_token",
+      "label": "Bot token",
+      "type": "secret",
+      "required": true,
+      "help": "From @BotFather → /newbot. Looks like 123456789:AAH-xxxxxxxx."
+    },
+    {
+      "key": "default_chat_id",
+      "label": "Default chat ID",
+      "type": "text",
+      "required": false,
+      "help": "Used when a tool call omits chat_id. Message your bot once, then use telegram_get_updates to find your chat ID."
+    }
+  ]
+}
