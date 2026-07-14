@@ -54,14 +54,22 @@ export function slugFromResource(resource) {
 const tokenHandle = (t) => sha256b64url(t).slice(0, 12);
 
 /* ── Discovery metadata ──────────────────────────────────────────────── */
+// The issuer MUST carry a trailing slash. The MCP SDK derives it as `new URL(base).href`, which
+// always normalises to `https://host/`; this server built it by concatenation and dropped the slash.
+// claude.ai keys the issued token to the authorization-server identifier and looks it up by its own
+// URL-normalised form (with slash) — so a slash-less issuer meant it silently couldn't find the token
+// to send, and made zero authenticated calls despite a valid token. Mirror the SDK exactly.
+const issuer = (base) => `${base}/`;
+
 export function asMetadata(req, res) {
   const base = baseUrl(req);
   res.json({
-    issuer: base,
+    issuer: issuer(base),
     authorization_endpoint: `${base}/authorize`,
     token_endpoint: `${base}/token`,
     registration_endpoint: `${base}/register`,
     revocation_endpoint: `${base}/revoke`,
+    revocation_endpoint_auth_methods_supported: ['client_secret_post'],
     response_types_supported: ['code'],
     grant_types_supported: ['authorization_code', 'refresh_token'],
     code_challenge_methods_supported: ['S256'],
@@ -76,7 +84,7 @@ export function protectedResourceMetadata(req, res) {
   const slug = req.params.slug || '';
   res.json({
     resource: slug ? `${base}/${slug}` : base,
-    authorization_servers: [base],
+    authorization_servers: [issuer(base)],
     scopes_supported: ['mcp'],
     bearer_methods_supported: ['header'],
     resource_name: slug ? `MCP Station — ${slug}` : 'MCP Station'

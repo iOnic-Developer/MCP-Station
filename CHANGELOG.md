@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.4.8 — 2026-07-15
+
+**The real one: the OAuth issuer was missing its trailing slash.**
+
+- Diffing this station's *production* OAuth surface against the working SiYuan Companion
+  (`sy.dbzocchi.app`, SDK-based) byte for byte — token response, DCR, discovery, CORS, WWW-Authenticate,
+  hosting all identical — left exactly one difference: `issuer` and `authorization_servers` were
+  `https://host` here vs `https://host/` there. The MCP SDK derives the issuer via `new URL(base).href`,
+  which always ends in `/`; this station built it by concatenation and dropped the slash. claude.ai keys
+  the issued token to the authorization-server identifier and resolves it by its own URL-normalised form
+  (with slash), so a slash-less issuer meant it accepted a valid token, couldn't match it back to the
+  server, and made **zero authenticated calls** — the exact symptom across v1.4.5–v1.4.7. `issuer` and
+  `authorization_servers` now carry the trailing slash, mirroring the SDK. Also added
+  `revocation_endpoint_auth_methods_supported` to match.
+
 ## v1.4.7 — 2026-07-15
 
 **Access-token lifetime cut from 30 days to 1 hour — the last thing claude.ai rejected.**
