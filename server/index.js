@@ -334,6 +334,16 @@ app.use(express.static(path.join(ROOT, 'public'), {
 /* ── Hosted MCP endpoints (must stay last) ───────────────────────────── */
 app.all('/:slug', (req, res, next) => {
   if (!host.getModuleBySlug(req.params.slug)) return next();
+  // Log EVERY MCP request and its outcome. A successful call used to log nothing, which left a
+  // blind spot exactly where connectors were failing: we could see a token issued and then silence,
+  // with no way to tell "the client never called" from "the call arrived and something ate it".
+  const auth = req.headers.authorization ? 'bearer' : 'NONE';
+  const ua = String(req.headers['user-agent'] || '-').slice(0, 60);
+  const method = req.method;
+  const rpc = req.body?.method || '-';
+  res.on('finish', () => {
+    log('mcp', `${method} /${req.params.slug} → ${res.statusCode} (auth=${auth}, rpc=${rpc}, ua=${ua})`);
+  });
   oauth.requireBearer(req, res, () => host.handleMcpRequest(req, res));
 });
 
