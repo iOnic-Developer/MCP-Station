@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.0.1 — 2026-07-14
+
+- Backup/restore uses busybox `tar`/`gzip` from the base image (stage + plain tar) — `apk add tar gzip` dropped from the Dockerfile
+- GitHub Actions lane: multi-arch (amd64/arm64) build + push to Docker Hub on `main` and `v*` tags
+- Unraid deployment guide in the README
+
 ## v1.0.0 — 2026-07-11
 
 First release, built end-to-end by Claude (Cowork session).
