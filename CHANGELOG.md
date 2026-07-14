@@ -1,5 +1,6 @@
 # Changelog
 
+## v1.0.3 — 2026-07-14  - Fix: the ✦ popup could not be closed and floated over the settings drawer — `.assistant { display: flex }` overrode the `[hidden]` attribute, so the ✕ / FAB toggle had no visual effect; panel now sits below drawers and modals
 ## v1.0.2 — 2026-07-14
 
 - ✦ popup can run on **Gemini** as well as Claude — provider toggle in ⚙ Station settings, separate encrypted key + model per provider (`ASSISTANT_PROVIDER` / `GEMINI_API_KEY` / `GEMINI_MODEL` as env fallbacks)
