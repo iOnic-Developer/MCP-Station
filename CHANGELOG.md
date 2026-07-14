@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.3.0 — 2026-07-14
+
+**Per-MCP access control — this changes OAuth behaviour.**
+
+- **OAuth tokens are now scoped to one MCP.** A token granted for `/siyuan` gets **403** on `/telegram_mcp`. The slug comes from the client's RFC 8707 `resource` param; a client that doesn't send one makes the *human* pick the MCP on the approval page (with an explicit "⚠ All MCPs" option). Previously any token opened every MCP.
+- **Each MCP can have its own bearer token** — 🔑 Access on the card → Generate / Rotate / Clear. It opens only that MCP, so a script or n8n can be handed one endpoint without the keys to the whole station. Shown once, stored encrypted, mirrored into the module's `.config.json`. The station-wide `MCP_TOKEN` still works everywhere as the master key.
+- **Connected clients, with Revoke** — 🔑 Access lists the live OAuth connectors that can reach this MCP, with last-used and expiry. Revoking kills the access token *and* that client's refresh tokens, so it can't quietly refresh back in.
+- **🧰 Tools — capabilities view.** Every card can show exactly what its MCP exposes: tools with descriptions, argument tables (type, required, description) and behaviour hints (read-only / destructive), plus prompts and any house instructions. Introspected by *running* the module over an in-memory MCP transport — it's what a real client sees, not a guess parsed from the source. Drop a stranger's module into `mcps/` and read its capabilities before trusting it.
+- `scripts/smoke-scoping.sh` — 15 checks: master token, per-module tokens, both scoping paths, cross-MCP 403, connections + revoke.
+
+## v1.2.1 — 2026-07-14
+
+- Fix: the SPA's assets were served with `maxAge: '1h'` but linked unversioned, so a redeploy left the browser running the previous `app.js`/`app.css` for an hour. Now `no-cache` + ETag (revalidate every load, cheap 304s).
+- The ✦ popup names its provider and model, so "am I talking to Claude or Gemini?" is answerable at a glance.
+
 ## v1.2.0 — 2026-07-14
 
 - **SiYuan module** (`mcps/siyuan/`, 📓 `/siyuan`) — the SiYuan Companion's 19 kernel tools + 2 prompts, ported to the module contract. Its own OAuth/transport layer is gone: the station already is that. Settings: `siyuan_url` + `siyuan_token`. Keeps the browser User-Agent (Cloudflare 1010) and both retry ladders; `replace_doc` still preserves the doc id.

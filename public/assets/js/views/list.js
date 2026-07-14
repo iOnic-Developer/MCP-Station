@@ -2,6 +2,8 @@ import { api } from '../api.js';
 import { esc, toast, confirmModal } from '../ui.js';
 import { openSettings } from './settings.js';
 import { openEditor } from './editor.js';
+import { openAccess } from './access.js';
+import { openCapabilities } from './capabilities.js';
 
 function statusOf(m) {
   if (m.error) return { cls: 'err', label: 'load error' };
@@ -44,7 +46,9 @@ export function renderList(root, ctx) {
         <button class="btn sm" data-copy title="Copy URL">⧉</button>
       </div>
       <div class="actions">
+        <button class="btn sm" data-caps ${m.manifest && !m.error ? '' : 'disabled'} title="What this MCP can do">🧰 Tools</button>
         <button class="btn sm" data-settings ${m.manifest ? '' : 'disabled'}>⚙ Settings</button>
+        <button class="btn sm" data-access ${m.manifest ? '' : 'disabled'} title="Token + connected clients">🔑 Access${m.tokenSet ? ' ✓' : ''}</button>
         <button class="btn sm" data-code>‹/› Code</button>
         <button class="btn sm" data-test ${m.manifest ? '' : 'disabled'}>▶ Test</button>
         <div class="spacer"></div>
@@ -74,7 +78,9 @@ export function renderList(root, ctx) {
       toast('Endpoint URL copied');
     };
 
+    card.querySelector('[data-caps]')?.addEventListener('click', () => openCapabilities(m));
     card.querySelector('[data-settings]')?.addEventListener('click', () => openSettings(m, ctx));
+    card.querySelector('[data-access]')?.addEventListener('click', () => openAccess(m, ctx));
     card.querySelector('[data-code]').onclick = () => openEditor(m, ctx);
 
     card.querySelector('[data-test]')?.addEventListener('click', async (e) => {

@@ -11,7 +11,7 @@
 import express from 'express';
 import path from 'node:path';
 import { cfg, ROOT } from './lib/env.js';
-import { initKey, encrypt, decrypt } from './lib/crypto.js';
+import { initKey, encrypt, decrypt, randomToken } from './lib/crypto.js';
 import { loadState, getState, save, persist, gc } from './lib/state.js';
 import { log, getLogs } from './lib/log.js';
 import * as auth from './lib/auth.js';
@@ -119,6 +119,7 @@ function mcpListing(req) {
       error: m.error,
       enabled: Boolean(reg.enabled),
       configured: m.manifest ? host.isConfigured(m.id) : false,
+      tokenSet: Boolean(reg.token),
       settings,
       url: `${oauth.baseUrl(req)}/${m.manifest?.slug || m.id}`
     };
@@ -192,6 +193,43 @@ api.put('/mcps/:id/file', (req, res) => {
     res.json({ ok: true, note: 'Saved — hit Reload modules to apply.' });
   } catch (e) {
     res.status(400).json({ error: e.message });
+  }
+});
+
+/* What this MCP can do — introspected by running it, not by reading its source */
+api.get('/mcps/:id/capabilities', async (req, res) => {
+  try { res.json(await host.describeModule(req.params.id)); }
+  catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+/* Per-MCP access: its own bearer token + the live OAuth connections that can reach it */
+api.post('/mcps/:id/token', (req, res) => {
+  try {
+    const token = host.setModuleToken(req.params.id, randomToken(32));
+    res.json({ ok: true, token }); // shown once — only the encrypted copy is kept
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+api.delete('/mcps/:id/token', (req, res) => {
+  try {
+    host.setModuleToken(req.params.id, '');
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+api.get('/mcps/:id/connections', (req, res) => {
+  const mod = host.getModuleById(req.params.id);
+  if (!mod?.manifest) return res.status(404).json({ error: 'Unknown MCP' });
+  res.json({ connections: oauth.listConnections(mod.manifest.slug) });
+});
+api.delete('/connections/:handle', (req, res) => {
+  try {
+    oauth.revokeConnection(req.params.handle);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(404).json({ error: e.message });
   }
 });
 

@@ -15,6 +15,7 @@ import { cfg } from './env.js';
 import { getState, save } from './state.js';
 import { randomToken, sha256b64url, timingEqual } from './crypto.js';
 import { verifyPassword, readSession, checkRate, noteFail } from './auth.js';
+import { getModules, getModuleBySlug, getModuleToken } from './mcpHost.js';
 import { log } from './log.js';
 
 const CODE_TTL = 10 * 60_000;
@@ -27,6 +28,23 @@ export function baseUrl(req) {
 }
 
 export const oauthEnabled = () => Boolean(cfg.publicUrl);
+
+/* ── Per-MCP scoping ──────────────────────────────────────────────────────
+ * A token is bound to ONE mcp slug ('' = every MCP, chosen explicitly on the
+ * approval page). Clients that send RFC 8707 `resource` get bound automatically;
+ * clients that don't, ask the human on the approval page. Enforced in requireBearer.
+ */
+export function slugFromResource(resource) {
+  try {
+    const seg = new URL(String(resource)).pathname.replace(/^\/+/, '').split('/')[0] || '';
+    return getModuleBySlug(seg) ? seg : '';
+  } catch {
+    return '';
+  }
+}
+
+/** Short, stable handle for a token — lets the UI list and revoke without ever holding the secret. */
+const tokenHandle = (t) => sha256b64url(t).slice(0, 12);
 
 /* ── Discovery metadata ──────────────────────────────────────────────── */
 export function asMetadata(req, res) {
@@ -141,16 +159,22 @@ export function handleApprove(req, res) {
 
   const st = getState();
   const code = randomToken(32);
+  // The client's own `resource` wins; otherwise the human picked one on the approval page.
+  // '*' (or nothing selectable) means station-wide — an explicit choice, never a silent default.
+  const asked = slugFromResource(q.resource);
+  const picked = q.grant_slug === '*' ? '' : String(q.grant_slug || '');
+  const slug = asked || (getModuleBySlug(picked) ? picked : '');
   st.oauth.codes[code] = {
     clientId: q.client_id,
     redirectUri: q.redirect_uri,
     codeChallenge: q.code_challenge,
     scope: q.scope || 'mcp',
     resource: q.resource || '',
+    slug,
     expiresAt: Date.now() + CODE_TTL
   };
   save();
-  log('oauth', `Authorization approved for client ${q.client_id}`);
+  log('oauth', `Authorization approved for client ${q.client_id} → ${slug ? `/${slug}` : 'ALL MCPs'}`);
   const u = new URL(q.redirect_uri);
   u.searchParams.set('code', code);
   if (q.state) u.searchParams.set('state', q.state);
@@ -171,25 +195,25 @@ export function handleToken(req, res) {
     if (!b.code_verifier || sha256b64url(b.code_verifier) !== rec.codeChallenge) {
       return tokenError(res, 'invalid_grant', 'PKCE verification failed.');
     }
-    return issueTokens(res, st, rec.clientId, rec.scope, rec.resource);
+    return issueTokens(res, st, rec);
   }
 
   if (b.grant_type === 'refresh_token') {
     const rec = st.oauth.refresh[b.refresh_token];
     if (!rec || rec.expiresAt < Date.now()) return tokenError(res, 'invalid_grant', 'Refresh token is invalid or expired.');
     delete st.oauth.refresh[b.refresh_token]; // rotate
-    return issueTokens(res, st, rec.clientId, rec.scope, rec.resource);
+    return issueTokens(res, st, rec);
   }
 
   return tokenError(res, 'unsupported_grant_type', 'Use authorization_code or refresh_token.');
 }
 
-function issueTokens(res, st, clientId, scope, resource) {
+function issueTokens(res, st, { clientId, scope, resource = '', slug = '' }) {
   const access = randomToken(32);
   const refresh = randomToken(32);
   const now = Date.now();
-  st.oauth.tokens[access] = { clientId, scope, resource, createdAt: now, expiresAt: now + ACCESS_TTL };
-  st.oauth.refresh[refresh] = { clientId, scope, resource, createdAt: now, expiresAt: now + REFRESH_TTL };
+  st.oauth.tokens[access] = { clientId, scope, resource, slug, createdAt: now, expiresAt: now + ACCESS_TTL };
+  st.oauth.refresh[refresh] = { clientId, scope, resource, slug, createdAt: now, expiresAt: now + REFRESH_TTL };
   save();
   res.json({
     access_token: access,
@@ -215,18 +239,79 @@ export function handleRevoke(req, res) {
   res.status(200).json({});
 }
 
-/* ── Bearer gate for MCP endpoints (dual auth) ───────────────────────── */
+/* ── Bearer gate for MCP endpoints ────────────────────────────────────────
+ * Three lanes, cheapest first:
+ *   1. the station-wide MCP_TOKEN env var  — opens every MCP (the master key)
+ *   2. this module's own token             — opens ONLY this MCP
+ *   3. an OAuth access token               — opens the slug it was granted for
+ * An OAuth token granted for /siyuan gets 403 on /telegram_mcp. That is the point.
+ */
 export function requireBearer(req, res, next) {
   const auth = req.headers.authorization || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+  const slug = req.params.slug || req.path.split('/')[1] || '';
+
   if (token) {
     if (cfg.mcpToken && timingEqual(token, cfg.mcpToken)) return next();
+
+    const mod = getModuleBySlug(slug);
+    const modToken = mod ? getModuleToken(mod.id) : '';
+    if (modToken && timingEqual(token, modToken)) return next();
+
     const t = getState().oauth.tokens[token];
-    if (t && t.expiresAt > Date.now()) return next();
+    if (t && t.expiresAt > Date.now()) {
+      if (t.slug && t.slug !== slug) {
+        log('oauth', `Token scoped to /${t.slug} was refused at /${slug}`);
+        return res.status(403).json({
+          jsonrpc: '2.0',
+          error: { code: -32003, message: `This token is scoped to /${t.slug} and cannot access /${slug}.` },
+          id: null
+        });
+      }
+      // Cheap "is this connector still alive?" stamp — throttled so it isn't a write per call.
+      const now = Date.now();
+      if (!t.lastUsedAt || now - t.lastUsedAt > 60_000) {
+        t.lastUsedAt = now;
+        save();
+      }
+      return next();
+    }
   }
-  const slug = req.params.slug || req.path.split('/')[1] || '';
+
   res.setHeader('WWW-Authenticate', `Bearer resource_metadata="${baseUrl(req)}/.well-known/oauth-protected-resource/${slug}"`);
   res.status(401).json({ jsonrpc: '2.0', error: { code: -32001, message: 'Unauthorized: bearer token required' }, id: null });
+}
+
+/* ── Connections (what can reach this MCP right now) ─────────────────── */
+export function listConnections(slug) {
+  const st = getState();
+  const now = Date.now();
+  return Object.entries(st.oauth.tokens)
+    .filter(([, t]) => t.expiresAt > now && (!t.slug || t.slug === slug))
+    .map(([tok, t]) => ({
+      handle: tokenHandle(tok),
+      clientName: st.oauth.clients[t.clientId]?.client_name || 'Unknown client',
+      clientId: t.clientId,
+      allMcps: !t.slug,
+      createdAt: t.createdAt,
+      expiresAt: t.expiresAt,
+      lastUsedAt: t.lastUsedAt || null
+    }))
+    .sort((a, b) => b.createdAt - a.createdAt);
+}
+
+/** Revoke by handle: kills the access token AND that client's refresh tokens for the same scope. */
+export function revokeConnection(handle) {
+  const st = getState();
+  const hit = Object.keys(st.oauth.tokens).find((t) => tokenHandle(t) === handle);
+  if (!hit) throw new Error('No such connection');
+  const { clientId, slug } = st.oauth.tokens[hit];
+  delete st.oauth.tokens[hit];
+  for (const [r, rec] of Object.entries(st.oauth.refresh)) {
+    if (rec.clientId === clientId && (rec.slug || '') === (slug || '')) delete st.oauth.refresh[r];
+  }
+  save();
+  log('oauth', `Revoked connection ${handle} (client ${clientId}${slug ? `, /${slug}` : ', all MCPs'})`);
 }
 
 /* ── Approval page (no inline JS — plain form posts) ─────────────────── */
@@ -240,6 +325,18 @@ function approvalPage({ q = {}, client = null, error = '', hasSession = false, i
     .join('');
   let host = '';
   try { host = new URL(q.redirect_uri).host; } catch { /* ignore */ }
+
+  // The client named the MCP it wants (RFC 8707) → bind to it. Otherwise the human chooses,
+  // so a token is never silently station-wide.
+  const asked = slugFromResource(q.resource);
+  const enabled = [...getModules().values()].filter((m) => m.manifest && !m.error);
+  const grant = asked
+    ? `<div class="who">access to <b>/${esc(asked)}</b> only</div><input type="hidden" name="grant_slug" value="${esc(asked)}">`
+    : `<label for="gs">Which MCP may this client use?</label>
+       <select id="gs" name="grant_slug">
+         ${enabled.map((m) => `<option value="${esc(m.manifest.slug)}">${esc(m.manifest.icon)} ${esc(m.manifest.name)} — /${esc(m.manifest.slug)}</option>`).join('')}
+         <option value="*">⚠ All MCPs on this station</option>
+       </select>`;
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>MCP Station — Authorize</title>
@@ -250,7 +347,7 @@ function approvalPage({ q = {}, client = null, error = '', hasSession = false, i
   .who{background:#0b1420;border:1px solid #1f2a37;border-radius:10px;padding:12px 14px;font-size:13px;margin-bottom:20px;line-height:1.6}
   .who b{color:#7cc4ff}
   label{display:block;font-size:12px;color:#8b98a9;margin-bottom:6px}
-  input[type=password]{width:100%;box-sizing:border-box;background:#0b1420;border:1px solid #2a3846;border-radius:8px;color:#e6edf3;padding:10px 12px;font-size:14px;margin-bottom:16px}
+  input[type=password],select{width:100%;box-sizing:border-box;background:#0b1420;border:1px solid #2a3846;border-radius:8px;color:#e6edf3;padding:10px 12px;font-size:14px;margin-bottom:16px}
   .err{background:#2a1215;border:1px solid #5c2b30;color:#ff9ea3;border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:16px}
   .row{display:flex;gap:10px}
   button{flex:1;border:0;border-radius:8px;padding:11px 0;font-size:14px;font-weight:600;cursor:pointer}
@@ -264,6 +361,7 @@ function approvalPage({ q = {}, client = null, error = '', hasSession = false, i
   <div class="who"><b>${esc(client?.client_name || 'Unknown client')}</b><br>redirects to <b>${esc(host)}</b><br>scope: <b>${esc(q.scope || 'mcp')}</b></div>
   ${error ? `<div class="err">${esc(error)}</div>` : ''}
   ${invalid ? '' : `<form method="POST" action="/oauth/approve">${hidden}
+    ${grant}
     ${hasSession ? '' : `<label for="pw">Station password</label><input id="pw" type="password" name="password" autofocus autocomplete="current-password">`}
     <div class="row">
       <button class="no" name="deny" value="1">Deny</button>

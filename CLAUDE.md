@@ -43,7 +43,7 @@ docs/                  BUILD_JOURNAL (design log), BUILDING_MCPS (module contrac
 
 ## Known gaps / next ideas (as of v1.0.0)
 
-- No per-MCP OAuth scoping (any token reaches every enabled MCP) — fine single-user. Tokens *do* record the `resource` (`/slug`) they were minted for; `requireBearer` just never checks it. Phase 3 of `docs/plan.md` if David wants it — legacy tokens have an empty `resource` and must keep station-wide access or existing connectors break.
+- ~~No per-MCP OAuth scoping~~ — **done in v1.3.0**. Tokens carry a `slug`; `requireBearer` enforces it (403 cross-MCP). Three auth lanes: station `MCP_TOKEN` (master, opens everything) → the module's own token (`st.mcps[id].token`, opens only it) → OAuth token (opens the slug it was granted for; `slug: ''` = station-wide, only ever set by an explicit choice on the approval page).
 - Editor is a plain textarea; no lint-before-save beyond manifest zod validation.
 - No scheduled backups (manual button only) — n8n could hit `POST /api/backup` on cron with the session… better: add a token-authed backup endpoint if David asks.
 - Restore doesn't restart the process; if `SESSION_SECRET` differs from the archive's `secret.key` provenance, stored secrets won't decrypt (documented in README).

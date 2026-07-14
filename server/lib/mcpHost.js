@@ -14,6 +14,8 @@ import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { cfg } from './env.js';
 import { getState, save } from './state.js';
 import { encrypt, decrypt } from './crypto.js';
@@ -61,7 +63,7 @@ export function mirrorConfig(id) {
   try {
     fs.writeFileSync(
       path.join(mod.dir, CONFIG_FILE),
-      JSON.stringify({ id, enabled: reg.enabled, settings: reg.settings || {}, updatedAt: reg.updatedAt }, null, 2)
+      JSON.stringify({ id, enabled: reg.enabled, settings: reg.settings || {}, token: reg.token || '', updatedAt: reg.updatedAt }, null, 2)
     );
   } catch (e) {
     log('mcp', `Could not mirror config for '${id}': ${e.message}`);
@@ -76,12 +78,30 @@ function adoptConfig(dir, id, hasError) {
       id,
       enabled: hasError ? false : c.enabled !== false,
       settings: c.settings && typeof c.settings === 'object' ? c.settings : {},
+      token: typeof c.token === 'string' ? c.token : '',
       createdAt: new Date().toISOString(),
       adoptedAt: new Date().toISOString()
     };
   } catch {
     return null; // no file, or unreadable — fall back to a fresh entry
   }
+}
+
+/** This module's own static bearer ('' = none; the station-wide MCP_TOKEN still works). */
+export function getModuleToken(id) {
+  const reg = getState().mcps[id];
+  return reg?.token ? decrypt(reg.token) : '';
+}
+
+/** Set (or clear, with '') a module's own bearer token. Returns the plaintext once. */
+export function setModuleToken(id, plain) {
+  const st = getState();
+  if (!st.mcps[id]) throw new Error(`Unknown MCP '${id}'`);
+  st.mcps[id].token = plain ? encrypt(plain) : '';
+  st.mcps[id].updatedAt = new Date().toISOString();
+  save();
+  mirrorConfig(id);
+  return plain;
 }
 
 /** Enable/disable a module (mirrored into its folder). */
@@ -195,6 +215,39 @@ export function buildServerFor(mod) {
     fetchJson
   });
   return server;
+}
+
+/**
+ * What can this MCP actually do? Runs the module for real over an in-memory transport and
+ * asks it, exactly as a client would — so the answer is the truth, not a guess parsed from
+ * the source. This is how you inspect a module a friend handed you before trusting it.
+ */
+export async function describeModule(id) {
+  const mod = getModuleById(id);
+  if (!mod) throw new Error(`Unknown MCP '${id}'`);
+  if (mod.error) throw new Error(`Module failed to load: ${mod.error}`);
+
+  const server = buildServerFor(mod);
+  const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: 'mcp-station-introspect', version: cfg.version }, { capabilities: {} });
+  try {
+    await Promise.all([server.connect(serverSide), client.connect(clientSide)]);
+    const caps = client.getServerCapabilities() || {};
+    const [tools, prompts] = await Promise.all([
+      caps.tools ? client.listTools().then((r) => r.tools) : [],
+      caps.prompts ? client.listPrompts().then((r) => r.prompts) : []
+    ]);
+    return {
+      name: mod.manifest.name,
+      version: mod.manifest.version,
+      instructions: client.getInstructions() || '',
+      tools,
+      prompts
+    };
+  } finally {
+    await client.close().catch(() => {});
+    await server.close().catch(() => {});
+  }
 }
 
 export async function handleMcpRequest(req, res) {

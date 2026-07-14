@@ -157,6 +157,21 @@ pre.logbox {
 }
 
 /* ── Toasts ── */
+/* capabilities view */
+.tool { border: 1px solid var(--border); border-radius: 10px; margin-bottom: 6px; background: var(--panel-2); }
+.tool[hidden] { display: none; }
+.tool summary { cursor: pointer; padding: 9px 12px; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+.tool summary::marker { color: var(--muted); }
+.tool .tool-body { padding: 0 12px 12px; font-size: 12.5px; }
+.tool .tool-body p { margin: 0 0 10px; color: var(--muted); line-height: 1.5; white-space: pre-wrap; }
+table.args { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.args td { padding: 4px 8px 4px 0; vertical-align: top; border-top: 1px solid var(--border); }
+table.args td:first-child { white-space: nowrap; color: var(--accent-2); }
+.req { color: #ff9ea3; margin-left: 2px; }
+.tag { font-size: 10.5px; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); margin-left: 4px; }
+.tag.ok { color: #7ee787; border-color: #2ea04326; }
+.tag.danger { color: #ff9ea3; border-color: #5c2b30; }
+
 .toasts { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 100; display: flex; flex-direction: column; gap: 8px; align-items: center; }
 .toast {
   background: var(--panel); border: 1px solid var(--border-2); border-radius: 10px;
