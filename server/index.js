@@ -52,6 +52,27 @@ app.get('/healthz', (req, res) => {
   res.json({ ok: true, version: cfg.version, modules: mods.filter((m) => !m.error).length, oauth: oauth.oauthEnabled() });
 });
 
+/* ── CORS, for the machine-facing surfaces only ──────────────────────────
+ * claude.ai's client fetches discovery metadata, registers and exchanges tokens from the
+ * browser, so these endpoints must answer cross-origin — the MCP SDK's own auth router wraps
+ * exactly these handlers in cors(). Without it the browser blocks the call and the connector
+ * dies with a generic "Authorization failed".
+ * NEVER apply this to /api: the admin API is cookie-authenticated and its CSRF defence
+ * depends on being same-origin. Bearer-authenticated endpoints carry no ambient credentials,
+ * so `Allow-Origin: *` is safe there (and Allow-Credentials is deliberately never set).
+ */
+function machineCors(req, res, next) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers',
+    req.headers['access-control-request-headers'] || 'Authorization, Content-Type, mcp-protocol-version, mcp-session-id, last-event-id');
+  res.setHeader('Access-Control-Expose-Headers', 'WWW-Authenticate, mcp-protocol-version, mcp-session-id');
+  res.setHeader('Access-Control-Max-Age', '86400');
+  if (req.method === 'OPTIONS') return res.sendStatus(204); // preflight carries no auth header
+  next();
+}
+app.use(['/.well-known', '/register', '/token', '/revoke'], machineCors);
+
 /* ── OAuth 2.1 ───────────────────────────────────────────────────────── */
 app.get('/.well-known/oauth-authorization-server', oauth.asMetadata);
 app.get('/.well-known/oauth-authorization-server/:slug', oauth.asMetadata);
@@ -333,7 +354,8 @@ app.use(express.static(path.join(ROOT, 'public'), {
 /* ── Hosted MCP endpoints (must stay last) ───────────────────────────── */
 app.all('/:slug', (req, res, next) => {
   if (!host.getModuleBySlug(req.params.slug)) return next();
-  oauth.requireBearer(req, res, () => host.handleMcpRequest(req, res));
+  // CORS first: a preflight carries no Authorization header, so it must not hit the bearer gate.
+  machineCors(req, res, () => oauth.requireBearer(req, res, () => host.handleMcpRequest(req, res)));
 });
 
 app.use((req, res) => res.status(404).json({ error: `Nothing here. Hosted MCPs: ${[...host.getModules().keys()].map((s) => '/' + s).join(', ') || '(none)'}` }));

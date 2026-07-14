@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.3.3 — 2026-07-14
+
+**The real cause of claude.ai's "Authorization failed".**
+
+- **No CORS headers on the OAuth/MCP surfaces.** claude.ai's client does discovery, dynamic registration and the token exchange from the browser; with no `Access-Control-Allow-Origin` the browser blocked every one of them and the connector died with a generic authorization error. The MCP SDK's own `mcpAuthRouter` wraps its metadata/register/token/revoke handlers in `cors()` — this hand-rolled OAuth server never did. (This is why the SiYuan Companion, which uses the SDK router, connects fine.)
+- Discovery, `/register`, `/token`, `/revoke` and the hosted MCP endpoints now answer cross-origin, OPTIONS preflights return 204 **before** the bearer gate (a preflight carries no `Authorization` header), and `WWW-Authenticate` is exposed so the browser can read where to authenticate.
+- `/api` is deliberately left same-origin-only — it is cookie-authenticated and its CSRF defence depends on that. Verified by test.
+
 ## v1.3.2 — 2026-07-14
 
 **Fixes claude.ai connectors failing with "auth failed".**
