@@ -14,7 +14,7 @@
 import { cfg } from './env.js';
 import { getState, save } from './state.js';
 import { randomToken, sha256b64url, timingEqual } from './crypto.js';
-import { verifyPassword, readSession, checkRate, noteFail } from './auth.js';
+import { verifyPassword, checkRate, noteFail } from './auth.js';
 import { getModules, getModuleBySlug, getModuleToken } from './mcpHost.js';
 import { log } from './log.js';
 
@@ -129,32 +129,32 @@ export function handleAuthorize(req, res) {
   if (!oauthEnabled()) return res.status(404).send('OAuth is disabled — set PUBLIC_URL on the server.');
   const q = req.query;
   const v = validateAuthParams(q);
-  if (v.error) return res.status(400).send(approvalPage({ error: v.error, q, hasSession: false, invalid: true }));
-  const hasSession = Boolean(readSession(req));
-  res.send(approvalPage({ q, client: v.client, hasSession }));
+  if (v.error) return res.status(400).send(approvalPage({ error: v.error, q, invalid: true }));
+  res.send(approvalPage({ q, client: v.client }));
 }
 
 export function handleApprove(req, res) {
   if (!oauthEnabled()) return res.status(404).send('OAuth is disabled.');
   const q = req.body || {};
   const v = validateAuthParams(q);
-  if (v.error) return res.status(400).send(approvalPage({ error: v.error, q, hasSession: false, invalid: true }));
+  if (v.error) return res.status(400).send(approvalPage({ error: v.error, q, invalid: true }));
 
   if (q.deny === '1') {
+    log('oauth', `Authorization DENIED for client ${q.client_id}`);
     const u = new URL(q.redirect_uri);
     u.searchParams.set('error', 'access_denied');
     if (q.state) u.searchParams.set('state', q.state);
     return res.redirect(302, u.toString());
   }
 
-  const hasSession = Boolean(readSession(req));
-  if (!hasSession) {
-    const ip = req.ip || 'unknown';
-    if (!checkRate(ip)) return res.status(429).send(approvalPage({ error: 'Too many attempts — wait a minute and try again.', q, client: v.client, hasSession: false }));
-    if (!verifyPassword(q.password)) {
-      noteFail(ip);
-      return res.status(401).send(approvalPage({ error: 'Wrong password.', q, client: v.client, hasSession: false }));
-    }
+  // Always re-confirm the password here, even with an admin session: this popup hands an
+  // internet-exposed client 30 days of access to live data. An open admin tab is not consent.
+  const ip = req.ip || 'unknown';
+  if (!checkRate(ip)) return res.status(429).send(approvalPage({ error: 'Too many attempts — wait a minute and try again.', q, client: v.client }));
+  if (!verifyPassword(q.password)) {
+    noteFail(ip);
+    log('oauth', `Authorization refused for client ${q.client_id}: ${q.password ? 'wrong password' : 'no password given'}`);
+    return res.status(401).send(approvalPage({ error: q.password ? 'Wrong password.' : 'Enter your station password to approve.', q, client: v.client }));
   }
 
   const st = getState();
@@ -319,7 +319,7 @@ function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-function approvalPage({ q = {}, client = null, error = '', hasSession = false, invalid = false }) {
+function approvalPage({ q = {}, client = null, error = '', invalid = false }) {
   const hidden = ['client_id', 'redirect_uri', 'response_type', 'code_challenge', 'code_challenge_method', 'state', 'scope', 'resource']
     .map((k) => `<input type="hidden" name="${k}" value="${esc(q[k] || '')}">`)
     .join('');
@@ -349,7 +349,7 @@ function approvalPage({ q = {}, client = null, error = '', hasSession = false, i
   label{display:block;font-size:12px;color:#8b98a9;margin-bottom:6px}
   input[type=password],select{width:100%;box-sizing:border-box;background:#0b1420;border:1px solid #2a3846;border-radius:8px;color:#e6edf3;padding:10px 12px;font-size:14px;margin-bottom:16px}
   .err{background:#2a1215;border:1px solid #5c2b30;color:#ff9ea3;border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:16px}
-  .row{display:flex;gap:10px}
+  .row{display:flex;flex-direction:row-reverse;gap:10px}
   button{flex:1;border:0;border-radius:8px;padding:11px 0;font-size:14px;font-weight:600;cursor:pointer}
   .ok{background:#1f6feb;color:#fff}.no{background:#1c2733;color:#8b98a9}
   .logo{display:flex;align-items:center;gap:8px;margin-bottom:18px;font-weight:700}.logo span{color:#1f6feb}
@@ -362,10 +362,13 @@ function approvalPage({ q = {}, client = null, error = '', hasSession = false, i
   ${error ? `<div class="err">${esc(error)}</div>` : ''}
   ${invalid ? '' : `<form method="POST" action="/oauth/approve">${hidden}
     ${grant}
-    ${hasSession ? '' : `<label for="pw">Station password</label><input id="pw" type="password" name="password" autofocus autocomplete="current-password">`}
+    <label for="pw">Station password</label>
+    <input id="pw" type="password" name="password" autofocus autocomplete="current-password">
     <div class="row">
-      <button class="no" name="deny" value="1">Deny</button>
+      <!-- Approve is FIRST in the DOM so it is the form's default submit button; pressing Enter
+           must never deny. row-reverse puts Deny back on the left visually. -->
       <button class="ok" type="submit">Approve</button>
+      <button class="no" type="submit" name="deny" value="1" formnovalidate>Deny</button>
     </div>
   </form>`}
 </div></body></html>`;

@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.3.2 — 2026-07-14
+
+**Fixes claude.ai connectors failing with "auth failed".**
+
+- The approval form's **Deny button was first in the DOM, making it the default submit** — so any implicit submission (Enter key, or the popup's default action) sent `deny=1` and redirected back to the client with `error=access_denied`. Approve is now the default; Deny stays on the left visually (`row-reverse`).
+- **The approval page always asks for the station password now.** It used to skip the field when you happened to have an admin session cookie in the same browser — so the popup showed no password box at all, which is both confusing and wrong: an open admin tab is not consent to give an internet-exposed client 30 days of access to live data.
+- Approvals, denials and refusals are logged (`Authorization approved/DENIED/refused for client …`), so the Logs panel tells you what actually happened.
+
 ## v1.3.1 — 2026-07-14
 
 - Per-MCP chat sits **beside** the code, not under it — the code drawer widens to 60% of the viewport when ✦ Chat is open and collapses back when it is closed (below 900px wide it stacks, where there is no room for two columns).
