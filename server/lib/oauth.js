@@ -99,23 +99,27 @@ export function handleRegister(req, res) {
   }
   const st = getState();
   const client_id = randomToken(16);
-  st.oauth.clients[client_id] = {
+  // Echo the client's registered metadata back, as RFC 7591 §3.2.1 requires and as the MCP SDK's
+  // own DCR handler does. Returning a lossy subset (dropping `scope`, omitting client_id_issued_at)
+  // leaves the client with a different view of the registration than the server has.
+  const client = {
     client_id,
+    client_id_issued_at: Math.floor(Date.now() / 1000),
     client_name: String(b.client_name || 'MCP client').slice(0, 120),
     redirect_uris: redirectUris.slice(0, 10),
-    token_endpoint_auth_method: 'none',
-    createdAt: Date.now()
+    grant_types: Array.isArray(b.grant_types) ? b.grant_types : ['authorization_code', 'refresh_token'],
+    response_types: Array.isArray(b.response_types) ? b.response_types : ['code'],
+    token_endpoint_auth_method: b.token_endpoint_auth_method === 'client_secret_post' ? 'client_secret_post' : 'none',
+    ...(typeof b.scope === 'string' ? { scope: b.scope } : {}),
+    ...(typeof b.client_uri === 'string' ? { client_uri: b.client_uri } : {}),
+    ...(typeof b.logo_uri === 'string' ? { logo_uri: b.logo_uri } : {}),
+    ...(typeof b.software_id === 'string' ? { software_id: b.software_id } : {}),
+    ...(typeof b.software_version === 'string' ? { software_version: b.software_version } : {})
   };
+  st.oauth.clients[client_id] = { ...client, createdAt: Date.now() };
   save();
-  log('oauth', `Registered client '${st.oauth.clients[client_id].client_name}' (${client_id})`);
-  res.status(201).json({
-    client_id,
-    client_name: st.oauth.clients[client_id].client_name,
-    redirect_uris: st.oauth.clients[client_id].redirect_uris,
-    token_endpoint_auth_method: 'none',
-    grant_types: ['authorization_code', 'refresh_token'],
-    response_types: ['code']
-  });
+  log('oauth', `DCR: registered '${client.client_name}' (${client_id}) scope='${b.scope || '-'}' redirect=${redirectUris[0]}`);
+  res.status(201).json(client);
 }
 
 /* ── Authorization endpoint ──────────────────────────────────────────── */
@@ -154,6 +158,7 @@ function redirectError(res, q, error, description) {
 export function handleAuthorize(req, res) {
   if (!oauthEnabled()) return res.status(404).send('OAuth is disabled — set PUBLIC_URL on the server.');
   const q = req.query;
+  log('oauth', `/authorize client=${q.client_id || '-'} resource='${q.resource || '-'}' scope='${q.scope || '-'}' pkce=${q.code_challenge_method || (q.code_challenge ? 'S256?' : 'NONE')}`);
   const v = validateAuthParams(q);
   if (v.fatal) return res.status(400).send(approvalPage({ error: v.fatal, q, invalid: true }));
   if (v.error) return redirectError(res, q, v.error, v.description);
@@ -213,6 +218,9 @@ export function handleApprove(req, res) {
 export function handleToken(req, res) {
   const b = req.body || {};
   const st = getState();
+  // Every real failure so far has been invisible: the client reports "authorization failed" and the
+  // station said nothing. Log what actually arrived, so the Logs panel names the broken step.
+  log('oauth', `/token grant=${b.grant_type || '-'} client=${b.client_id || '-'} redirect_uri=${b.redirect_uri ? 'sent' : 'omitted'} verifier=${b.code_verifier ? 'sent' : 'MISSING'}`);
 
   if (b.grant_type === 'authorization_code') {
     const rec = st.oauth.codes[b.code];
@@ -253,6 +261,7 @@ function issueTokens(res, st, { clientId, scope, resource = '', slug = '' }) {
   st.oauth.tokens[access] = { clientId, scope, resource, slug, createdAt: now, expiresAt: now + ACCESS_TTL };
   st.oauth.refresh[refresh] = { clientId, scope, resource, slug, createdAt: now, expiresAt: now + REFRESH_TTL };
   save();
+  log('oauth', `/token ISSUED for client ${clientId} → ${slug ? `/${slug}` : 'ALL MCPs'} (scope '${scope}')`);
   res.json({
     access_token: access,
     token_type: 'Bearer',
@@ -263,6 +272,7 @@ function issueTokens(res, st, { clientId, scope, resource = '', slug = '' }) {
 }
 
 function tokenError(res, error, description) {
+  log('oauth', `/token REJECTED: ${error} — ${description}`);
   res.status(400).json({ error, error_description: description });
 }
 
@@ -316,7 +326,14 @@ export function requireBearer(req, res, next) {
     }
   }
 
-  res.setHeader('WWW-Authenticate', `Bearer resource_metadata="${baseUrl(req)}/.well-known/oauth-protected-resource/${slug}"`);
+  // Same shape the MCP SDK's bearer middleware sends (error + description + resource_metadata) —
+  // some clients parse the error code, not just the metadata URL.
+  const why = token ? 'invalid_token' : 'Missing Authorization header';
+  res.setHeader(
+    'WWW-Authenticate',
+    `Bearer error="invalid_token", error_description="${why}", resource_metadata="${baseUrl(req)}/.well-known/oauth-protected-resource/${slug}"`
+  );
+  log('oauth', `401 at /${slug}: ${token ? 'bearer token not recognised' : 'no Authorization header'}`);
   res.status(401).json({ jsonrpc: '2.0', error: { code: -32001, message: 'Unauthorized: bearer token required' }, id: null });
 }
 
