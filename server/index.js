@@ -359,6 +359,7 @@ async function main() {
   if (!cfg.appPassword) log('boot', '⚠ APP_PASSWORD is not set — the admin UI and OAuth approvals are locked out until you set it.');
   if (!cfg.publicUrl) log('boot', '⚠ PUBLIC_URL is not set — OAuth is off; claude.ai connectors will not work (MCP_TOKEN bearer still does).');
   if (cfg.mcpToken) log('boot', 'Static MCP_TOKEN bearer is enabled.');
+  verifyPublicUrl();
 
   setInterval(gc, 10 * 60_000).unref();
   process.on('SIGTERM', () => { persist(); process.exit(0); });
@@ -367,6 +368,36 @@ async function main() {
   app.listen(cfg.port, () => {
     log('boot', `MCP Station v${cfg.version} on :${cfg.port} — UI at / · MCPs at /<slug> · OAuth ${oauth.oauthEnabled() ? 'ON' : 'off'}`);
   });
+}
+
+/* PUBLIC_URL self-check — catches the #1 silent connector failure: PUBLIC_URL pointing at a host
+ * that isn't actually this station (an auth wall like Cloudflare Access, the wrong subdomain, or a
+ * proxy misroute). PUBLIC_URL is the OAuth issuer and the base of every URL claude.ai is told to
+ * call, so if it doesn't land back here, discovery/token silently fail and claude.ai reports a
+ * generic "authorization failed". We fetch our own advertised /healthz and say plainly whether it
+ * reaches us. Never fatal — split-horizon DNS can legitimately block the loopback, so a connection
+ * error is only a soft note, but a redirect is the smoking gun and gets flagged loudly. */
+async function verifyPublicUrl() {
+  if (!cfg.publicUrl) return;
+  const target = `${cfg.publicUrl}/healthz`;
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 6000);
+  try {
+    const r = await fetch(target, { redirect: 'manual', signal: ctrl.signal });
+    if (r.status >= 300 && r.status < 400) {
+      const loc = r.headers.get('location') || '';
+      let host = loc; try { host = new URL(loc).host; } catch { /* keep raw */ }
+      return log('boot', `⚠ PUBLIC_URL (${cfg.publicUrl}) REDIRECTS to ${host || loc} — claude.ai cannot reach the station through it. An auth wall (e.g. Cloudflare Access) or the wrong host fails every connector. Point PUBLIC_URL at the host that serves the station directly.`);
+    }
+    if (!r.ok) return log('boot', `⚠ PUBLIC_URL self-check: ${target} → HTTP ${r.status} (not 200). claude.ai's discovery will fail here — check the host/proxy.`);
+    const j = await r.json().catch(() => null);
+    if (j && j.ok) return log('boot', `✅ PUBLIC_URL verified — ${cfg.publicUrl} reaches this station (v${j.version}).`);
+    log('boot', `⚠ PUBLIC_URL (${cfg.publicUrl}) answered 200 but not with this station's /healthz — it may point at a different service.`);
+  } catch (e) {
+    log('boot', `Note: couldn't self-verify PUBLIC_URL from inside the container (${e.name === 'AbortError' ? 'timeout' : e.message}). Often just split-horizon DNS — verify externally: curl ${target}`);
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 main().catch((e) => {

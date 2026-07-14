@@ -9,7 +9,7 @@ services:
     environment:
       # ── required ──
       APP_PASSWORD: change-me                # admin UI + OAuth approval
-      PUBLIC_URL: https://dbzocchi.app       # enables OAuth for claude.ai
+      PUBLIC_URL: https://mcp.dbzocchi.app   # OAuth issuer — MUST serve the station directly (no auth wall / redirect)
       # ── recommended ──
       SESSION_SECRET: ""                     # long random string (sessions + secret encryption survive rebuilds)
       MCP_TOKEN: ""                          # static bearer for Claude Code CLI / scripts
