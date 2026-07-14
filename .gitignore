@@ -6,3 +6,4 @@ volumes/
 .DS_Store
 npm-debug.log*
 mcps/*/.chat.json
+mcps/*/.config.json

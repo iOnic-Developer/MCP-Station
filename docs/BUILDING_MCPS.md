@@ -4,15 +4,30 @@
 
 ## The shape of a module
 
-One folder in `mcps/`, two required files:
+One folder in `mcps/`, two required files and two optional ones:
 
 ```
 mcps/weather/
-  manifest.json    identity + declared settings (drives the UI form)
-  index.js         the tools (ESM)
+  manifest.json    identity + declared settings (drives the UI form)   REQUIRED
+  index.js         the tools (ESM)                                     REQUIRED
+  instructions.md  house style handed to every client at initialize()  optional
+  .config.json     enabled flag + encrypted settings — WRITTEN BY THE STATION, don't hand-edit
 ```
 
 Folder name = manifest `id`. The endpoint is `PUBLIC_URL/<slug>`.
+
+**Modules are self-contained.** The station mirrors each module's config into `.config.json` inside its own
+folder, so you can delete the folder and put it back — by hand, or via the UI's Delete then restoring from
+`data/trash/` — and the station re-adopts it with its settings intact. Secrets in that file are encrypted with
+the *station's* key: carry the folder to a **different** station and it loads fine, but the secrets won't
+decrypt and the module lands as NEEDS SETTINGS. That's deliberate — an encrypted secret is not portable.
+
+## instructions.md (optional, powerful)
+
+Anything in `instructions.md` is passed to the MCP client as the server's `instructions` at `initialize` —
+the client injects it into the model's context **automatically, on every surface** (claude.ai web + phone,
+Claude Desktop, Claude Code), without anyone restating it. It is the right place for house style, conventions
+and hard rules about how your data should be written. See `mcps/siyuan/instructions.md` for a full example.
 
 ## manifest.json
 
@@ -77,6 +92,28 @@ export async function test(settings, { fetchJson }) {
   return { ok: true, message: 'API reachable' };
 }
 ```
+
+## Prompts (optional)
+
+`server` is an SDK `McpServer`, so you can register prompts as well as tools. Clients surface them as
+slash-commands / menu items — a reusable workflow the user triggers explicitly:
+
+```js
+server.registerPrompt(
+  'audit-siyuan',
+  {
+    title: 'Audit SiYuan',
+    description: 'Read-only health check → prioritised fix list. Changes nothing.',
+    argsSchema: { section: z.string().optional().describe('Optional area hint') }  // plain zod fields, same as inputSchema
+  },
+  ({ section }) => ({
+    messages: [{ role: 'user', content: { type: 'text', text: `Audit the ${section || 'whole'} knowledge base. READ ONLY.` } }]
+  })
+);
+```
+
+`instructions.md` is the *guaranteed* channel (every client gets it, always); prompts are the *explicit trigger*
+for the same behaviour, in clients that expose them. Use both.
 
 ### What you're given
 

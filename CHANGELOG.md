@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.2.0 — 2026-07-14
+
+- **SiYuan module** (`mcps/siyuan/`, 📓 `/siyuan`) — the SiYuan Companion's 19 kernel tools + 2 prompts, ported to the module contract. Its own OAuth/transport layer is gone: the station already is that. Settings: `siyuan_url` + `siyuan_token`. Keeps the browser User-Agent (Cloudflare 1010) and both retry ladders; `replace_doc` still preserves the doc id.
+- **Module `instructions.md`** — an optional file per module, handed to every client as the MCP `instructions` at `initialize()`. House style now applies on claude.ai web, phone, Desktop and Code automatically, without being restated. (`buildServerFor` previously passed no options, so modules could not set it at all.)
+- **Modules are self-contained** — config is mirrored to `mcps/<id>/.config.json` (encrypted secrets, hidden from the file tabs). Delete a module folder and put it back — by hand, or UI-delete then restore from `data/trash/` — and the station adopts it and carries on. Previously the UI delete purged the settings for good.
+- Prompts (`server.registerPrompt`) documented in the module contract — they already worked, nobody knew
+- `scripts/smoke-selfcontained.sh` — 10 checks covering the delete/restore drill and encryption-at-rest of the mirror
+
 ## v1.1.0 — 2026-07-14
 
 - **Per-MCP chat in the code drawer** — ✦ Chat button next to each module's files. The assistant sees *that module's* source (manifest.json + index.js, inlined into its system prompt) and answers with complete files; **⤵ Insert** drops a returned code block straight into the open editor tab.

@@ -142,11 +142,7 @@ api.patch('/mcps/:id', (req, res) => {
     const st = getState();
     const id = req.params.id;
     if (!st.mcps[id]) return res.status(404).json({ error: `Unknown MCP '${id}'` });
-    if (typeof req.body?.enabled === 'boolean') {
-      st.mcps[id].enabled = req.body.enabled;
-      st.mcps[id].updatedAt = new Date().toISOString();
-      save();
-    }
+    if (typeof req.body?.enabled === 'boolean') host.setEnabled(id, req.body.enabled);
     if (req.body?.settings && typeof req.body.settings === 'object') {
       host.saveSettings(id, req.body.settings);
     }

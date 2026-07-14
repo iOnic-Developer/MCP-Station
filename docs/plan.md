@@ -1,6 +1,10 @@
 # Plan — adapt the SiYuan Companion MCP into MCP Station
 
-**Status:** draft, nothing implemented. Written 2026-07-14 against station v1.1.0.
+**Status (2026-07-14, v1.2.0):** Phases 1, 2, 4 and 5 are **done and tested** — the module is live at `/siyuan`
+with 19 tools, 2 prompts and its house style, and modules are now self-contained (`scripts/smoke-selfcontained.sh`,
+10/10). **Phase 3 (per-MCP auth scoping) is NOT started** — it is optional, riskier, and nothing in the port needs it.
+Source tallies at 19 tools (the `tools.mjs` header comment saying "15" is stale).
+Written 2026-07-14 against station v1.1.0.
 **Goal:** SiYuan Companion's 19 tools, 2 prompts and house-style `instructions` run as a *station module*, fully configurable in the admin UI, and **self-contained**: delete `mcps/siyuan/`, put the folder back, and the station picks it up with its config intact and carries on.
 
 ---

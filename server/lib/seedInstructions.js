@@ -66,6 +66,13 @@ export async function test(settings, { fetchJson }) {
 }
 \`\`\`
 
+## Optional files in a module folder
+- **\`instructions.md\`** — passed to every MCP client as the server's \`instructions\` at initialize(). The client injects it into the model's context automatically, on every surface, without anyone restating it. The right home for house style / conventions / hard rules (see \`mcps/siyuan/instructions.md\`).
+- **\`.config.json\`** — written by the station (enabled flag + encrypted settings) so a module folder carries its own config: delete the folder, put it back, and the station re-adopts it. Never hand-edit it, never put it in an answer.
+
+## Prompts (optional)
+\`server\` is an SDK \`McpServer\`, so \`server.registerPrompt(name, { title, description, argsSchema }, cb)\` works too — \`argsSchema\` is a plain object of zod fields, same rule as \`inputSchema\`. The callback returns \`{ messages: [{ role: 'user', content: { type: 'text', text } }] }\`. Clients show prompts as slash-commands. \`instructions.md\` is the guaranteed channel; prompts are the explicit trigger.
+
 ## House rules for tools (follow these every time)
 1. **Names**: \`service_action\` snake_case (\`telegram_send_message\`, not \`send\`). Action-oriented, unambiguous.
 2. **Descriptions**: state what it does, args with types/defaults, what it returns, when NOT to use it, and example error strings. The description is the tool's UI for the model — invest in it.

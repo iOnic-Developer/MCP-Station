@@ -1,0 +1,24 @@
+{
+  "id": "siyuan",
+  "slug": "siyuan",
+  "name": "SiYuan",
+  "description": "SiYuan knowledge base — 19 tools to read, search, create, edit, move and audit docs in your live kernel. Ships the KB house style as MCP instructions.",
+  "icon": "📓",
+  "version": "2.4.0",
+  "settings": [
+    {
+      "key": "siyuan_url",
+      "label": "SiYuan URL",
+      "type": "text",
+      "required": true,
+      "help": "Base URL of your SiYuan kernel, e.g. https://siyuan.example.com — no trailing slash."
+    },
+    {
+      "key": "siyuan_token",
+      "label": "SiYuan API token",
+      "type": "secret",
+      "required": true,
+      "help": "SiYuan → Settings → About → API token. Sent as 'Authorization: Token …'."
+    }
+  ]
+}

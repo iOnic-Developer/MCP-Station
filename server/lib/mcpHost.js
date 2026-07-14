@@ -42,7 +42,57 @@ export const ManifestSchema = z.object({
   })).default([])
 });
 
-let modules = new Map(); // slug -> { id, dir, manifest, register, test, error }
+let modules = new Map(); // slug -> { id, dir, manifest, register, test, instructions, error }
+
+/* ── Self-contained module config ─────────────────────────────────────────
+ * The registry (station.json) stays the source of truth, but every write is
+ * mirrored to mcps/<id>/.config.json so a module folder carries its own config:
+ * delete the folder, put it back, and the station adopts it and carries on.
+ * Dot-prefixed, so the file walker never shows it as an editable tab.
+ * Secrets stay encrypted with the station key — a folder moved to a DIFFERENT
+ * station loads fine but its secrets won't decrypt, so it lands as NEEDS SETTINGS.
+ */
+const CONFIG_FILE = '.config.json';
+
+export function mirrorConfig(id) {
+  const mod = getModuleById(id);
+  const reg = getState().mcps[id];
+  if (!mod || !reg) return;
+  try {
+    fs.writeFileSync(
+      path.join(mod.dir, CONFIG_FILE),
+      JSON.stringify({ id, enabled: reg.enabled, settings: reg.settings || {}, updatedAt: reg.updatedAt }, null, 2)
+    );
+  } catch (e) {
+    log('mcp', `Could not mirror config for '${id}': ${e.message}`);
+  }
+}
+
+function adoptConfig(dir, id, hasError) {
+  try {
+    const c = JSON.parse(fs.readFileSync(path.join(dir, CONFIG_FILE), 'utf8'));
+    log('mcp', `Adopted config for '${id}' from its module folder`);
+    return {
+      id,
+      enabled: hasError ? false : c.enabled !== false,
+      settings: c.settings && typeof c.settings === 'object' ? c.settings : {},
+      createdAt: new Date().toISOString(),
+      adoptedAt: new Date().toISOString()
+    };
+  } catch {
+    return null; // no file, or unreadable — fall back to a fresh entry
+  }
+}
+
+/** Enable/disable a module (mirrored into its folder). */
+export function setEnabled(id, enabled) {
+  const st = getState();
+  if (!st.mcps[id]) throw new Error(`Unknown MCP '${id}'`);
+  st.mcps[id].enabled = Boolean(enabled);
+  st.mcps[id].updatedAt = new Date().toISOString();
+  save();
+  mirrorConfig(id);
+}
 
 /** Scan MCPS_DIR and (re)load every module. Cache-busted dynamic imports = hot reload. */
 export async function loadModules() {
@@ -67,15 +117,21 @@ export async function loadModules() {
       }
       entry.register = mod.register;
       entry.test = typeof mod.test === 'function' ? mod.test : null;
+      // Optional house style handed to every client at initialize() (MCP `instructions`).
+      try { entry.instructions = fs.readFileSync(path.join(dir, 'instructions.md'), 'utf8').slice(0, 100_000); }
+      catch { entry.instructions = ''; }
     } catch (e) {
       entry.error = e.message;
       log('mcp', `Module '${d.name}' failed to load: ${e.message}`);
     }
     next.set(entry.manifest?.slug || d.name, entry);
 
-    // Ensure a registry entry exists (holds enabled flag + encrypted settings).
+    // Ensure a registry entry exists (enabled flag + encrypted settings). A folder that
+    // carries a .config.json but has no registry entry — restored from trash, copied in,
+    // or re-added after a manual delete — adopts its own config instead of starting blank.
     if (!st.mcps[entry.id]) {
-      st.mcps[entry.id] = { id: entry.id, enabled: !entry.error, settings: {}, createdAt: new Date().toISOString() };
+      st.mcps[entry.id] = adoptConfig(dir, entry.id, Boolean(entry.error))
+        || { id: entry.id, enabled: !entry.error, settings: {}, createdAt: new Date().toISOString() };
       save();
     }
   }
@@ -122,11 +178,15 @@ export function saveSettings(id, values) {
   }
   st.mcps[id].updatedAt = new Date().toISOString();
   save();
+  mirrorConfig(id);
 }
 
 /* ── Request handling: fresh server per request (stateless) ──────────── */
 export function buildServerFor(mod) {
-  const server = new McpServer({ name: `${mod.id}-mcp-server`, version: mod.manifest.version });
+  const server = new McpServer(
+    { name: `${mod.id}-mcp-server`, version: mod.manifest.version },
+    mod.instructions ? { instructions: mod.instructions } : undefined
+  );
   mod.register({
     server,
     z,

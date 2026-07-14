@@ -1,6 +1,6 @@
 {
   "name": "mcp-station",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Self-hosted hub that serves, configures and builds MCP servers — each hosted at its own path, with OAuth 2.1 for claude.ai, a built-in Claude assistant, and import/export/backup.",
   "type": "module",
   "main": "server/index.js",
