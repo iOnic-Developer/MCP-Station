@@ -19,7 +19,10 @@ import { getModules, getModuleBySlug, getModuleToken } from './mcpHost.js';
 import { log } from './log.js';
 
 const CODE_TTL = 10 * 60_000;
-const ACCESS_TTL = 30 * 24 * 3600_000;   // 30 days
+// Access token is SHORT-LIVED (1h) to match the MCP SDK exactly — claude.ai's connector rejects
+// implausibly long-lived access tokens and drives its own refresh cycle. The long-lived refresh
+// token below is what keeps the connection permanent (claude.ai refreshes silently, hourly).
+const ACCESS_TTL = 60 * 60_000;          // 1 hour (was 30 days — claude.ai refused it)
 const REFRESH_TTL = 180 * 24 * 3600_000; // 180 days
 
 export function baseUrl(req) {

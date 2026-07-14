@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.4.7 — 2026-07-15
+
+**Access-token lifetime cut from 30 days to 1 hour — the last thing claude.ai rejected.**
+
+- After matching the SDK's `Cache-Control: no-store` and `token_type` (v1.4.6), the token response
+  was byte-identical to the working SiYuan Companion **except** `expires_in`: this station issued
+  30-day access tokens, the SDK issues 1-hour ones. claude.ai's connector manages its own refresh
+  cycle and refuses an implausibly long-lived access token — it accepted the token and still made
+  zero authenticated calls. `ACCESS_TTL` is now 1 hour; the 180-day refresh token (rotated on use)
+  keeps the connection permanent, exactly as the SDK does it. curl never cared about `expires_in`,
+  so the diagnostic passed throughout.
+
 ## v1.4.6 — 2026-07-15
 
 **The actual reason claude.ai connectors failed after approval — a missing response header.**
