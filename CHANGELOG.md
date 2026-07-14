@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.4.6 — 2026-07-15
+
+**The actual reason claude.ai connectors failed after approval — a missing response header.**
+
+- **`/token` now sends `Cache-Control: no-store`** (OAuth 2.0 §5.1, which makes it a MUST). The
+  hand-rolled token endpoint issued a perfectly valid token but omitted this header. claude.ai's
+  client enforces it: it accepted the token, refused to cache/use it, and **never made a single
+  authenticated call** — the station logs show the token ISSUED and then zero `auth=bearer` requests
+  from claude.ai. The flow got all the way through the password page and token exchange, then died
+  silently, surfacing as claude.ai's generic "authorization failed". `scripts/diagnose-connector.sh`
+  passed throughout because curl ignores `Cache-Control` — which is exactly why this hid for so long.
+  The MCP SDK sets this header, which is why the SiYuan Companion (SDK-based) always worked.
+- `token_type` lowercased to `bearer` to mirror the working SDK response exactly.
+
+Also corrected the repo's `PUBLIC_URL` (was the Cloudflare-Access-walled apex; now `mcp.dbzocchi.app`)
+and added a boot-time self-check that warns if `PUBLIC_URL` doesn't reach the station.
+
 ## v1.4.0 — 2026-07-14
 
 **Deep sweep of the auth flows, plus the conformance suite that should have existed from the start.**

@@ -262,12 +262,18 @@ function issueTokens(res, st, { clientId, scope, resource = '', slug = '' }) {
   st.oauth.refresh[refresh] = { clientId, scope, resource, slug, createdAt: now, expiresAt: now + REFRESH_TTL };
   save();
   log('oauth', `/token ISSUED for client ${clientId} → ${slug ? `/${slug}` : 'ALL MCPs'} (scope '${scope}')`);
+  // OAuth 2.0 §5.1 REQUIRES Cache-Control: no-store on token responses. The MCP SDK sets it;
+  // this hand-rolled endpoint didn't, and claude.ai's client enforces it — so it accepted a valid
+  // token, refused to use it, and never made an authenticated call (issued but zero bearer calls in
+  // the logs). curl ignores the header, which is why diagnose-connector.sh passed and hid this.
+  // token_type lowercased to 'bearer' to mirror the working SDK response byte-for-byte.
+  res.set('Cache-Control', 'no-store');
   res.json({
     access_token: access,
-    token_type: 'Bearer',
+    token_type: 'bearer',
     expires_in: Math.floor(ACCESS_TTL / 1000),
-    refresh_token: refresh,
-    scope
+    scope,
+    refresh_token: refresh
   });
 }
 

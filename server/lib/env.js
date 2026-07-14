@@ -5,7 +5,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = path.resolve(__dirname, '..', '..');
 
 export const cfg = {
-  version: '1.4.2',
+  version: '1.4.6',
   port: parseInt(process.env.PORT || '8788', 10),
   /** Public https base URL, no trailing slash. Enables OAuth when set. */
   publicUrl: (process.env.PUBLIC_URL || '').replace(/\/+$/, ''),
