@@ -111,6 +111,19 @@ AT=$(echo "$TOK" | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',(
 RT=$(echo "$TOK" | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>process.stdout.write(JSON.parse(d).refresh_token||''))")
 [ -n "$AT" ] && [ -n "$RT" ] && ok "token exchange (PKCE ok)" || bad "token exchange" "$TOK"
 
+# claude.ai omits redirect_uri on the token call (it is optional — RFC 6749 §4.1.3). Demanding it
+# rejected every real connector with invalid_grant, while curl tests that always sent it passed.
+LOC3=$(curl -s -o /dev/null -D - -X POST "$B/oauth/approve" \
+  -d "client_id=$CID" -d "redirect_uri=https://claude.ai/api/mcp/auth_callback" -d "response_type=code" \
+  -d "code_challenge=$CHAL" -d "code_challenge_method=S256" -d "state=noru" -d "scope=mcp" -d "password=test1234" \
+  | tr -d '\r' | grep -i '^location:')
+CODE3=$(echo "$LOC3" | sed 's/.*code=\([^&]*\).*/\1/')
+R=$(curl -s -X POST "$B/token" -d "grant_type=authorization_code" -d "code=$CODE3" -d "client_id=$CID" -d "code_verifier=$VER")
+has "$R" 'access_token' && ok "token exchange without redirect_uri (claude.ai's shape)" || bad "token exchange without redirect_uri" "$R"
+
+R=$(curl -s -X POST "$B/token" -d "grant_type=authorization_code" -d "code=$CODE3" -d "client_id=$CID" -d "redirect_uri=https://evil.example/cb" -d "code_verifier=$VER")
+has "$R" 'invalid_grant' && ok "token rejects a WRONG redirect_uri" || bad "token rejects wrong redirect_uri" "$R"
+
 R=$(curl -s -X POST "$B/gemini_mcp" -H 'content-type: application/json' -H "$ACC" -H "authorization: Bearer $AT" -d '{"jsonrpc":"2.0","id":4,"method":"tools/list","params":{}}')
 has "$R" 'gemini_generate_text' && ok "mcp accepts OAuth token" || bad "mcp accepts OAuth token" "$(echo "$R" | head -c 200)"
 

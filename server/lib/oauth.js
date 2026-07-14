@@ -191,7 +191,12 @@ export function handleToken(req, res) {
     if (!rec || rec.expiresAt < Date.now()) return tokenError(res, 'invalid_grant', 'Authorization code is invalid or expired.');
     delete st.oauth.codes[b.code]; // single use
     if (rec.clientId !== b.client_id) return tokenError(res, 'invalid_grant', 'client_id mismatch.');
-    if (rec.redirectUri !== b.redirect_uri) return tokenError(res, 'invalid_grant', 'redirect_uri mismatch.');
+    // redirect_uri is OPTIONAL on the token request (RFC 6749 §4.1.3 / the MCP SDK's own schema),
+    // and claude.ai omits it. Only compare it when the client actually sends one — demanding it
+    // unconditionally rejected every real connector with invalid_grant. PKCE is what binds the code.
+    if (b.redirect_uri && rec.redirectUri !== b.redirect_uri) {
+      return tokenError(res, 'invalid_grant', 'redirect_uri mismatch.');
+    }
     if (!b.code_verifier || sha256b64url(b.code_verifier) !== rec.codeChallenge) {
       return tokenError(res, 'invalid_grant', 'PKCE verification failed.');
     }

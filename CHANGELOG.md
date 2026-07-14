@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.3.4 — 2026-07-14
+
+**This is the bug that broke claude.ai connectors.**
+
+- `/token` **demanded `redirect_uri`** on the authorization_code exchange and returned `invalid_grant` without it. But `redirect_uri` is *optional* there (RFC 6749 §4.1.3, and the MCP SDK's own token schema marks it `.optional()`) — and claude.ai omits it. Every real connector was rejected at the last step, surfacing as claude.ai's generic "Authorization with the MCP server failed". It is now only compared when the client sends one; a *wrong* one is still rejected, and PKCE is what actually binds the code. The SiYuan Companion works because the SDK router it uses tolerates the omission.
+- Regression tests: token exchange **without** `redirect_uri` (claude.ai's exact shape) and with a **wrong** one. The old curl tests always sent it, which is exactly why the suite stayed green while every real client failed.
+
 ## v1.3.3 — 2026-07-14
 
 **The real cause of claude.ai's "Authorization failed".**
