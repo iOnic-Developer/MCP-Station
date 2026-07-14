@@ -16,7 +16,7 @@ export function renderList(root, ctx) {
     root.innerHTML = `<div class="card" style="text-align:center;padding:44px">
       <div style="font-size:34px">🛰️</div>
       <h3 style="margin:8px 0 4px">No MCPs yet</h3>
-      <div class="desc">Hit ➕ Add MCP to create one from the template — then ask the Claude popup to write the tools.</div>
+      <div class="desc">Hit ➕ Add MCP to create one from the template — then ask the ✦ assistant to write the tools.</div>
     </div>`;
     return;
   }

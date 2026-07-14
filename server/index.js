@@ -90,6 +90,7 @@ app.get('/api/me', (req, res) => {
     mcpTokenSet: Boolean(cfg.mcpToken),
     passwordSet: Boolean(cfg.appPassword),
     hasAnthropicKey: Boolean(assistant.getApiKey()),
+    provider: assistant.getProvider(),
     model: assistant.getModel()
   });
 });
@@ -283,7 +284,13 @@ api.post('/restore/:name', async (req, res) => {
 api.get('/logs', (req, res) => res.json({ logs: getLogs() }));
 
 /* ── Static UI ───────────────────────────────────────────────────────── */
-app.use(express.static(path.join(ROOT, 'public'), { index: 'index.html', maxAge: '1h' }));
+// no-cache = "revalidate every load" (ETags still make that a cheap 304). The SPA's assets are
+// unversioned, so any max-age served a stale app.js/app.css for that long after every redeploy.
+app.use(express.static(path.join(ROOT, 'public'), {
+  index: 'index.html',
+  etag: true,
+  setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache')
+}));
 
 /* ── Hosted MCP endpoints (must stay last) ───────────────────────────── */
 app.all('/:slug', (req, res, next) => {
