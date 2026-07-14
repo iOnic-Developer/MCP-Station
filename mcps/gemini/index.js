@@ -46,6 +46,24 @@ export function register({ server, z, getSettings, log, fetchJson }) {
     return { model: m, data };
   };
 
+  const generateImageApiCall = async ({ prompt, quality, response_format }) => {
+    const { api_key } = getSettings();
+    const body = {
+      prompt: { text: prompt },
+      generationConfig: {
+        ...(quality !== 'standard' ? { quality } : {}),
+        ...(response_format !== 'url' ? { responseFormat: response_format } : {})
+      }
+    };
+    // The image generation endpoint is different from content generation, but uses the same BASE and API key.
+    const data = await fetchJson(`${BASE}/images:generate?key=${api_key}`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+      timeoutMs: 120_000 // Image generation can take longer
+    });
+    return data;
+  };
+
   server.registerTool(
     'gemini_generate_text',
     {
@@ -195,6 +213,63 @@ Returns: vector dimensionality + the values (structured content carries the full
       }
     }
   );
+
+  server.registerTool(
+    'gemini_generate_image',
+    {
+      title: 'Generate image',
+      description: `Generate an image from a text prompt using Gemini.
+
+Args:
+  - prompt (string, required): A detailed description of the image to generate.
+  - quality ('standard' | 'hd', optional): Image quality. Default 'standard'.
+  - response_format ('url' | 'b64_json', optional): Format for the generated image. Default 'url'.
+    URLs are temporary and expire. Base64 data can be very large and will be truncated in text content.
+Returns:
+  - If response_format is 'url': A list of URLs to the generated images.
+  - If response_format is 'b64_json': Base64 encoded image data (potentially truncated in text content, full data in structuredContent).
+Errors: "Error: api_key is not configured…" | "Error: HTTP 400/403 …" (bad key or permissions).`,
+      inputSchema: {
+        prompt: z.string().min(1).describe('The text prompt for the image generation'),
+        quality: z.enum(['standard', 'hd']).default('standard').describe('Image quality: "standard" or "hd"'),
+        response_format: z.enum(['url', 'b64_json']).default('url').describe('Output format: "url" or "b64_json"')
+      },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: true }
+    },
+    async ({ prompt, quality, response_format }) => {
+      const missing = needKey(getSettings());
+      if (missing) return { content: [{ type: 'text', text: missing }] };
+      try {
+        const data = await generateImageApiCall({ prompt, quality, response_format });
+        const images = data?.images || [];
+
+        if (images.length === 0) {
+          return { content: [{ type: 'text', text: 'No images generated.' }] };
+        }
+
+        if (response_format === 'url') {
+          const urls = images.map(img => img.url).filter(Boolean);
+          if (urls.length > 0) {
+            const text = `Generated images:\n${urls.map(url => `- ${url}`).join('\n')}`;
+            return { content: [{ type: 'text', text: truncate(text) }], structuredContent: { images: urls } };
+          } else {
+            return { content: [{ type: 'text', text: 'No image URLs found in the response.' }] };
+          }
+        } else { // b64_json
+          const base64Data = images.map(img => img.base64_data).filter(Boolean);
+          if (base64Data.length > 0) {
+            const firstB64 = base64Data[0];
+            const text = `Generated image (base64, truncated to first ${CHARACTER_LIMIT} chars):\n${truncate(firstB64)}` + (base64Data.length > 1 ? `\n\nAnd ${base64Data.length - 1} more images (structuredContent has all base64 data).` : '');
+            return { content: [{ type: 'text', text: text }], structuredContent: { images: base64Data } };
+          } else {
+            return { content: [{ type: 'text', text: 'No base64 image data found in the response.' }] };
+          }
+        }
+      } catch (e) {
+        return { content: [{ type: 'text', text: `Error: ${e.message}` }] };
+      }
+    }
+  );
 }
 
 export async function test(settings, { fetchJson }) {
@@ -203,3 +278,4 @@ export async function test(settings, { fetchJson }) {
   const n = (data.models || []).length;
   return { ok: true, message: `API key valid — models endpoint reachable (${n ? 'models listed' : 'no models visible'}). Default model: ${settings.default_model || 'gemini-2.5-flash'}.` };
 }
+
