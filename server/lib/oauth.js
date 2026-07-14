@@ -36,7 +36,11 @@ export const oauthEnabled = () => Boolean(cfg.publicUrl);
  */
 export function slugFromResource(resource) {
   try {
-    const seg = new URL(String(resource)).pathname.replace(/^\/+/, '').split('/')[0] || '';
+    const u = new URL(String(resource));
+    // The resource must name an MCP on THIS station (RFC 8707). A resource pointing at some other
+    // host is not ours to interpret — ignore it and let the human choose on the approval page.
+    if (cfg.publicUrl && u.origin !== new URL(cfg.publicUrl).origin) return '';
+    const seg = u.pathname.replace(/^\/+/, '').split('/')[0] || '';
     return getModuleBySlug(seg) ? seg : '';
   } catch {
     return '';
@@ -115,21 +119,44 @@ export function handleRegister(req, res) {
 }
 
 /* ── Authorization endpoint ──────────────────────────────────────────── */
+/**
+ * Two classes of failure, and OAuth 2.1 (§4.1.2.1) treats them very differently:
+ *  - `fatal`: the client_id or redirect_uri is untrustworthy → we must NOT redirect (that would
+ *    make this an open redirector). Render the error instead.
+ *  - otherwise: the redirect_uri is verified, so we MUST bounce back to the client with
+ *    ?error=… — a client left waiting on a 400 HTML page just hangs, which is what claude.ai's
+ *    popup did.
+ */
 function validateAuthParams(q) {
   const st = getState();
   const client = st.oauth.clients[q.client_id];
-  if (!client) return { error: 'Unknown client_id — the client must register first (dynamic registration is enabled).' };
-  if (!client.redirect_uris.includes(q.redirect_uri)) return { error: 'redirect_uri does not match the registered client.' };
-  if (q.response_type !== 'code') return { error: "Only response_type=code is supported." };
-  if (!q.code_challenge || (q.code_challenge_method || 'S256') !== 'S256') return { error: 'PKCE with S256 code_challenge is required.' };
+  if (!client) return { fatal: 'Unknown client_id — the client must register first (dynamic registration is enabled).' };
+  if (!client.redirect_uris.includes(q.redirect_uri)) return { fatal: 'redirect_uri does not match the registered client.' };
+  if (q.response_type !== 'code') {
+    return { client, error: 'unsupported_response_type', description: 'Only response_type=code is supported.' };
+  }
+  if (!q.code_challenge || (q.code_challenge_method || 'S256') !== 'S256') {
+    return { client, error: 'invalid_request', description: 'PKCE with S256 code_challenge is required.' };
+  }
   return { client };
+}
+
+/** Bounce back to the (already verified) redirect_uri with an OAuth error, preserving state. */
+function redirectError(res, q, error, description) {
+  const u = new URL(q.redirect_uri);
+  u.searchParams.set('error', error);
+  if (description) u.searchParams.set('error_description', description);
+  if (q.state) u.searchParams.set('state', q.state);
+  log('oauth', `Authorization error for client ${q.client_id}: ${error} — ${description || ''}`);
+  return res.redirect(302, u.toString());
 }
 
 export function handleAuthorize(req, res) {
   if (!oauthEnabled()) return res.status(404).send('OAuth is disabled — set PUBLIC_URL on the server.');
   const q = req.query;
   const v = validateAuthParams(q);
-  if (v.error) return res.status(400).send(approvalPage({ error: v.error, q, invalid: true }));
+  if (v.fatal) return res.status(400).send(approvalPage({ error: v.fatal, q, invalid: true }));
+  if (v.error) return redirectError(res, q, v.error, v.description);
   res.send(approvalPage({ q, client: v.client }));
 }
 
@@ -137,7 +164,8 @@ export function handleApprove(req, res) {
   if (!oauthEnabled()) return res.status(404).send('OAuth is disabled.');
   const q = req.body || {};
   const v = validateAuthParams(q);
-  if (v.error) return res.status(400).send(approvalPage({ error: v.error, q, invalid: true }));
+  if (v.fatal) return res.status(400).send(approvalPage({ error: v.fatal, q, invalid: true }));
+  if (v.error) return redirectError(res, q, v.error, v.description);
 
   if (q.deny === '1') {
     log('oauth', `Authorization DENIED for client ${q.client_id}`);
@@ -206,6 +234,11 @@ export function handleToken(req, res) {
   if (b.grant_type === 'refresh_token') {
     const rec = st.oauth.refresh[b.refresh_token];
     if (!rec || rec.expiresAt < Date.now()) return tokenError(res, 'invalid_grant', 'Refresh token is invalid or expired.');
+    // Bind the refresh token to the client it was issued to (RFC 6749 §6). Without this, any
+    // registered client could redeem another client's refresh token.
+    if (b.client_id && rec.clientId !== b.client_id) {
+      return tokenError(res, 'invalid_grant', 'This refresh token was not issued to that client.');
+    }
     delete st.oauth.refresh[b.refresh_token]; // rotate
     return issueTokens(res, st, rec);
   }

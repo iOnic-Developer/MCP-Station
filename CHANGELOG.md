@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.4.0 — 2026-07-14
+
+**Deep sweep of the auth flows, plus the conformance suite that should have existed from the start.**
+
+- **`/authorize` now redirects errors back to the client** (OAuth 2.1 §4.1.2.1). A bad `response_type`, missing PKCE or `plain` PKCE used to render a 400 HTML page — leaving the client's popup hanging with no signal. Errors that *cannot* be trusted to redirect (unknown `client_id`, unregistered `redirect_uri`) still render, never bounce: an authorization endpoint must not become an open redirector.
+- **Refresh tokens are bound to their client** (RFC 6749 §6). The refresh grant never checked `client_id`, so any registered client could redeem another's refresh token.
+- **`resource` must name an MCP on *this* station** (RFC 8707). A `resource` pointing at another origin is now ignored rather than parsed for a slug.
+- Removed a **duplicate CORS layer** added in v1.3.3 — the station has had CORS on its machine-facing surfaces since the first commit, so that change was redundant. (The actual connector bug was the `redirect_uri` one in v1.3.4.)
+- **`scripts/smoke-oauth.sh` — 32 checks**: open-redirect refusal, error-redirect conformance, deny/state preservation, the three token shapes real clients send, code replay, cross-client code and refresh redemption, PKCE bypass by omission, refresh rotation and reuse, MCP 401/403/404/405 surfaces, `WWW-Authenticate` discovery, CORS present on machine surfaces and **absent** on `/api`, and the admin session + CSRF gate. Verified to fail loudly when the `redirect_uri` bug is reintroduced.
+
 ## v1.3.4 — 2026-07-14
 
 **This is the bug that broke claude.ai connectors.**
