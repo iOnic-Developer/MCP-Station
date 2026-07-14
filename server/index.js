@@ -198,6 +198,16 @@ api.put('/mcps/:id/file', (req, res) => {
   }
 });
 
+/* Per-MCP assistant chat — history lives in the module's own folder (.chat.json) */
+api.get('/mcps/:id/chat', (req, res) => {
+  try { res.json({ messages: host.readModuleChat(req.params.id) }); }
+  catch (e) { res.status(400).json({ error: e.message }); }
+});
+api.put('/mcps/:id/chat', (req, res) => {
+  try { res.json({ ok: true, messages: host.writeModuleChat(req.params.id, req.body?.messages) }); }
+  catch (e) { res.status(400).json({ error: e.message }); }
+});
+
 api.post('/reload', async (req, res) => {
   await host.loadModules();
   res.json({ ok: true, mcps: mcpListing(req) });

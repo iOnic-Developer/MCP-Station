@@ -6,7 +6,7 @@
 import { cfg } from './env.js';
 import { getState, save } from './state.js';
 import { decrypt } from './crypto.js';
-import { getModules, isConfigured } from './mcpHost.js';
+import { getModules, isConfigured, getModuleById, moduleSource } from './mcpHost.js';
 import { SEED_INSTRUCTIONS } from './seedInstructions.js';
 import { log } from './log.js';
 
@@ -81,6 +81,20 @@ const PROVIDERS = {
   }
 };
 
+/** Focused brief for the per-MCP chat in the code drawer: this module's files, inlined. */
+function moduleContext(id) {
+  const mod = getModuleById(id);
+  if (!mod) throw new Error(`Unknown MCP '${id}'`);
+  return [
+    `## You are working on ONE module: ${mod.manifest?.name || mod.id} (folder \`mcps/${mod.id}/\`)`,
+    mod.error ? `It currently FAILS to load: ${mod.error}` : 'It currently loads without error.',
+    'The user is looking at these files in the station\'s code editor. When you change one, reply with the COMPLETE new file in a single code fence (they paste/insert it wholesale — partial diffs are useless here). One file per fence, and say which file it is.',
+    '',
+    '## Current source',
+    moduleSource(id)
+  ].join('\n');
+}
+
 export async function handleChat(req, res) {
   const provider = getProvider();
   const p = PROVIDERS[provider];
@@ -93,7 +107,15 @@ export async function handleChat(req, res) {
     .map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content.slice(0, 60_000) }));
   if (!messages.length) return res.status(400).json({ error: 'messages required' });
 
-  const system = `${getState().instructions}\n\n${liveContext()}`;
+  const mcpId = typeof req.body?.mcpId === 'string' ? req.body.mcpId : '';
+  let system;
+  try {
+    system = mcpId
+      ? `${getState().instructions}\n\n${moduleContext(mcpId)}`
+      : `${getState().instructions}\n\n${liveContext()}`;
+  } catch (e) {
+    return res.status(400).json({ error: e.message });
+  }
   const { url, headers, body } = p.request(key, getModel(provider), system, messages);
 
   let upstream;

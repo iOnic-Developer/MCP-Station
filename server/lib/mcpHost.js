@@ -259,6 +259,48 @@ export function writeModuleFile(id, rel, content) {
   log('mcp', `Wrote ${id}/${rel} — reload modules to apply`);
 }
 
+/* ── Per-module assistant chat, stored in the module's own folder ─────── */
+const CHAT_FILE = '.chat.json'; // dot-prefixed: listModuleFiles skips it, so it never shows as a tab
+
+export function readModuleChat(id) {
+  const mod = getModuleById(id);
+  if (!mod) throw new Error(`Unknown MCP '${id}'`);
+  try {
+    const parsed = JSON.parse(fs.readFileSync(path.join(mod.dir, CHAT_FILE), 'utf8'));
+    return Array.isArray(parsed.messages) ? parsed.messages : [];
+  } catch {
+    return [];
+  }
+}
+
+export function writeModuleChat(id, messages) {
+  const mod = getModuleById(id);
+  if (!mod) throw new Error(`Unknown MCP '${id}'`);
+  const clean = (Array.isArray(messages) ? messages : [])
+    .filter((m) => m && typeof m.content === 'string')
+    .slice(-60)
+    .map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content.slice(0, 60_000) }));
+  fs.writeFileSync(path.join(mod.dir, CHAT_FILE), JSON.stringify({ messages: clean }, null, 2));
+  return clean;
+}
+
+/** The module's editable files inlined, for the assistant's system prompt. */
+export function moduleSource(id, budget = 60_000) {
+  const mod = getModuleById(id);
+  if (!mod) throw new Error(`Unknown MCP '${id}'`);
+  const out = [];
+  let left = budget;
+  for (const f of listModuleFiles(id)) {
+    if (!EDITABLE.test(f.path) || left <= 0) continue;
+    let content;
+    try { content = fs.readFileSync(path.join(mod.dir, f.path), 'utf8'); } catch { continue; }
+    if (content.length > left) content = content.slice(0, left) + '\n… [truncated]';
+    left -= content.length;
+    out.push(`### ${f.path}\n\`\`\`\n${content}\n\`\`\``);
+  }
+  return out.join('\n\n');
+}
+
 /* ── Shared HTTP helper handed to modules ────────────────────────────── */
 export async function fetchJson(url, opts = {}) {
   const r = await fetch(url, {

@@ -1,0 +1,12 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "add a delete tool"
+    },
+    {
+      "role": "assistant",
+      "content": "sure"
+    }
+  ]
+}
