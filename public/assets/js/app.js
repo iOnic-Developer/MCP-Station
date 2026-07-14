@@ -51,7 +51,7 @@ function renderDashboard() {
       <button class="btn" id="bLogout">Logout</button>
     </div>
     <div class="main">
-      ${ctx.me.hasAnthropicKey ? '' : `<div class="banner">The ✦ Claude popup needs an Anthropic API key — add one under ⚙ Station.</div>`}
+      ${ctx.me.hasAnthropicKey ? '' : `<div class="banner">The ✦ popup has no API key for its selected provider — add one (or switch provider) under ⚙ Station.</div>`}
       ${ctx.me.oauth ? '' : `<div class="banner">PUBLIC_URL is not set — OAuth is off, so claude.ai connectors won't work yet (static MCP_TOKEN access still fine).</div>`}
       <div id="listRoot"></div>
     </div>`;

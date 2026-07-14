@@ -54,8 +54,11 @@ No Docker Hub? Build straight from the repo on any box with Docker: `docker comp
 | `PUBLIC_URL` | *(unset → OAuth off)* | Public https base, e.g. `https://dbzocchi.app` — enables the OAuth server |
 | `SESSION_SECRET` | *(auto-generated)* | Fixed random string: sessions + encrypted secrets survive container rebuilds (otherwise a key is persisted at `/data/secret.key`) |
 | `MCP_TOKEN` | *(unset)* | Static bearer accepted on every MCP endpoint |
+| `ASSISTANT_PROVIDER` | `anthropic` | Which backend the ✦ popup uses: `anthropic` or `gemini` — the ⚙ Station toggle overrides it |
 | `ANTHROPIC_API_KEY` | *(unset)* | Powers the ✦ popup (or set it in the UI, stored encrypted) |
 | `ANTHROPIC_MODEL` | `claude-sonnet-4-6` | Popup model |
+| `GEMINI_API_KEY` | *(unset)* | Powers the ✦ popup when the provider is `gemini` (or set it in the UI, stored encrypted) |
+| `GEMINI_MODEL` | `gemini-2.5-flash` | Popup model on Gemini |
 | `PORT` | `8788` | Listen port |
 | `COOKIE_SECURE` | `0` | Set `1` behind HTTPS |
 | `DATA_DIR` / `MCPS_DIR` | `/data` / `/app/mcps` | Volumes |

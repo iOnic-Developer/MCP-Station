@@ -18,13 +18,21 @@ export function ensureInstructions() {
   }
 }
 
-export function getApiKey() {
-  // Env var wins; UI-stored key (encrypted) is the fallback.
-  return cfg.anthropicApiKey || decrypt(getState().global.anthropicApiKey || '');
+export function getProvider() {
+  return getState().global.provider === 'gemini' ? 'gemini' : getState().global.provider === 'anthropic' ? 'anthropic' : cfg.assistantProvider;
 }
 
-export function getModel() {
-  return getState().global.anthropicModel || cfg.anthropicModel;
+export function getApiKey(provider = getProvider()) {
+  // Env var wins; UI-stored key (encrypted) is the fallback.
+  const st = getState().global;
+  return provider === 'gemini'
+    ? cfg.geminiApiKey || decrypt(st.geminiApiKey || '')
+    : cfg.anthropicApiKey || decrypt(st.anthropicApiKey || '');
+}
+
+export function getModel(provider = getProvider()) {
+  const st = getState().global;
+  return provider === 'gemini' ? st.geminiModel || cfg.geminiModel : st.anthropicModel || cfg.anthropicModel;
 }
 
 function liveContext() {
@@ -45,9 +53,39 @@ function liveContext() {
   ].join('\n');
 }
 
+/** Per-provider request shape + SSE delta extraction; the stream loop below is shared. */
+const PROVIDERS = {
+  anthropic: {
+    label: 'Anthropic',
+    request: (key, model, system, messages) => ({
+      url: 'https://api.anthropic.com/v1/messages',
+      headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      body: { model, max_tokens: 8192, system, messages, stream: true }
+    }),
+    text: (ev) => (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta' ? ev.delta.text : ''),
+    error: (ev) => (ev.type === 'error' ? ev.error?.message || 'stream error' : '')
+  },
+  gemini: {
+    label: 'Gemini',
+    request: (key, model, system, messages) => ({
+      url: `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`,
+      headers: { 'x-goog-api-key': key, 'content-type': 'application/json' },
+      body: {
+        systemInstruction: { parts: [{ text: system }] },
+        contents: messages.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
+        generationConfig: { maxOutputTokens: 8192 }
+      }
+    }),
+    text: (ev) => (ev.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join(''),
+    error: (ev) => ev.error?.message || ''
+  }
+};
+
 export async function handleChat(req, res) {
-  const key = getApiKey();
-  if (!key) return res.status(400).json({ error: 'No Anthropic API key configured — add one under ⚙ Station settings → Assistant.' });
+  const provider = getProvider();
+  const p = PROVIDERS[provider];
+  const key = getApiKey(provider);
+  if (!key) return res.status(400).json({ error: `No ${p.label} API key configured — add one under ⚙ Station settings → Assistant, or switch provider.` });
 
   const messages = (Array.isArray(req.body?.messages) ? req.body.messages : [])
     .filter((m) => m && typeof m.content === 'string' && m.content.trim())
@@ -55,29 +93,20 @@ export async function handleChat(req, res) {
     .map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content.slice(0, 60_000) }));
   if (!messages.length) return res.status(400).json({ error: 'messages required' });
 
-  const body = {
-    model: getModel(),
-    max_tokens: 8192,
-    system: `${getState().instructions}\n\n${liveContext()}`,
-    messages,
-    stream: true
-  };
+  const system = `${getState().instructions}\n\n${liveContext()}`;
+  const { url, headers, body } = p.request(key, getModel(provider), system, messages);
 
   let upstream;
   try {
-    upstream = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-      body: JSON.stringify(body)
-    });
+    upstream = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
   } catch (e) {
-    return res.status(502).json({ error: `Could not reach the Anthropic API: ${e.message}` });
+    return res.status(502).json({ error: `Could not reach the ${p.label} API: ${e.message}` });
   }
 
   if (!upstream.ok) {
     const t = await upstream.text();
-    log('assistant', `Anthropic error ${upstream.status}: ${t.slice(0, 300)}`);
-    return res.status(502).json({ error: `Anthropic API ${upstream.status}`, detail: t.slice(0, 500) });
+    log('assistant', `${p.label} error ${upstream.status}: ${t.slice(0, 300)}`);
+    return res.status(502).json({ error: `${p.label} API ${upstream.status}`, detail: t.slice(0, 500) });
   }
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -100,8 +129,10 @@ export async function handleChat(req, res) {
         if (!line.startsWith('data: ')) continue;
         let ev;
         try { ev = JSON.parse(line.slice(6)); } catch { continue; }
-        if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta') send({ text: ev.delta.text });
-        else if (ev.type === 'error') send({ error: ev.error?.message || 'stream error' });
+        const text = p.text(ev);
+        const err = p.error(ev);
+        if (text) send({ text });
+        if (err) send({ error: err });
       }
     }
   } catch (e) {

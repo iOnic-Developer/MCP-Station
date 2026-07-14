@@ -217,17 +217,26 @@ api.post('/assistant', assistant.handleChat);
 api.get('/global', (req, res) => {
   const st = getState();
   res.json({
+    provider: assistant.getProvider(),
     anthropicModel: st.global.anthropicModel || cfg.anthropicModel,
     anthropicApiKey: st.global.anthropicApiKey ? '••••••' : '',
-    envKeySet: Boolean(cfg.anthropicApiKey)
+    envKeySet: Boolean(cfg.anthropicApiKey),
+    geminiModel: st.global.geminiModel || cfg.geminiModel,
+    geminiApiKey: st.global.geminiApiKey ? '••••••' : '',
+    geminiEnvKeySet: Boolean(cfg.geminiApiKey)
   });
 });
 api.put('/global', (req, res) => {
   const st = getState();
   const b = req.body || {};
+  if (b.provider === 'anthropic' || b.provider === 'gemini') st.global.provider = b.provider;
   if (typeof b.anthropicModel === 'string' && b.anthropicModel.trim()) st.global.anthropicModel = b.anthropicModel.trim();
   if (typeof b.anthropicApiKey === 'string' && b.anthropicApiKey !== '••••••') {
     st.global.anthropicApiKey = b.anthropicApiKey ? encrypt(b.anthropicApiKey.trim()) : '';
+  }
+  if (typeof b.geminiModel === 'string' && b.geminiModel.trim()) st.global.geminiModel = b.geminiModel.trim();
+  if (typeof b.geminiApiKey === 'string' && b.geminiApiKey !== '••••••') {
+    st.global.geminiApiKey = b.geminiApiKey ? encrypt(b.geminiApiKey.trim()) : '';
   }
   save();
   res.json({ ok: true });

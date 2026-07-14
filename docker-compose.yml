@@ -15,8 +15,11 @@ services:
       MCP_TOKEN: ""                          # static bearer for Claude Code CLI / scripts
       COOKIE_SECURE: "1"                     # you're behind HTTPS (SWAG / NPM)
       # ── assistant (can also be set in the UI) ──
+      ASSISTANT_PROVIDER: anthropic          # anthropic | gemini — UI toggle overrides this
       ANTHROPIC_API_KEY: ""
       ANTHROPIC_MODEL: claude-sonnet-4-6
+      GEMINI_API_KEY: ""
+      GEMINI_MODEL: gemini-2.5-flash
     volumes:
       - ./volumes/data:/data                 # state, encryption key, backups, trash
       - ./volumes/mcps:/app/mcps             # module folders (seeded on first boot)

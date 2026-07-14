@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.0.2 — 2026-07-14
+
+- ✦ popup can run on **Gemini** as well as Claude — provider toggle in ⚙ Station settings, separate encrypted key + model per provider (`ASSISTANT_PROVIDER` / `GEMINI_API_KEY` / `GEMINI_MODEL` as env fallbacks)
+
 ## v1.0.1 — 2026-07-14
 
 - Backup/restore uses busybox `tar`/`gzip` from the base image (stage + plain tar) — `apk add tar gzip` dropped from the Dockerfile
