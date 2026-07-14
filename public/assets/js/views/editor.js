@@ -18,14 +18,18 @@ export async function openEditor(m, ctx) {
   const d = drawer({
     title: `‹/› ${name} — code`,
     body: `
-      <div class="files" id="fileTabs"></div>
-      <textarea class="code" id="codeArea" spellcheck="false" placeholder="Pick a file…"></textarea>
-      <div class="editor-chat chat" id="mcpChat" hidden>
-        <div class="a-head">✦ Ask about ${esc(name)}<span class="sub">sees this module's files · history saved in the module folder</span>
-          <div class="spacer"></div>
-          <button class="btn sm" data-clear title="Clear this module's conversation">🧹</button>
+      <div class="edit-split">
+        <div class="edit-code">
+          <div class="files" id="fileTabs"></div>
+          <textarea class="code" id="codeArea" spellcheck="false" placeholder="Pick a file…"></textarea>
         </div>
-        <div class="chat-body"></div>
+        <div class="editor-chat chat" id="mcpChat" hidden>
+          <div class="a-head">✦ Ask about ${esc(name)}<span class="sub">sees this module's files</span>
+            <div class="spacer"></div>
+            <button class="btn sm" data-clear title="Clear this module's conversation">🧹</button>
+          </div>
+          <div class="chat-body"></div>
+        </div>
       </div>`,
     foot: `<button class="btn" data-cancel>Close</button>
            <button class="btn" data-chat>✦ Chat</button>
@@ -96,8 +100,11 @@ export async function openEditor(m, ctx) {
   }
 
   d.el.querySelector('[data-cancel]').onclick = d.close;
-  d.el.querySelector('[data-chat]').onclick = () => {
+  // Chat opens beside the code, and the drawer widens to make room for both.
+  d.el.querySelector('[data-chat]').onclick = (e) => {
     chatBox.hidden = !chatBox.hidden;
+    d.el.classList.toggle('wide', !chatBox.hidden);
+    e.currentTarget.classList.toggle('active', !chatBox.hidden);
     if (!chatBox.hidden) chat.input.focus();
   };
   chatBox.querySelector('[data-clear]').onclick = chat.clear;

@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.3.1 — 2026-07-14
+
+- Per-MCP chat sits **beside** the code, not under it — the code drawer widens to 60% of the viewport when ✦ Chat is open and collapses back when it is closed (below 900px wide it stacks, where there is no room for two columns).
+
 ## v1.3.0 — 2026-07-14
 
 **Per-MCP access control — this changes OAuth behaviour.**

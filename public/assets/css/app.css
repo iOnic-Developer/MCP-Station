@@ -115,7 +115,10 @@ textarea.input { resize: vertical; }
   position: fixed; top: 0; right: 0; bottom: 0; width: 560px; max-width: 96vw;
   background: var(--panel); border-left: 1px solid var(--border); z-index: 41;
   display: flex; flex-direction: column; box-shadow: var(--shadow);
+  transition: width .18s ease;
 }
+/* code + chat side by side needs the room */
+.drawer.wide { width: 60vw; min-width: 900px; }
 .drawer .d-head { display: flex; align-items: center; gap: 10px; padding: 16px 20px; border-bottom: 1px solid var(--border); }
 .drawer .d-head h2 { font-size: 15px; margin: 0; flex: 1; }
 .drawer .d-body { flex: 1; overflow: auto; padding: 20px; }
@@ -135,11 +138,19 @@ dialog.modal::backdrop { background: rgba(0, 0, 0, .55); }
 /* ── Editor ── */
 .files { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
 .files .btn.active { border-color: var(--accent); color: var(--accent-2); }
+/* editor drawer: code column | chat column (chat hidden → code takes the full width) */
+.edit-split { display: flex; gap: 14px; align-items: stretch; }
+.edit-code { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 textarea.code {
-  width: 100%; min-height: 420px; background: var(--panel-2); color: var(--text);
+  width: 100%; box-sizing: border-box; flex: 1; min-height: 420px;
+  background: var(--panel-2); color: var(--text);
   border: 1px solid var(--border-2); border-radius: 8px; padding: 12px;
   font-family: ui-monospace, 'Cascadia Code', Consolas, monospace; font-size: 12.5px;
   line-height: 1.5; white-space: pre; outline: none; tab-size: 2;
+}
+@media (max-width: 900px) {
+  .drawer.wide { min-width: 0; width: 96vw; }
+  .edit-split { flex-direction: column; }   /* no room to sit side by side — stack */
 }
 
 /* ── Lists / tables ── */
@@ -204,9 +215,13 @@ table.args td:first-child { white-space: nowrap; color: var(--accent-2); }
 .chat .a-head { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 13.5px; }
 .chat .a-head .sub { color: var(--muted); font-weight: 500; font-size: 11.5px; }
 .chat .a-msgs { flex: 1; overflow: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
-/* per-MCP chat inside the code drawer */
-.editor-chat { height: 340px; margin-top: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-2); }
+/* per-MCP chat inside the code drawer — a column beside the code, stretched to match it */
+.editor-chat {
+  flex: 0 0 42%; min-width: 0; align-self: stretch;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--panel-2);
+}
 .editor-chat[hidden] { display: none; }
+@media (max-width: 900px) { .editor-chat { flex: 0 0 auto; height: 340px; } }
 .msg { max-width: 92%; border-radius: 12px; padding: 10px 13px; font-size: 13px; overflow-wrap: break-word; }
 .msg.user { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
 .msg.bot { align-self: flex-start; background: var(--panel-2); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
