@@ -359,6 +359,13 @@ async function main() {
   if (!cfg.appPassword) log('boot', '⚠ APP_PASSWORD is not set — the admin UI and OAuth approvals are locked out until you set it.');
   if (!cfg.publicUrl) log('boot', '⚠ PUBLIC_URL is not set — OAuth is off; claude.ai connectors will not work (MCP_TOKEN bearer still does).');
   if (cfg.mcpToken) log('boot', 'Static MCP_TOKEN bearer is enabled.');
+  // Surface OAuth-store durability: if this shows 0 clients/tokens right after you had a live
+  // connector, DATA_DIR is NOT on a persistent volume and every restart is wiping the connection.
+  const oa = getState().oauth;
+  const nClients = Object.keys(oa.clients || {}).length;
+  const nTokens = Object.keys(oa.tokens || {}).length;
+  const nRefresh = Object.keys(oa.refresh || {}).length;
+  log('boot', `OAuth store loaded from ${cfg.dataDir}/station.json — ${nClients} client(s), ${nTokens} access + ${nRefresh} refresh token(s). If this is 0 after you connected, DATA_DIR is not a persistent volume.`);
   verifyPublicUrl();
 
   setInterval(gc, 10 * 60_000).unref();

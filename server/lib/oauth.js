@@ -13,7 +13,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { cfg } from './env.js';
-import { getState, save } from './state.js';
+import { getState, save, persist } from './state.js';
 import { randomToken, sha256b64url, timingEqual } from './crypto.js';
 import { verifyPassword, checkRate, noteFail } from './auth.js';
 import { getModules, getModuleBySlug, getModuleToken } from './mcpHost.js';
@@ -136,7 +136,7 @@ export function handleRegister(req, res) {
     ...(typeof b.software_version === 'string' ? { software_version: b.software_version } : {})
   };
   st.oauth.clients[client_id] = { ...client, createdAt: Date.now() };
-  save();
+  persist(); // durable BEFORE we respond — a restart between DCR and /authorize must not lose the client
   log('oauth', `DCR: registered '${client.client_name}' (${client_id}) scope='${b.scope || '-'}' redirect=${redirectUris[0]}`);
   res.status(201).json(client);
 }
@@ -225,7 +225,7 @@ export function handleApprove(req, res) {
     slug,
     expiresAt: Date.now() + CODE_TTL
   };
-  save();
+  persist(); // durable BEFORE the redirect — the code must survive a restart before the token exchange
   log('oauth', `Authorization approved for client ${q.client_id} → ${slug ? `/${slug}` : 'ALL MCPs'}`);
   const u = new URL(q.redirect_uri);
   u.searchParams.set('code', code);
@@ -279,7 +279,8 @@ function issueTokens(res, st, { clientId, scope, resource = '', slug = '' }) {
   const now = Date.now();
   st.oauth.tokens[access] = { clientId, scope, resource, slug, createdAt: now, expiresAt: now + ACCESS_TTL };
   st.oauth.refresh[refresh] = { clientId, scope, resource, slug, createdAt: now, expiresAt: now + REFRESH_TTL };
-  save();
+  persist(); // durable BEFORE we hand the token back — else a restart in the 150ms save window leaves
+  // claude.ai holding a token this server has never heard of (connected, but every call 401s).
   log('oauth', `/token ISSUED for client ${clientId} → ${slug ? `/${slug}` : 'ALL MCPs'} (scope '${scope}')`);
   // OAuth 2.0 §5.1 REQUIRES Cache-Control: no-store on token responses. The MCP SDK sets it;
   // this hand-rolled endpoint didn't, and claude.ai's client enforces it — so it accepted a valid
@@ -307,7 +308,7 @@ export function handleRevoke(req, res) {
   if (t) {
     delete st.oauth.tokens[t];
     delete st.oauth.refresh[t];
-    save();
+    persist(); // a revoked token must stay revoked across a restart
   }
   res.status(200).json({});
 }

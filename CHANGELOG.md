@@ -1,5 +1,26 @@
 # Changelog
 
+## v1.4.10 — 2026-07-15
+
+**The actual root cause: OAuth state wasn't durable across restarts.**
+
+A second opinion caught it live — a DCR client_id issued at 23:49:30, then a Cloudflare 502 (origin
+down = container restart) 30s later, and afterwards that client_id was rejected as unknown. The full
+flow always passed in isolation (both diagnostics confirmed) — it only failed when the container
+restarted mid-handshake or after a connect, because:
+
+- **`save()` was debounced by 150ms** — a registered client, auth code or issued token wasn't on disk
+  when we responded to the client. A crash/redeploy/kill inside that window lost it silently. OAuth
+  writes (DCR, auth code, token issue, revoke) now call **`persist()` synchronously** so the record is
+  on disk *before* the response. claude.ai can no longer end up holding a token this server never saved.
+- **Boot now logs the OAuth store size** loaded from `station.json`. If that reads `0 clients` right
+  after you had a working connector, `DATA_DIR` is not on a persistent volume and every container
+  recreate is wiping every connection — the real failure mode during the v1.4.5–v1.4.9 test cycle,
+  where each redeploy recreated the container and erased the store mid-test.
+
+Operational note: this needs `DATA_DIR` (`/data`) mapped to a **persistent** host volume, and the
+container to **stop crash-looping**. Check the container logs if restarts continue.
+
 ## v1.4.9 — 2026-07-15
 
 **Exhaustive line-by-line audit of the OAuth surface against the MCP SDK the working server runs.**
