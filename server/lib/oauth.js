@@ -11,6 +11,7 @@
  * MCP endpoints accept EITHER a valid OAuth access token OR the static
  * MCP_TOKEN env value (dual auth, for Claude Code CLI and scripts).
  */
+import { randomUUID } from 'node:crypto';
 import { cfg } from './env.js';
 import { getState, save } from './state.js';
 import { randomToken, sha256b64url, timingEqual } from './crypto.js';
@@ -61,24 +62,30 @@ const tokenHandle = (t) => sha256b64url(t).slice(0, 12);
 // to send, and made zero authenticated calls despite a valid token. Mirror the SDK exactly.
 const issuer = (base) => `${base}/`;
 
+// Field set, values AND order below are a byte-for-byte mirror of the MCP SDK's createOAuthMetadata
+// (server/auth/router.js) as the working SiYuan Companion emits it — verified against sy.dbzocchi.app.
+// No `service_documentation` (the SDK omits it unless a serviceDocumentationUrl is configured; the
+// Companion doesn't), auth methods ordered ['client_secret_post','none'] as the SDK hard-codes them.
 export function asMetadata(req, res) {
   const base = baseUrl(req);
   res.json({
     issuer: issuer(base),
     authorization_endpoint: `${base}/authorize`,
+    response_types_supported: ['code'],
+    code_challenge_methods_supported: ['S256'],
     token_endpoint: `${base}/token`,
-    registration_endpoint: `${base}/register`,
+    token_endpoint_auth_methods_supported: ['client_secret_post', 'none'],
+    grant_types_supported: ['authorization_code', 'refresh_token'],
+    scopes_supported: ['mcp'],
     revocation_endpoint: `${base}/revoke`,
     revocation_endpoint_auth_methods_supported: ['client_secret_post'],
-    response_types_supported: ['code'],
-    grant_types_supported: ['authorization_code', 'refresh_token'],
-    code_challenge_methods_supported: ['S256'],
-    token_endpoint_auth_methods_supported: ['none', 'client_secret_post'],
-    scopes_supported: ['mcp'],
-    service_documentation: 'https://github.com/iOnic-Developer/MCP-Station'
+    registration_endpoint: `${base}/register`
   });
 }
 
+// Mirrors the SDK's mcpAuthMetadataRouter protectedResourceMetadata exactly: resource, then
+// authorization_servers (the trailing-slashed issuer), scopes_supported, resource_name — and no
+// `bearer_methods_supported` (the SDK does not emit it).
 export function protectedResourceMetadata(req, res) {
   const base = baseUrl(req);
   const slug = req.params.slug || '';
@@ -86,7 +93,6 @@ export function protectedResourceMetadata(req, res) {
     resource: slug ? `${base}/${slug}` : base,
     authorization_servers: [issuer(base)],
     scopes_supported: ['mcp'],
-    bearer_methods_supported: ['header'],
     resource_name: slug ? `MCP Station — ${slug}` : 'MCP Station'
   });
 }
@@ -109,7 +115,9 @@ export function handleRegister(req, res) {
     }
   }
   const st = getState();
-  const client_id = randomToken(16);
+  // The MCP SDK generates client_id via crypto.randomUUID(); mirror it so the id claude.ai receives
+  // has the same shape as from the working server (opaque either way, but keep it identical).
+  const client_id = randomUUID();
   // Echo the client's registered metadata back, as RFC 7591 §3.2.1 requires and as the MCP SDK's
   // own DCR handler does. Returning a lossy subset (dropping `scope`, omitting client_id_issued_at)
   // leaves the client with a different view of the registration than the server has.

@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.4.9 — 2026-07-15
+
+**Exhaustive line-by-line audit of the OAuth surface against the MCP SDK the working server runs.**
+
+Read the SDK's own auth handlers (`server/auth/router.js`, `handlers/{token,authorize,register,metadata}.js`,
+`middleware/bearerAuth.js`) and made this station's output byte-identical to them:
+
+- **Discovery metadata field set + order** now mirror the SDK's `createOAuthMetadata` exactly: dropped
+  `service_documentation` (the SDK omits it unless a docs URL is configured; the Companion doesn't),
+  dropped `bearer_methods_supported` from the protected-resource metadata (not emitted by the SDK), and
+  ordered `token_endpoint_auth_methods_supported` as `['client_secret_post','none']`.
+- **`client_id` now `crypto.randomUUID()`** (was base64url), matching the SDK's DCR handler.
+- Fixed a stale example URL in the assistant seed instructions (`dbzocchi.app` → `mcp.dbzocchi.app`).
+
+Verified: no stored URLs in state, PKCE hashing is correct base64url, no hardcoded hosts in the OAuth
+path. Combined with v1.4.6–v1.4.8, this station's registration, discovery, and token responses are now a
+byte-for-byte match for the working `sy.dbzocchi.app`. The substantive fix was the trailing-slash issuer
+in v1.4.8; this release removes every remaining cosmetic deviation so nothing is left to suspect.
+
 ## v1.4.8 — 2026-07-15
 
 **The real one: the OAuth issuer was missing its trailing slash.**
