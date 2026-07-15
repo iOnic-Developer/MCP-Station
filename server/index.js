@@ -53,16 +53,11 @@ app.get('/healthz', (req, res) => {
   res.json({ ok: true, version: cfg.version, modules: mods.filter((m) => !m.error).length, oauth: oauth.oauthEnabled() });
 });
 
-/* ── OAuth 2.1 ───────────────────────────────────────────────────────── */
-app.get('/.well-known/oauth-authorization-server', oauth.asMetadata);
-app.get('/.well-known/oauth-authorization-server/:slug', oauth.asMetadata);
-app.get('/.well-known/oauth-protected-resource', oauth.protectedResourceMetadata);
-app.get('/.well-known/oauth-protected-resource/:slug', oauth.protectedResourceMetadata);
-app.post('/register', oauth.handleRegister);
-app.get('/authorize', oauth.handleAuthorize);
-app.post('/oauth/approve', oauth.handleApprove);
-app.post('/token', oauth.handleToken);
-app.post('/revoke', oauth.handleRevoke);
+/* ── OAuth 2.1 ─────────────────────────────────────────────────────────
+ * Discovery / DCR / authorize / token / revoke are served by the MCP SDK's own mcpAuthRouter (the
+ * exact code the working SiYuan Companion runs), plus our per-slug protected-resource metadata and
+ * /oauth/approve consent step — all wired in mountOAuth(). Only mounted when PUBLIC_URL is set. */
+if (oauth.oauthEnabled()) oauth.mountOAuth(app);
 
 /* ── Auth (admin UI) ─────────────────────────────────────────────────── */
 app.post('/api/login', (req, res) => {
@@ -344,7 +339,7 @@ app.all('/:slug', (req, res, next) => {
   res.on('finish', () => {
     log('mcp', `${method} /${req.params.slug} → ${res.statusCode} (auth=${auth}, rpc=${rpc}, ua=${ua})`);
   });
-  oauth.requireBearer(req, res, () => host.handleMcpRequest(req, res));
+  oauth.bearerGate(req, res, () => host.handleMcpRequest(req, res));
 });
 
 app.use((req, res) => res.status(404).json({ error: `Nothing here. Hosted MCPs: ${[...host.getModules().keys()].map((s) => '/' + s).join(', ') || '(none)'}` }));

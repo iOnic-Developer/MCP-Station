@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.4.12 — 2026-07-15
+
+**The full copy: OAuth now runs the MCP SDK's own handlers, exactly like the SiYuan Companion.**
+
+Every hand-rolled fix (v1.4.6–v1.4.11) made this station's OAuth *output* byte-identical to the working
+`sy.dbzocchi.app` — matching headers, trailing-slash issuer, 1h tokens, `no-store`, even hex token
+values — and claude.ai still issued a token then made zero authenticated calls, on a never-cached slug
+too. The remaining difference was never in the bytes; it was in the request *handling*. So `oauth.js`
+now mounts the SDK's **`mcpAuthRouter`** (discovery / DCR / `/authorize` / `/token` / `/revoke`) and gates
+each endpoint with the SDK's **`requireBearerAuth`** — the same code the Companion runs — with our
+provider backed by `state.js`, a password-gated `/oauth/approve` consent step, per-slug protected-resource
+metadata (RFC 9728), and per-slug token scoping via the RFC 8707 resource. Verified locally end to end:
+register → authorize → approve → token → authenticated `tools/list` → 200.
+
 ## v1.4.11 — 2026-07-15
 
 **OAuth tokens are now hex, not base64url — the real reason claude.ai rejected them.**

@@ -1,48 +1,39 @@
 /**
- * Self-hosted OAuth 2.1 authorization server — same pattern as the SiYuan
- * Companion: discovery metadata + dynamic client registration + PKCE (S256),
- * approval gated by APP_PASSWORD (or an active admin session). Lets claude.ai
- * (web + phone) add any hosted MCP as a custom connector by URL.
+ * OAuth 2.1 for the hosted MCP endpoints — a faithful copy of the SiYuan Companion's setup, which
+ * connects to claude.ai reliably where every hand-rolled equivalent (byte-identical output and all)
+ * did not. The MCP SDK's own `mcpAuthRouter` drives discovery / DCR / authorize / token / revoke, and
+ * `requireBearerAuth` gates each endpoint — i.e. claude.ai talks to the SDK's actual handlers, not our
+ * re-implementation. We only supply the provider (backed by state.js) and a password-gated consent
+ * step, and adapt for MCP Station's multi-MCP layout with per-slug protected-resource metadata and
+ * per-slug token scoping (bound via the RFC 8707 resource claude.ai sends).
  *
- * Endpoints: /.well-known/oauth-authorization-server,
- * /.well-known/oauth-protected-resource[/:slug], /register, /authorize,
- * /oauth/approve, /token, /revoke.
- *
- * MCP endpoints accept EITHER a valid OAuth access token OR the static
- * MCP_TOKEN env value (dual auth, for Claude Code CLI and scripts).
+ * MCP endpoints also accept the static MCP_TOKEN env value or a per-module token (Claude Code / scripts).
  */
-import { randomUUID } from 'node:crypto';
+import crypto from 'node:crypto';
+import express from 'express';
+import { mcpAuthRouter } from '@modelcontextprotocol/sdk/server/auth/router.js';
+import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js';
 import { cfg } from './env.js';
 import { getState, save, persist } from './state.js';
-import { randomToken, randomHex, sha256b64url, timingEqual } from './crypto.js';
+import { sha256b64url, timingEqual } from './crypto.js';
 import { verifyPassword, checkRate, noteFail } from './auth.js';
-import { getModules, getModuleBySlug, getModuleToken } from './mcpHost.js';
+import { getModuleBySlug, getModuleToken } from './mcpHost.js';
 import { log } from './log.js';
 
-const CODE_TTL = 10 * 60_000;
-// Access token is SHORT-LIVED (1h) to match the MCP SDK exactly — claude.ai's connector rejects
-// implausibly long-lived access tokens and drives its own refresh cycle. The long-lived refresh
-// token below is what keeps the connection permanent (claude.ai refreshes silently, hourly).
-const ACCESS_TTL = 60 * 60_000;          // 1 hour (was 30 days — claude.ai refused it)
-const REFRESH_TTL = 180 * 24 * 3600_000; // 180 days
+const CODE_TTL_MS = 5 * 60 * 1000; // auth code + pending login live 5 min
+const ACCESS_TTL_S = 60 * 60;      // access token lives 1 hour; refresh keeps the connection permanent
+const rand = (n = 32) => crypto.randomBytes(n).toString('hex'); // hex tokens, exactly like the Companion
 
 export function baseUrl(req) {
   if (cfg.publicUrl) return cfg.publicUrl;
   return `${req.protocol}://${req.get('host')}`;
 }
-
 export const oauthEnabled = () => Boolean(cfg.publicUrl);
 
-/* ── Per-MCP scoping ──────────────────────────────────────────────────────
- * A token is bound to ONE mcp slug ('' = every MCP, chosen explicitly on the
- * approval page). Clients that send RFC 8707 `resource` get bound automatically;
- * clients that don't, ask the human on the approval page. Enforced in requireBearer.
- */
+/* A token is bound to ONE mcp slug (derived from the RFC 8707 `resource` claude.ai sends); '' = all. */
 export function slugFromResource(resource) {
   try {
     const u = new URL(String(resource));
-    // The resource must name an MCP on THIS station (RFC 8707). A resource pointing at some other
-    // host is not ours to interpret — ignore it and let the human choose on the approval page.
     if (cfg.publicUrl && u.origin !== new URL(cfg.publicUrl).origin) return '';
     const seg = u.pathname.replace(/^\/+/, '').split('/')[0] || '';
     return getModuleBySlug(seg) ? seg : '';
@@ -51,328 +42,216 @@ export function slugFromResource(resource) {
   }
 }
 
-/** Short, stable handle for a token — lets the UI list and revoke without ever holding the secret. */
 const tokenHandle = (t) => sha256b64url(t).slice(0, 12);
 
-/* ── Discovery metadata ──────────────────────────────────────────────── */
-// The issuer MUST carry a trailing slash. The MCP SDK derives it as `new URL(base).href`, which
-// always normalises to `https://host/`; this server built it by concatenation and dropped the slash.
-// claude.ai keys the issued token to the authorization-server identifier and looks it up by its own
-// URL-normalised form (with slash) — so a slash-less issuer meant it silently couldn't find the token
-// to send, and made zero authenticated calls despite a valid token. Mirror the SDK exactly.
-const issuer = (base) => `${base}/`;
-
-// Field set, values AND order below are a byte-for-byte mirror of the MCP SDK's createOAuthMetadata
-// (server/auth/router.js) as the working SiYuan Companion emits it — verified against sy.dbzocchi.app.
-// No `service_documentation` (the SDK omits it unless a serviceDocumentationUrl is configured; the
-// Companion doesn't), auth methods ordered ['client_secret_post','none'] as the SDK hard-codes them.
-export function asMetadata(req, res) {
-  const base = baseUrl(req);
-  res.json({
-    issuer: issuer(base),
-    authorization_endpoint: `${base}/authorize`,
-    response_types_supported: ['code'],
-    code_challenge_methods_supported: ['S256'],
-    token_endpoint: `${base}/token`,
-    token_endpoint_auth_methods_supported: ['client_secret_post', 'none'],
-    grant_types_supported: ['authorization_code', 'refresh_token'],
-    scopes_supported: ['mcp'],
-    revocation_endpoint: `${base}/revoke`,
-    revocation_endpoint_auth_methods_supported: ['client_secret_post'],
-    registration_endpoint: `${base}/register`
-  });
+// Pending logins live in memory (like the Companion) — a redeploy mid-login just means retry.
+const pending = new Map();
+function sweepPending() {
+  const now = Date.now();
+  for (const [k, v] of pending) if (v.exp < now) pending.delete(k);
 }
 
-// Mirrors the SDK's mcpAuthMetadataRouter protectedResourceMetadata exactly: resource, then
-// authorization_servers (the trailing-slashed issuer), scopes_supported, resource_name — and no
-// `bearer_methods_supported` (the SDK does not emit it).
+let provider = null;
+
+function issueTokens(clientId, scopes = [], resource) {
+  const st = getState();
+  const access = rand(32);
+  const refresh = rand(32);
+  const now = Date.now();
+  const expiresAt = Math.floor(now / 1000) + ACCESS_TTL_S; // SECONDS — requireBearerAuth compares to Date.now()/1000
+  const slug = slugFromResource(resource) || '';
+  st.oauth.tokens[access] = { clientId, scopes, resource: resource || '', slug, createdAt: now, expiresAt };
+  st.oauth.refresh[refresh] = { clientId, scopes, resource: resource || '', slug, createdAt: now };
+  persist(); // durable before we hand the token back
+  log('oauth', `/token ISSUED for client ${clientId} → ${slug ? `/${slug}` : 'ALL MCPs'}`);
+  return {
+    access_token: access,
+    token_type: 'bearer',
+    expires_in: ACCESS_TTL_S,
+    scope: scopes.length ? scopes.join(' ') : undefined,
+    refresh_token: refresh,
+  };
+}
+
+/* Mount the SDK auth router + our consent step. Call once at boot when PUBLIC_URL is set. */
+export function mountOAuth(app) {
+  const base = cfg.publicUrl;
+
+  provider = {
+    clientsStore: {
+      getClient: (id) => getState().oauth.clients[id],
+      registerClient: (client) => {
+        const st = getState();
+        st.oauth.clients[client.client_id] = { ...client, createdAt: Date.now() };
+        persist();
+        log('oauth', `DCR: registered '${client.client_name || 'MCP client'}' (${client.client_id})`);
+        return client;
+      },
+    },
+
+    // Renders our password-gated consent page; it posts to /oauth/approve to mint the code.
+    async authorize(client, params, res) {
+      sweepPending();
+      const loginId = rand(16);
+      pending.set(loginId, {
+        clientId: client.client_id,
+        clientName: client.client_name,
+        codeChallenge: params.codeChallenge,
+        redirectUri: params.redirectUri,
+        state: params.state,
+        resource: params.resource ? params.resource.href : undefined,
+        scopes: params.scopes || [],
+        exp: Date.now() + CODE_TTL_MS,
+      });
+      log('oauth', `/authorize client=${client.client_id} resource='${params.resource?.href || '-'}'`);
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-store');
+      res.send(loginPage(loginId, client.client_name));
+    },
+
+    async challengeForAuthorizationCode(client, code) {
+      const c = getState().oauth.codes[code];
+      if (!c || c.clientId !== client.client_id) throw new Error('invalid authorization code');
+      return c.codeChallenge;
+    },
+
+    async exchangeAuthorizationCode(client, code, _verifier, redirectUri, resource) {
+      const st = getState();
+      const c = st.oauth.codes[code];
+      if (!c || c.clientId !== client.client_id || c.exp < Date.now()) throw new Error('invalid or expired authorization code');
+      if (redirectUri && redirectUri !== c.redirectUri) throw new Error('redirect_uri mismatch');
+      delete st.oauth.codes[code]; // one-time use
+      return issueTokens(client.client_id, c.scopes, c.resource || (resource && resource.href));
+    },
+
+    async exchangeRefreshToken(client, refreshToken, scopes, resource) {
+      const st = getState();
+      const r = st.oauth.refresh[refreshToken];
+      if (!r || r.clientId !== client.client_id) throw new Error('invalid refresh token');
+      delete st.oauth.refresh[refreshToken]; // rotate
+      return issueTokens(client.client_id, scopes && scopes.length ? scopes : r.scopes, r.resource || (resource && resource.href));
+    },
+
+    async verifyAccessToken(token) {
+      const t = getState().oauth.tokens[token];
+      if (!t) throw new Error('invalid token');
+      if (t.expiresAt * 1000 < Date.now()) { delete getState().oauth.tokens[token]; save(); throw new Error('expired token'); }
+      return {
+        token,
+        clientId: t.clientId,
+        scopes: t.scopes || [],
+        expiresAt: t.expiresAt,
+        resource: t.resource ? new URL(t.resource) : undefined,
+        extra: { slug: t.slug || '' },
+      };
+    },
+
+    async revokeToken(_client, request) {
+      const st = getState();
+      const tok = request.token;
+      let hit = false;
+      if (st.oauth.tokens[tok]) { delete st.oauth.tokens[tok]; hit = true; }
+      if (st.oauth.refresh[tok]) { delete st.oauth.refresh[tok]; hit = true; }
+      if (hit) persist();
+    },
+  };
+
+  // Consent target — must be registered before mcpAuthRouter so it wins at /oauth/approve.
+  app.post('/oauth/approve', express.urlencoded({ extended: false }), handleApprove);
+  // Per-slug PRM (RFC 9728) — registered before the router so /:slug resolves to the module resource.
+  app.get('/.well-known/oauth-protected-resource/:slug', protectedResourceMetadata);
+
+  app.use(mcpAuthRouter({
+    provider,
+    issuerUrl: new URL(base),
+    resourceServerUrl: new URL(base),
+    scopesSupported: ['mcp'],
+    resourceName: 'MCP Station',
+  }));
+
+  return provider;
+}
+
+/* Consent form target: verify the station password, mint a one-time code, redirect back. */
+export function handleApprove(req, res) {
+  sweepPending();
+  const { login_id: loginId, password } = req.body || {};
+  const p = pending.get(loginId);
+  if (!p) return res.status(400).send(errPage('This sign-in expired or was already used. Start again from your client.'));
+
+  const ip = req.ip || 'unknown';
+  if (!checkRate(ip)) return res.status(429).send(errPage('Too many attempts. Wait a minute and try again.'));
+  if (!password || !verifyPassword(password)) {
+    noteFail(ip);
+    log('oauth', `Authorization refused for client ${p.clientId}: ${password ? 'wrong password' : 'no password'}`);
+    return res.status(401).send(loginPage(loginId, p.clientName, 'Wrong password.'));
+  }
+
+  pending.delete(loginId);
+  const st = getState();
+  const code = rand(24);
+  st.oauth.codes[code] = {
+    clientId: p.clientId,
+    codeChallenge: p.codeChallenge,
+    redirectUri: p.redirectUri,
+    resource: p.resource,
+    scopes: p.scopes,
+    exp: Date.now() + CODE_TTL_MS,
+  };
+  persist(); // durable before the redirect — the code must survive a restart before the token exchange
+  log('oauth', `Authorization approved for client ${p.clientId}`);
+  const u = new URL(p.redirectUri);
+  u.searchParams.set('code', code);
+  if (p.state) u.searchParams.set('state', p.state);
+  res.redirect(302, u.href);
+}
+
+/* Per-slug protected-resource metadata (RFC 9728) — the SDK router is single-resource, so we serve
+ * these ourselves so claude.ai's `resource` (the URL it connected to) matches exactly. */
 export function protectedResourceMetadata(req, res) {
   const base = baseUrl(req);
   const slug = req.params.slug || '';
   res.json({
     resource: slug ? `${base}/${slug}` : base,
-    authorization_servers: [issuer(base)],
+    authorization_servers: [`${base}/`],
     scopes_supported: ['mcp'],
-    resource_name: slug ? `MCP Station — ${slug}` : 'MCP Station'
+    resource_name: slug ? `MCP Station — ${slug}` : 'MCP Station',
   });
 }
 
-/* ── Dynamic client registration (RFC 7591) ──────────────────────────── */
-export function handleRegister(req, res) {
-  const b = req.body || {};
-  const redirectUris = Array.isArray(b.redirect_uris) ? b.redirect_uris.filter((u) => typeof u === 'string') : [];
-  if (!redirectUris.length) {
-    return res.status(400).json({ error: 'invalid_client_metadata', error_description: 'redirect_uris is required' });
-  }
-  for (const u of redirectUris) {
-    let url;
-    try { url = new URL(u); } catch {
-      return res.status(400).json({ error: 'invalid_redirect_uri', error_description: `Not a valid URL: ${u}` });
-    }
-    const localhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
-    if (url.protocol !== 'https:' && !localhost) {
-      return res.status(400).json({ error: 'invalid_redirect_uri', error_description: 'redirect_uris must be https (or localhost)' });
-    }
-  }
-  const st = getState();
-  // The MCP SDK generates client_id via crypto.randomUUID(); mirror it so the id claude.ai receives
-  // has the same shape as from the working server (opaque either way, but keep it identical).
-  const client_id = randomUUID();
-  // Echo the client's registered metadata back, as RFC 7591 §3.2.1 requires and as the MCP SDK's
-  // own DCR handler does. Returning a lossy subset (dropping `scope`, omitting client_id_issued_at)
-  // leaves the client with a different view of the registration than the server has.
-  const client = {
-    client_id,
-    client_id_issued_at: Math.floor(Date.now() / 1000),
-    client_name: String(b.client_name || 'MCP client').slice(0, 120),
-    redirect_uris: redirectUris.slice(0, 10),
-    grant_types: Array.isArray(b.grant_types) ? b.grant_types : ['authorization_code', 'refresh_token'],
-    response_types: Array.isArray(b.response_types) ? b.response_types : ['code'],
-    token_endpoint_auth_method: b.token_endpoint_auth_method === 'client_secret_post' ? 'client_secret_post' : 'none',
-    ...(typeof b.scope === 'string' ? { scope: b.scope } : {}),
-    ...(typeof b.client_uri === 'string' ? { client_uri: b.client_uri } : {}),
-    ...(typeof b.logo_uri === 'string' ? { logo_uri: b.logo_uri } : {}),
-    ...(typeof b.software_id === 'string' ? { software_id: b.software_id } : {}),
-    ...(typeof b.software_version === 'string' ? { software_version: b.software_version } : {})
-  };
-
-  if (client.token_endpoint_auth_method === 'client_secret_post') {
-    client.client_secret = randomToken(32);
-    client.client_secret_expires_at = 0;
-  }
-
-  st.oauth.clients[client_id] = { ...client, createdAt: Date.now() };
-  persist(); // durable BEFORE we respond — a restart between DCR and /authorize must not lose the client
-  log('oauth', `DCR: registered '${client.client_name}' (${client_id}) scope='${b.scope || '-'}' redirect=${redirectUris[0]}`);
-  res.status(201).json(client);
-}
-
-/* ── Authorization endpoint ──────────────────────────────────────────── */
-/**
- * Two classes of failure, and OAuth 2.1 (§4.1.2.1) treats them very differently:
- *  - `fatal`: the client_id or redirect_uri is untrustworthy → we must NOT redirect (that would
- *    make this an open redirector). Render the error instead.
- *  - otherwise: the redirect_uri is verified, so we MUST bounce back to the client with
- *    ?error=… — a client left waiting on a 400 HTML page just hangs, which is what claude.ai's
- *    popup did.
- */
-function validateAuthParams(q) {
-  const st = getState();
-  const client = st.oauth.clients[q.client_id];
-  if (!client) return { fatal: 'Unknown client_id — the client must register first (dynamic registration is enabled).' };
-  if (!client.redirect_uris.includes(q.redirect_uri)) return { fatal: 'redirect_uri does not match the registered client.' };
-  if (q.response_type !== 'code') {
-    return { client, error: 'unsupported_response_type', description: 'Only response_type=code is supported.' };
-  }
-  if (!q.code_challenge || (q.code_challenge_method || 'S256') !== 'S256') {
-    return { client, error: 'invalid_request', description: 'PKCE with S256 code_challenge is required.' };
-  }
-  return { client };
-}
-
-/** Bounce back to the (already verified) redirect_uri with an OAuth error, preserving state. */
-function redirectError(res, q, error, description) {
-  const u = new URL(q.redirect_uri);
-  u.searchParams.set('error', error);
-  if (description) u.searchParams.set('error_description', description);
-  if (q.state) u.searchParams.set('state', q.state);
-  log('oauth', `Authorization error for client ${q.client_id}: ${error} — ${description || ''}`);
-  return res.redirect(302, u.toString());
-}
-
-export function handleAuthorize(req, res) {
-  if (!oauthEnabled()) return res.status(404).send('OAuth is disabled — set PUBLIC_URL on the server.');
-  const q = req.query;
-  log('oauth', `/authorize client=${q.client_id || '-'} resource='${q.resource || '-'}' scope='${q.scope || '-'}' pkce=${q.code_challenge_method || (q.code_challenge ? 'S256?' : 'NONE')}`);
-  const v = validateAuthParams(q);
-  if (v.fatal) return res.status(400).send(approvalPage({ error: v.fatal, q, invalid: true }));
-  if (v.error) return redirectError(res, q, v.error, v.description);
-  res.send(approvalPage({ q, client: v.client }));
-}
-
-export function handleApprove(req, res) {
-  if (!oauthEnabled()) return res.status(404).send('OAuth is disabled.');
-  const q = req.body || {};
-  const v = validateAuthParams(q);
-  if (v.fatal) return res.status(400).send(approvalPage({ error: v.fatal, q, invalid: true }));
-  if (v.error) return redirectError(res, q, v.error, v.description);
-
-  if (q.deny === '1') {
-    log('oauth', `Authorization DENIED for client ${q.client_id}`);
-    const u = new URL(q.redirect_uri);
-    u.searchParams.set('error', 'access_denied');
-    if (q.state) u.searchParams.set('state', q.state);
-    return res.redirect(302, u.toString());
-  }
-
-  // Always re-confirm the password here, even with an admin session: this popup hands an
-  // internet-exposed client 30 days of access to live data. An open admin tab is not consent.
-  const ip = req.ip || 'unknown';
-  if (!checkRate(ip)) return res.status(429).send(approvalPage({ error: 'Too many attempts — wait a minute and try again.', q, client: v.client }));
-  if (!verifyPassword(q.password)) {
-    noteFail(ip);
-    log('oauth', `Authorization refused for client ${q.client_id}: ${q.password ? 'wrong password' : 'no password given'}`);
-    return res.status(401).send(approvalPage({ error: q.password ? 'Wrong password.' : 'Enter your station password to approve.', q, client: v.client }));
-  }
-
-  const st = getState();
-  const code = randomHex(32); // hex, not base64url — see randomHex in crypto.js
-  // The client's own `resource` wins; otherwise the human picked one on the approval page.
-  // '*' (or nothing selectable) means station-wide — an explicit choice, never a silent default.
-  const asked = slugFromResource(q.resource);
-  const picked = q.grant_slug === '*' ? '' : String(q.grant_slug || '');
-  const slug = asked || (getModuleBySlug(picked) ? picked : '');
-  st.oauth.codes[code] = {
-    clientId: q.client_id,
-    redirectUri: q.redirect_uri,
-    codeChallenge: q.code_challenge,
-    scope: q.scope || 'mcp',
-    resource: q.resource || '',
-    slug,
-    expiresAt: Date.now() + CODE_TTL
-  };
-  persist(); // durable BEFORE the redirect — the code must survive a restart before the token exchange
-  log('oauth', `Authorization approved for client ${q.client_id} → ${slug ? `/${slug}` : 'ALL MCPs'}`);
-  const u = new URL(q.redirect_uri);
-  u.searchParams.set('code', code);
-  if (q.state) u.searchParams.set('state', q.state);
-  res.redirect(302, u.toString());
-}
-
-/* ── Token endpoint ──────────────────────────────────────────────────── */
-export function handleToken(req, res) {
-  const b = req.body || {};
-  const st = getState();
-  // Every real failure so far has been invisible: the client reports "authorization failed" and the
-  // station said nothing. Log what actually arrived, so the Logs panel names the broken step.
-  log('oauth', `/token grant=${b.grant_type || '-'} client=${b.client_id || '-'} redirect_uri=${b.redirect_uri ? 'sent' : 'omitted'} verifier=${b.code_verifier ? 'sent' : 'MISSING'}`);
-
-  if (b.grant_type === 'authorization_code') {
-    const rec = st.oauth.codes[b.code];
-    if (!rec || rec.expiresAt < Date.now()) return tokenError(res, 'invalid_grant', 'Authorization code is invalid or expired.');
-    delete st.oauth.codes[b.code]; // single use
-    if (rec.clientId !== b.client_id) return tokenError(res, 'invalid_grant', 'client_id mismatch.');
-    // redirect_uri is OPTIONAL on the token request (RFC 6749 §4.1.3 / the MCP SDK's own schema),
-    // and claude.ai omits it. Only compare it when the client actually sends one — demanding it
-    // unconditionally rejected every real connector with invalid_grant. PKCE is what binds the code.
-    if (b.redirect_uri && rec.redirectUri !== b.redirect_uri) {
-      return tokenError(res, 'invalid_grant', 'redirect_uri mismatch.');
-    }
-    if (!b.code_verifier || sha256b64url(b.code_verifier) !== rec.codeChallenge) {
-      return tokenError(res, 'invalid_grant', 'PKCE verification failed.');
-    }
-    return issueTokens(res, st, rec);
-  }
-
-  if (b.grant_type === 'refresh_token') {
-    const rec = st.oauth.refresh[b.refresh_token];
-    if (!rec || rec.expiresAt < Date.now()) return tokenError(res, 'invalid_grant', 'Refresh token is invalid or expired.');
-    // Bind the refresh token to the client it was issued to (RFC 6749 §6). Without this, any
-    // registered client could redeem another client's refresh token.
-    if (b.client_id && rec.clientId !== b.client_id) {
-      return tokenError(res, 'invalid_grant', 'This refresh token was not issued to that client.');
-    }
-    delete st.oauth.refresh[b.refresh_token]; // rotate
-    return issueTokens(res, st, rec);
-  }
-
-  return tokenError(res, 'unsupported_grant_type', 'Use authorization_code or refresh_token.');
-}
-
-function issueTokens(res, st, { clientId, scope, resource = '', slug = '' }) {
-  const access = randomHex(32); // hex, not base64url — claude.ai's backend rejects '-'/'_' in tokens
-  const refresh = randomHex(32);
-  const now = Date.now();
-  st.oauth.tokens[access] = { clientId, scope, resource, slug, createdAt: now, expiresAt: now + ACCESS_TTL };
-  st.oauth.refresh[refresh] = { clientId, scope, resource, slug, createdAt: now, expiresAt: now + REFRESH_TTL };
-  persist(); // durable BEFORE we hand the token back — else a restart in the 150ms save window leaves
-  // claude.ai holding a token this server has never heard of (connected, but every call 401s).
-  log('oauth', `/token ISSUED for client ${clientId} → ${slug ? `/${slug}` : 'ALL MCPs'} (scope '${scope}')`);
-  // OAuth 2.0 §5.1 REQUIRES Cache-Control: no-store on token responses. The MCP SDK sets it;
-  // this hand-rolled endpoint didn't, and claude.ai's client enforces it — so it accepted a valid
-  // token, refused to use it, and never made an authenticated call (issued but zero bearer calls in
-  // the logs). curl ignores the header, which is why diagnose-connector.sh passed and hid this.
-  // token_type lowercased to 'bearer' to mirror the working SDK response byte-for-byte.
-  res.set('Cache-Control', 'no-store');
-  res.json({
-    access_token: access,
-    token_type: 'bearer',
-    expires_in: Math.floor(ACCESS_TTL / 1000),
-    scope,
-    refresh_token: refresh
-  });
-}
-
-function tokenError(res, error, description) {
-  log('oauth', `/token REJECTED: ${error} — ${description}`);
-  res.status(400).json({ error, error_description: description });
-}
-
-export function handleRevoke(req, res) {
-  const t = (req.body || {}).token;
-  const st = getState();
-  if (t) {
-    delete st.oauth.tokens[t];
-    delete st.oauth.refresh[t];
-    persist(); // a revoked token must stay revoked across a restart
-  }
-  res.status(200).json({});
-}
-
-/* ── Bearer gate for MCP endpoints ────────────────────────────────────────
- * Three lanes, cheapest first:
- *   1. the station-wide MCP_TOKEN env var  — opens every MCP (the master key)
- *   2. this module's own token             — opens ONLY this MCP
- *   3. an OAuth access token               — opens the slug it was granted for
- * An OAuth token granted for /siyuan gets 403 on /telegram_mcp. That is the point.
- */
-export function requireBearer(req, res, next) {
-  const auth = req.headers.authorization || '';
-  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+/* ── Bearer gate for /:slug ──────────────────────────────────────────────
+ * Static MCP_TOKEN (all MCPs) → module token (this MCP) → OAuth token via the SDK's requireBearerAuth,
+ * then a per-slug scope check. */
+export function bearerGate(req, res, next) {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
   const slug = req.params.slug || req.path.split('/')[1] || '';
 
-  if (token) {
-    if (cfg.mcpToken && timingEqual(token, cfg.mcpToken)) return next();
+  if (token && cfg.mcpToken && timingEqual(token, cfg.mcpToken)) return next();
+  const mod = getModuleBySlug(slug);
+  const modToken = mod ? getModuleToken(mod.id) : '';
+  if (token && modToken && timingEqual(token, modToken)) return next();
 
-    const mod = getModuleBySlug(slug);
-    const modToken = mod ? getModuleToken(mod.id) : '';
-    if (modToken && timingEqual(token, modToken)) return next();
-
-    const t = getState().oauth.tokens[token];
-    if (t && t.expiresAt > Date.now()) {
-      if (t.slug && t.slug !== slug) {
-        log('oauth', `Token scoped to /${t.slug} was refused at /${slug}`);
-        return res.status(403).json({
-          jsonrpc: '2.0',
-          error: { code: -32003, message: `This token is scoped to /${t.slug} and cannot access /${slug}.` },
-          id: null
-        });
-      }
-      // Cheap "is this connector still alive?" stamp — throttled so it isn't a write per call.
-      const now = Date.now();
-      if (!t.lastUsedAt || now - t.lastUsedAt > 60_000) {
-        t.lastUsedAt = now;
-        save();
-      }
-      return next();
+  const gate = requireBearerAuth({ verifier: provider, resourceMetadataUrl: `${baseUrl(req)}/.well-known/oauth-protected-resource/${slug}` });
+  return gate(req, res, () => {
+    const t = req.auth;
+    if (t && t.extra && t.extra.slug && t.extra.slug !== slug) {
+      log('oauth', `Token scoped to /${t.extra.slug} was refused at /${slug}`);
+      return res.status(403).json({ jsonrpc: '2.0', error: { code: -32003, message: `This token is scoped to /${t.extra.slug} and cannot access /${slug}.` }, id: null });
     }
-  }
-
-  // Same shape the MCP SDK's bearer middleware sends (error + description + resource_metadata) —
-  // some clients parse the error code, not just the metadata URL.
-  const why = token ? 'invalid_token' : 'Missing Authorization header';
-  res.setHeader(
-    'WWW-Authenticate',
-    `Bearer error="invalid_token", error_description="${why}", resource_metadata="${baseUrl(req)}/.well-known/oauth-protected-resource/${slug}"`
-  );
-  log('oauth', `401 at /${slug}: ${token ? 'bearer token not recognised' : 'no Authorization header'}`);
-  res.status(401).json({ jsonrpc: '2.0', error: { code: -32001, message: 'Unauthorized: bearer token required' }, id: null });
+    if (t) {
+      const rec = getState().oauth.tokens[t.token];
+      const now = Date.now();
+      if (rec && (!rec.lastUsedAt || now - rec.lastUsedAt > 60_000)) { rec.lastUsedAt = now; save(); }
+    }
+    next();
+  });
 }
 
-/* ── Connections (what can reach this MCP right now) ─────────────────── */
+/* ── Connections (admin UI) ─────────────────────────────────────────────── */
 export function listConnections(slug) {
   const st = getState();
-  const now = Date.now();
+  const now = Date.now() / 1000;
   return Object.entries(st.oauth.tokens)
     .filter(([, t]) => t.expiresAt > now && (!t.slug || t.slug === slug))
     .map(([tok, t]) => ({
@@ -381,13 +260,12 @@ export function listConnections(slug) {
       clientId: t.clientId,
       allMcps: !t.slug,
       createdAt: t.createdAt,
-      expiresAt: t.expiresAt,
-      lastUsedAt: t.lastUsedAt || null
+      expiresAt: t.expiresAt * 1000,
+      lastUsedAt: t.lastUsedAt || null,
     }))
     .sort((a, b) => b.createdAt - a.createdAt);
 }
 
-/** Revoke by handle: kills the access token AND that client's refresh tokens for the same scope. */
 export function revokeConnection(handle) {
   const st = getState();
   const hit = Object.keys(st.oauth.tokens).find((t) => tokenHandle(t) === handle);
@@ -397,66 +275,31 @@ export function revokeConnection(handle) {
   for (const [r, rec] of Object.entries(st.oauth.refresh)) {
     if (rec.clientId === clientId && (rec.slug || '') === (slug || '')) delete st.oauth.refresh[r];
   }
-  save();
+  persist();
   log('oauth', `Revoked connection ${handle} (client ${clientId}${slug ? `, /${slug}` : ', all MCPs'})`);
 }
 
-/* ── Approval page (no inline JS — plain form posts) ─────────────────── */
+/* ── Consent page (password only; plain form post to /oauth/approve) ─────── */
 function esc(s) {
-  return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-function approvalPage({ q = {}, client = null, error = '', invalid = false }) {
-  const hidden = ['client_id', 'redirect_uri', 'response_type', 'code_challenge', 'code_challenge_method', 'state', 'scope', 'resource']
-    .map((k) => `<input type="hidden" name="${k}" value="${esc(q[k] || '')}">`)
-    .join('');
-  let host = '';
-  try { host = new URL(q.redirect_uri).host; } catch { /* ignore */ }
+function loginPage(loginId, clientName, error) {
+  const who = clientName ? `<p class="who"><b>${esc(clientName)}</b> wants to connect to your MCP servers.</p>` : '';
+  const err = error ? `<p class="err">${esc(error)}</p>` : '';
+  return `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MCP Station — Authorize</title>
+<style>body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:#0b0f14;color:#e6edf3;display:grid;place-items:center;min-height:100vh;margin:0}
+form{background:#111823;border:1px solid #1f2a37;padding:28px;border-radius:16px;width:min(92vw,340px);box-shadow:0 20px 60px rgba(0,0,0,.5)}
+h1{font-size:17px;margin:0 0 4px}.who{color:#8b98a9;font-size:13px;margin:0 0 16px;line-height:1.5}
+input{width:100%;box-sizing:border-box;padding:11px;border-radius:10px;border:1px solid #2a3846;background:#0b1420;color:#e6edf3;font-size:15px}
+button{width:100%;margin-top:12px;padding:11px;border:0;border-radius:10px;background:#1f6feb;color:#fff;font-weight:600;font-size:15px;cursor:pointer}
+.err{color:#ff9ea3;font-size:13px;margin:10px 0 0}</style>
+<form method="post" action="/oauth/approve"><h1>⛽ MCP Station</h1>${who}
+<input type="hidden" name="login_id" value="${esc(loginId)}">
+<input type="password" name="password" placeholder="Station password" autofocus autocomplete="current-password">
+<button type="submit">Authorise</button>${err}</form>`;
+}
 
-  // The client named the MCP it wants (RFC 8707) → bind to it. Otherwise the human chooses,
-  // so a token is never silently station-wide.
-  const asked = slugFromResource(q.resource);
-  const enabled = [...getModules().values()].filter((m) => m.manifest && !m.error);
-  const grant = asked
-    ? `<div class="who">access to <b>/${esc(asked)}</b> only</div><input type="hidden" name="grant_slug" value="${esc(asked)}">`
-    : `<label for="gs">Which MCP may this client use?</label>
-       <select id="gs" name="grant_slug">
-         ${enabled.map((m) => `<option value="${esc(m.manifest.slug)}">${esc(m.manifest.icon)} ${esc(m.manifest.name)} — /${esc(m.manifest.slug)}</option>`).join('')}
-         <option value="*">⚠ All MCPs on this station</option>
-       </select>`;
-  return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>MCP Station — Authorize</title>
-<style>
-  body{margin:0;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:#0b0f14;color:#e6edf3;display:grid;place-items:center;min-height:100vh}
-  .card{background:#111823;border:1px solid #1f2a37;border-radius:14px;padding:32px;max-width:400px;width:calc(100% - 48px);box-shadow:0 20px 60px rgba(0,0,0,.5)}
-  h1{font-size:18px;margin:0 0 6px}.sub{color:#8b98a9;font-size:13px;margin:0 0 20px;line-height:1.5}
-  .who{background:#0b1420;border:1px solid #1f2a37;border-radius:10px;padding:12px 14px;font-size:13px;margin-bottom:20px;line-height:1.6}
-  .who b{color:#7cc4ff}
-  label{display:block;font-size:12px;color:#8b98a9;margin-bottom:6px}
-  input[type=password],select{width:100%;box-sizing:border-box;background:#0b1420;border:1px solid #2a3846;border-radius:8px;color:#e6edf3;padding:10px 12px;font-size:14px;margin-bottom:16px}
-  .err{background:#2a1215;border:1px solid #5c2b30;color:#ff9ea3;border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:16px}
-  .row{display:flex;flex-direction:row-reverse;gap:10px}
-  button{flex:1;border:0;border-radius:8px;padding:11px 0;font-size:14px;font-weight:600;cursor:pointer}
-  .ok{background:#1f6feb;color:#fff}.no{background:#1c2733;color:#8b98a9}
-  .logo{display:flex;align-items:center;gap:8px;margin-bottom:18px;font-weight:700}.logo span{color:#1f6feb}
-</style></head><body>
-<div class="card">
-  <div class="logo">⛽ MCP <span>Station</span></div>
-  <h1>Authorize connection</h1>
-  <p class="sub">A client is asking for access to the MCP servers hosted here.</p>
-  <div class="who"><b>${esc(client?.client_name || 'Unknown client')}</b><br>redirects to <b>${esc(host)}</b><br>scope: <b>${esc(q.scope || 'mcp')}</b></div>
-  ${error ? `<div class="err">${esc(error)}</div>` : ''}
-  ${invalid ? '' : `<form method="POST" action="/oauth/approve">${hidden}
-    ${grant}
-    <label for="pw">Station password</label>
-    <input id="pw" type="password" name="password" autofocus autocomplete="current-password">
-    <div class="row">
-      <!-- Approve is FIRST in the DOM so it is the form's default submit button; pressing Enter
-           must never deny. row-reverse puts Deny back on the left visually. -->
-      <button class="ok" type="submit">Approve</button>
-      <button class="no" type="submit" name="deny" value="1" formnovalidate>Deny</button>
-    </div>
-  </form>`}
-</div></body></html>`;
+function errPage(msg) {
+  return `<!doctype html><meta charset="utf-8"><title>Sign-in error</title><body style="font-family:system-ui,sans-serif;background:#0b0f14;color:#e6edf3;display:grid;place-items:center;min-height:100vh;margin:0"><p style="max-width:360px;text-align:center;padding:0 20px">${esc(msg)}</p>`;
 }
