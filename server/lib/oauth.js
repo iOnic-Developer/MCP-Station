@@ -14,7 +14,7 @@
 import { randomUUID } from 'node:crypto';
 import { cfg } from './env.js';
 import { getState, save, persist } from './state.js';
-import { randomToken, sha256b64url, timingEqual } from './crypto.js';
+import { randomToken, randomHex, sha256b64url, timingEqual } from './crypto.js';
 import { verifyPassword, checkRate, noteFail } from './auth.js';
 import { getModules, getModuleBySlug, getModuleToken } from './mcpHost.js';
 import { log } from './log.js';
@@ -135,6 +135,12 @@ export function handleRegister(req, res) {
     ...(typeof b.software_id === 'string' ? { software_id: b.software_id } : {}),
     ...(typeof b.software_version === 'string' ? { software_version: b.software_version } : {})
   };
+
+  if (client.token_endpoint_auth_method === 'client_secret_post') {
+    client.client_secret = randomToken(32);
+    client.client_secret_expires_at = 0;
+  }
+
   st.oauth.clients[client_id] = { ...client, createdAt: Date.now() };
   persist(); // durable BEFORE we respond — a restart between DCR and /authorize must not lose the client
   log('oauth', `DCR: registered '${client.client_name}' (${client_id}) scope='${b.scope || '-'}' redirect=${redirectUris[0]}`);
@@ -210,7 +216,7 @@ export function handleApprove(req, res) {
   }
 
   const st = getState();
-  const code = randomToken(32);
+  const code = randomHex(32); // hex, not base64url — see randomHex in crypto.js
   // The client's own `resource` wins; otherwise the human picked one on the approval page.
   // '*' (or nothing selectable) means station-wide — an explicit choice, never a silent default.
   const asked = slugFromResource(q.resource);
@@ -274,8 +280,8 @@ export function handleToken(req, res) {
 }
 
 function issueTokens(res, st, { clientId, scope, resource = '', slug = '' }) {
-  const access = randomToken(32);
-  const refresh = randomToken(32);
+  const access = randomHex(32); // hex, not base64url — claude.ai's backend rejects '-'/'_' in tokens
+  const refresh = randomHex(32);
   const now = Date.now();
   st.oauth.tokens[access] = { clientId, scope, resource, slug, createdAt: now, expiresAt: now + ACCESS_TTL };
   st.oauth.refresh[refresh] = { clientId, scope, resource, slug, createdAt: now, expiresAt: now + REFRESH_TTL };

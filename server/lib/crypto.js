@@ -56,6 +56,12 @@ export function decrypt(blob) {
 
 export const randomToken = (bytes = 32) => crypto.randomBytes(bytes).toString('base64url');
 
+// Hex tokens: pure [0-9a-f], no '-' or '_'. Used for the OAuth code + access/refresh tokens that
+// claude.ai parses — its connector backend rejected the base64url ones (the '-'/'_' chars), which is
+// why the working SiYuan Companion (hex) connected and this station (base64url) didn't, despite an
+// otherwise byte-identical token response. Session/module tokens stay base64url (never leave here).
+export const randomHex = (bytes = 32) => crypto.randomBytes(bytes).toString('hex');
+
 export const sha256b64url = (s) => crypto.createHash('sha256').update(s).digest('base64url');
 
 export function timingEqual(a, b) {

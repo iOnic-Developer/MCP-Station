@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.4.11 — 2026-07-15
+
+**OAuth tokens are now hex, not base64url — the real reason claude.ai rejected them.**
+
+The token response was byte-identical to the working SiYuan Companion, yet claude.ai issued a token,
+parsed the payload, rejected it, and made ZERO authenticated calls — the same silent failure across
+v1.4.5–v1.4.10, and it failed on a never-cached slug too (ruling out stale cache). The one thing never
+compared was the token VALUE's character set: `sy` generates hex (`randomBytes.toString("hex")`, pure
+`[0-9a-f]`); this station generated base64url (`.toString("base64url")`, which includes `-` and `_`).
+claude.ai's connector backend rejects those characters in the access/refresh token fields. The OAuth
+code + access + refresh tokens now use a hex generator (`randomHex`); session/module tokens stay
+base64url (they never leave the server). Verified: issued tokens are pure 64-char hex.
+
 ## v1.4.10 — 2026-07-15
 
 **The actual root cause: OAuth state wasn't durable across restarts.**
