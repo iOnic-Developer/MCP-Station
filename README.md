@@ -9,6 +9,7 @@ streamable HTTP. One container, one password, unlimited MCPs.
 
 ```
 https://mcp.example.com/siyuan/mcp        → SiYuan knowledge base MCP  📓
+https://mcp.example.com/files/mcp         → jailed file storage        📁
 https://mcp.example.com/gemini_mcp/mcp    → Google Gemini MCP          ✨
 https://mcp.example.com/telegram_mcp/mcp  → Telegram MCP               ✈️
 https://mcp.example.com/<anything>/mcp    → whatever you build next    🪄
@@ -133,6 +134,7 @@ Docker tab → **Add Container**:
 |---|---|---|
 | `/mnt/user/appdata/mcp-station/data` | `/data` | OAuth store, encrypted settings, key, backups |
 | `/mnt/user/appdata/mcp-station/mcps` | `/app/mcps` | module folders (seeded on first boot) |
+| `/mnt/user/mcp-files` (anywhere you like) | `/files` | the 📁 Files module's storage root — where Claude saves things |
 
 **Variables:**
 

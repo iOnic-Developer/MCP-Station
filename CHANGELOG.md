@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.4.19 — 2026-07-16
+
+**📁 Files module — Claude gets a folder.**
+
+- New bundled module `files` (endpoint `/files/mcp`): six tools — `list_files` (recursive,
+  capped), `read_file` (text, size-capped, binary detected not dumped), `write_file`
+  (auto-creates parents; `append` flag for large content), `move_file`, `make_dir`,
+  `delete_file` (files or **empty** folders only, by design). Connect it to claude.ai and
+  "save that as notes/report.md" just works.
+- **Jailed to one root folder** (`root_dir` setting, default `/files`): absolute paths, drive
+  letters, `..` traversal and symlink escapes are all refused — verified by test. Which host
+  folder that is = your Docker volume mapping (`./volumes/files:/files` in compose; any Unraid
+  share → `/files`). The module's **Test** button checks the root exists and is writable.
+- Existing installs pick it up automatically: the entrypoint seeds missing module folders on the
+  next container start — just add the `/files` volume mapping.
+
 ## v1.4.18 — 2026-07-16
 
 **The ✦ assistant builds modules for real now — tools, not pasted code.**

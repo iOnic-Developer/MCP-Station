@@ -1,0 +1,18 @@
+{
+  "id": "files",
+  "slug": "files",
+  "name": "Files",
+  "icon": "📁",
+  "description": "File storage for Claude — read, write, list, move and delete files inside one jailed root folder (map a host folder to it in Docker).",
+  "version": "1.0.0",
+  "settings": [
+    {
+      "key": "root_dir",
+      "label": "Root folder",
+      "type": "text",
+      "required": false,
+      "default": "/files",
+      "help": "Container path every tool is jailed to. Map a host folder here in Docker, e.g. /mnt/user/appdata/mcp-files → /files."
+    }
+  ]
+}
