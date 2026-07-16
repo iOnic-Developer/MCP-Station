@@ -182,8 +182,10 @@ export function mountOAuth(app) {
 
   // Consent target — must be registered before mcpAuthRouter so it wins at /oauth/approve.
   app.post('/oauth/approve', express.urlencoded({ extended: false }), handleApprove);
-  // Per-slug PRM (RFC 9728) — registered before the router so /:slug resolves to the module resource.
-  app.get('/.well-known/oauth-protected-resource/:slug', protectedResourceMetadata);
+  // Per-slug PRM (RFC 9728) — registered before the router so /:slug resolves to the module
+  // resource. Both endpoint forms get metadata; the resource field echoes the exact URL the
+  // client connected to (/<slug>/mcp is canonical, bare /<slug> the legacy alias).
+  app.get(['/.well-known/oauth-protected-resource/:slug/mcp', '/.well-known/oauth-protected-resource/:slug'], protectedResourceMetadata);
   // Root PRM: the station root is not an MCP, so don't advertise it as one (shadows the SDK's
   // root handler). A connector added with the bare station URL now fails at discovery, not after
   // the password page. The AS metadata at /.well-known/oauth-authorization-server is unaffected.
@@ -258,13 +260,16 @@ export function protectedResourceMetadata(req, res) {
     log('oauth', `PRM refused for unknown slug '/${slug}' — connector URL doesn't match a hosted MCP`);
     return res.status(404).json({ error: `No MCP is hosted at /${slug}` });
   }
+  // RFC 9728: `resource` must equal the URL the client is connecting to — echo whichever
+  // endpoint form this metadata was fetched for (canonical /<slug>/mcp or the bare alias).
+  const suffix = req.path.replace(/\/+$/, '').endsWith('/mcp') ? '/mcp' : '';
   // Mirror the Companion's PRM byte-for-byte in kind: per-resource scope named after the
   // resource (claude.ai echoes this value into its authorize request and token grant), and an
   // ASCII-only resource_name — the em dash here was the single non-ASCII byte sequence in the
   // whole OAuth surface, and this backend has already rejected byte-level quirks (base64url
   // tokens) that curl and the spec were both fine with.
   res.json({
-    resource: slug ? `${base}/${slug}` : base,
+    resource: slug ? `${base}/${slug}${suffix}` : base,
     authorization_servers: [`${base}/`],
     scopes_supported: [slug || 'mcp'],
     resource_name: slug ? `MCP Station - ${slug}` : 'MCP Station',
@@ -284,7 +289,9 @@ export function bearerGate(req, res, next) {
   const modToken = mod ? getModuleToken(mod.id) : '';
   if (token && modToken && timingEqual(token, modToken)) return next();
 
-  const gate = requireBearerAuth({ verifier: provider, resourceMetadataUrl: `${baseUrl(req)}/.well-known/oauth-protected-resource/${slug}` });
+  // Challenge with the metadata URL for the exact path the client called, so the PRM's
+  // `resource` matches the connector URL for both endpoint forms (/<slug>/mcp and /<slug>).
+  const gate = requireBearerAuth({ verifier: provider, resourceMetadataUrl: `${baseUrl(req)}/.well-known/oauth-protected-resource${req.path.replace(/\/+$/, '')}` });
   return gate(req, res, () => {
     const t = req.auth;
     if (t && t.extra && t.extra.slug && t.extra.slug !== slug) {

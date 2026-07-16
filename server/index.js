@@ -116,7 +116,7 @@ function mcpListing(req) {
       configured: m.manifest ? host.isConfigured(m.id) : false,
       tokenSet: Boolean(reg.token),
       settings,
-      url: `${oauth.baseUrl(req)}/${m.manifest?.slug || m.id}`
+      url: `${oauth.baseUrl(req)}/${m.manifest?.slug || m.id}/mcp`
     };
   }).sort((a, b) => (a.manifest?.name || a.id).localeCompare(b.manifest?.name || b.id));
 }
@@ -326,7 +326,11 @@ app.use(express.static(path.join(ROOT, 'public'), {
 }));
 
 /* ── Hosted MCP endpoints (must stay last) ───────────────────────────── */
-app.all('/:slug', (req, res, next) => {
+// Canonical endpoint: /<slug>/mcp — the path shape every MCP server out there (including the
+// working SiYuan Companion) terminates with, and the shape whose absence was the last
+// wire-visible difference from it. Bare /<slug> stays as an alias so existing tokens,
+// Claude Code CLI configs and old connector URLs keep working.
+app.all(['/:slug/mcp', '/:slug'], (req, res, next) => {
   if (!host.getModuleBySlug(req.params.slug)) return next();
   // Log EVERY MCP request and its outcome. A successful call used to log nothing, which left a
   // blind spot exactly where connectors were failing: we could see a token issued and then silence,
@@ -336,7 +340,7 @@ app.all('/:slug', (req, res, next) => {
   const method = req.method;
   const rpc = req.body?.method || '-';
   res.on('finish', () => {
-    log('mcp', `${method} /${req.params.slug} → ${res.statusCode} (auth=${auth}, rpc=${rpc}, ua=${ua})`);
+    log('mcp', `${method} ${req.path} → ${res.statusCode} (auth=${auth}, rpc=${rpc}, ua=${ua})`);
   });
   oauth.bearerGate(req, res, () => host.handleMcpRequest(req, res));
 });
@@ -347,7 +351,7 @@ app.use((req, res) => {
   const auth = req.headers.authorization ? 'bearer' : 'NONE';
   const ua = String(req.headers['user-agent'] || '-').slice(0, 60);
   log('mcp', `${req.method} ${req.path} → 404 no such path (auth=${auth}, ua=${ua})`);
-  res.status(404).json({ error: `Nothing here. Hosted MCPs: ${[...host.getModules().keys()].map((s) => '/' + s).join(', ') || '(none)'}` });
+  res.status(404).json({ error: `Nothing here. Hosted MCPs: ${[...host.getModules().keys()].map((s) => `/${s}/mcp`).join(', ') || '(none)'}` });
 });
 
 /* ── Boot ────────────────────────────────────────────────────────────── */

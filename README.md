@@ -4,14 +4,14 @@ Self-hosted hub that **builds, configures and serves MCP servers** — each one 
 
 ```
 https://dbzocchi.app/             → admin UI (password-gated)
-https://dbzocchi.app/telegram_mcp → Telegram MCP  ✈️
-https://dbzocchi.app/gemini_mcp   → Gemini MCP    ✨
+https://mcp.example.com/telegram_mcp/mcp → Telegram MCP  ✈️
+https://mcp.example.com/gemini_mcp/mcp   → Gemini MCP    ✨
 https://dbzocchi.app/<yours>      → anything you add next
 ```
 
 ## Features
 
-- **Modular MCP hosting** — every folder in `mcps/` becomes a streamable-HTTP MCP endpoint at `/<slug>`. Hot reload, no restarts.
+- **Modular MCP hosting** — every folder in `mcps/` becomes a streamable-HTTP MCP endpoint at `/<slug>/mcp` (bare `/<slug>` kept as an alias). Hot reload, no restarts.
 - **OAuth 2.1 built in** (dynamic client registration + PKCE, password-gated approval) so claude.ai web/phone can add each MCP as a custom connector — plus a static `MCP_TOKEN` bearer for Claude Code CLI, n8n and scripts. Same proven pattern as the SiYuan Companion.
 - **Secure admin UI** — list MCPs, toggle, per-MCP settings rendered from each module's manifest (secrets AES-256-GCM encrypted at rest, never echoed back), connectivity **Test** buttons, in-browser code editor, logs.
 - **➕ Add MCP** — scaffolds a new module from the template; the **✦ Claude popup** (retained, editable instructions — it knows this station and the exact module contract) writes complete paste-ready modules on request.
@@ -65,11 +65,11 @@ No Docker Hub? Build straight from the repo on any box with Docker: `docker comp
 
 ## Connecting MCPs to Claude
 
-**claude.ai (permanent, OAuth):** Settings → Connectors → **Add custom connector** → paste e.g. `https://dbzocchi.app/gemini_mcp` → the browser lands on the station's approval page → enter `APP_PASSWORD` → done. Tokens refresh automatically (access 30 d, refresh 180 d, rotating).
+**claude.ai (permanent, OAuth):** Settings → Connectors → **Add custom connector** → paste e.g. `https://mcp.example.com/gemini_mcp/mcp` → the browser lands on the station's approval page → enter `APP_PASSWORD` → done. Tokens refresh automatically (access 1 h, rotating refresh).
 
 **Claude Code CLI (static bearer):**
 ```bash
-claude mcp add --transport http gemini https://dbzocchi.app/gemini_mcp \
+claude mcp add --transport http gemini https://mcp.example.com/gemini_mcp/mcp \
   --header "Authorization: Bearer $MCP_TOKEN"
 ```
 
@@ -78,8 +78,8 @@ claude mcp add --transport http gemini https://dbzocchi.app/gemini_mcp \
 | Group | Endpoints |
 |---|---|
 | UI / API | `/` · `/api/login` · `/api/mcps` · `/api/assistant` (SSE) · `/api/export` · `/api/import` · `/api/backup(s)` · `/api/restore` · `/api/logs` · `/healthz` |
-| MCP | `POST /<slug>` (stateless streamable HTTP) |
-| OAuth | `/.well-known/oauth-authorization-server` · `/.well-known/oauth-protected-resource/<slug>` · `/register` · `/authorize` · `/oauth/approve` · `/token` · `/revoke` |
+| MCP | `POST /<slug>/mcp` (stateless streamable HTTP; bare `/<slug>` alias) |
+| OAuth | `/.well-known/oauth-authorization-server` · `/.well-known/oauth-protected-resource/<slug>/mcp` · `/register` · `/authorize` · `/oauth/approve` · `/token` · `/revoke` |
 
 ## Building your own MCP
 

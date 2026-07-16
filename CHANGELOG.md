@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.4.17 — 2026-07-16
+
+**Every module now serves at `/<slug>/mcp` — the path shape the rest of the MCP world uses.**
+
+- The canonical endpoint is `https://host/<slug>/mcp` (e.g. `/siyuan/mcp`); the admin UI's copy-URL,
+  the 404 listing and the README all advertise it. Bare `/<slug>` keeps working as an alias, so
+  existing tokens, Claude Code CLI configs and old connector URLs are unaffected.
+- Protected-resource metadata exists for both forms and echoes the exact URL the client connected
+  to (RFC 9728), and the 401 challenge points at the metadata for the exact path that was called.
+  Token slug-scoping already parsed the first path segment, so scoped tokens work on both forms.
+- Rationale: after v1.4.16 the *path name* was the last wire-visible difference from the working
+  SiYuan Companion (`/mcp`) — every hosted endpoint now terminates in `/mcp` like the convention
+  claude.ai's backend has always been pointed at.
+
 ## v1.4.16 — 2026-07-16
 
 **The machine surface is now indistinguishable from the working Companion, header for header.**
