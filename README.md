@@ -1,99 +1,257 @@
 # ⛽ MCP Station
 
-Self-hosted hub that **builds, configures and serves MCP servers** — each one at its own URL on your domain, connectable to claude.ai permanently via OAuth, manageable from a secure web UI with a built-in Claude assistant that knows how to write modules for it.
+**Self-hosted multi-MCP server host.** Drop a module folder in `mcps/`, get a remote MCP endpoint
+at `https://your-host/<module>/mcp` that connects to **claude.ai (web + mobile)** as a custom
+connector, to **Claude Code** via bearer token, and to any other MCP client that speaks
+streamable HTTP. One container, one password, unlimited MCPs.
 
 ```
-https://dbzocchi.app/             → admin UI (password-gated)
-https://mcp.example.com/telegram_mcp/mcp → Telegram MCP  ✈️
-https://mcp.example.com/gemini_mcp/mcp   → Gemini MCP    ✨
-https://dbzocchi.app/<yours>      → anything you add next
+https://mcp.example.com/siyuan/mcp        → SiYuan knowledge base MCP  📓
+https://mcp.example.com/gemini_mcp/mcp    → Google Gemini MCP          ✨
+https://mcp.example.com/telegram_mcp/mcp  → Telegram MCP               ✈️
 ```
 
-## Features
+- **Modules are folders** — `manifest.json` + `index.js` (+ optional `instructions.md`). Hot
+  reload, no restarts. A `_template` module is included; the built-in ✦ assistant (Claude or
+  Gemini) can write new modules for you in the browser.
+- **OAuth 2.1 authorization server built in** — discovery metadata, dynamic client registration,
+  PKCE S256, rotating refresh tokens, all served by the official MCP SDK's own auth router. A
+  single station password gates the consent page. This is what lets claude.ai connect by URL
+  alone.
+- **Three ways to authenticate**: claude.ai OAuth (per-MCP scoped tokens), a station-wide
+  `MCP_TOKEN` (master key for Claude Code / scripts), and per-module tokens (hand one endpoint
+  to a script without the keys to the station).
+- **Admin SPA** — module cards with toggle/test/copy-URL, in-browser code editor, per-module
+  settings with encrypted secrets (AES-256-GCM at rest, never echoed back), live logs of every
+  OAuth and MCP request, capabilities inspector (see exactly what tools a module exposes before
+  trusting it), import/export and one-click tar.gz backup/restore.
 
-- **Modular MCP hosting** — every folder in `mcps/` becomes a streamable-HTTP MCP endpoint at `/<slug>/mcp` (bare `/<slug>` kept as an alias). Hot reload, no restarts.
-- **OAuth 2.1 built in** (dynamic client registration + PKCE, password-gated approval) so claude.ai web/phone can add each MCP as a custom connector — plus a static `MCP_TOKEN` bearer for Claude Code CLI, n8n and scripts. Same proven pattern as the SiYuan Companion.
-- **Secure admin UI** — list MCPs, toggle, per-MCP settings rendered from each module's manifest (secrets AES-256-GCM encrypted at rest, never echoed back), connectivity **Test** buttons, in-browser code editor, logs.
-- **➕ Add MCP** — scaffolds a new module from the template; the **✦ Claude popup** (retained, editable instructions — it knows this station and the exact module contract) writes complete paste-ready modules on request.
-- **Import / export / backup** — portable JSON config export/import, one-click tar.gz backups (state + module code) kept server-side and downloadable, restore from list or upload.
+---
 
-## Quick start
+## Quick start (Docker Compose)
+
+```yaml
+services:
+  mcp-station:
+    image: dbzocchi/mcp-station:latest
+    container_name: mcp-station
+    restart: unless-stopped
+    ports:
+      - "8788:8788"
+    environment:
+      APP_PASSWORD: change-me                 # admin UI login + OAuth consent password
+      PUBLIC_URL: https://mcp.example.com     # your public HTTPS hostname — see rules below
+      MCP_TOKEN: ""                           # optional static bearer for Claude Code / scripts
+      COOKIE_SECURE: "1"                      # you are behind HTTPS
+    volumes:
+      - ./data:/data                          # state, OAuth store, encryption key — MUST persist
+      - ./mcps:/app/mcps                      # module folders (seeded on first boot)
+```
 
 ```bash
-git clone https://github.com/iOnic-Developer/MCP-Station.git
-cd MCP-Station
-# edit docker-compose.yml: APP_PASSWORD, PUBLIC_URL, SESSION_SECRET, MCP_TOKEN
-docker compose up -d --build
+docker compose up -d
+curl http://localhost:8788/healthz   # → {"ok":true,"version":"…","modules":3,"oauth":true}
 ```
 
-Open `http://host:8788`, sign in with `APP_PASSWORD`. Put it behind your reverse proxy (SWAG / Nginx Proxy Manager) as `dbzocchi.app` with HTTPS and set `COOKIE_SECURE=1`.
+Open `http://host:8788`, log in with `APP_PASSWORD`, configure each module's settings
+(e.g. the SiYuan module needs your SiYuan URL + API token — **settings live in the UI, not in
+env vars**).
 
-## Unraid (Docker Hub image)
+### The three `PUBLIC_URL` rules
 
-CI builds `<dockerhub-user>/mcp-station:latest` (amd64 + arm64) on every push to main — see `.github/workflows/docker.yml`; it needs two repo secrets on GitHub: `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` (a hub.docker.com PAT with Read & Write).
+`PUBLIC_URL` is the OAuth **issuer**. Connectors break in confusing ways when it's wrong:
 
-Unraid → Docker → **Add Container**:
+1. It must be the **exact public HTTPS origin** clients connect to — scheme + hostname, no path.
+   `https://mcp.example.com` ✅ · trailing slash is fine (stripped) · a different hostname than
+   the one in the connector URL ❌
+2. If you **change the hostname later**, change `PUBLIC_URL` and restart — a connector URL on
+   host A with an issuer claiming host B fails authorization by design.
+3. It must reach the station **directly** — no auth wall, no redirect in front of it. The
+   station self-checks this at boot and logs the result.
+
+---
+
+## Connecting clients
+
+**claude.ai (web / mobile / desktop) — permanent, OAuth:**
+Settings → Connectors → **Add custom connector** → `https://mcp.example.com/<module>/mcp` →
+a popup shows the station's consent page → enter `APP_PASSWORD` → connected. Tokens are scoped
+to that one module and refresh automatically (1 h access, rotating refresh).
+
+**Claude Code CLI — static token:**
+
+```bash
+claude mcp add --transport http siyuan https://mcp.example.com/siyuan/mcp \
+  --header "Authorization: Bearer <MCP_TOKEN or per-module token>"
+```
+
+**Anything else** that speaks MCP streamable HTTP: same URL, same bearer header. The bare
+`/<module>` path (no `/mcp` suffix) also works and is kept for backwards compatibility.
+
+**Testing the full claude.ai flow without claude.ai** (discovery → registration → PKCE →
+consent → token → tools):
+
+```bash
+node scripts/claude-flow-sim.mjs https://mcp.example.com /siyuan/mcp '<APP_PASSWORD>'
+# FLOW OK — server + transport are healthy end to end
+```
+
+---
+
+## Unraid
+
+Docker tab → **Add Container**:
 
 | Field | Value |
 |---|---|
-| Repository | `<dockerhub-user>/mcp-station:latest` |
-| Port | `8788` → `8788` |
-| Path `/data` | `/mnt/user/appdata/mcp-station/data` |
-| Path `/app/mcps` | `/mnt/user/appdata/mcp-station/mcps` |
-| Env | `APP_PASSWORD`, `PUBLIC_URL=https://dbzocchi.app`, `SESSION_SECRET`, `MCP_TOKEN`, `COOKIE_SECURE=1`, optional `ANTHROPIC_API_KEY` |
+| Repository | `dbzocchi/mcp-station:latest` |
+| Network Type | Bridge |
+| Port | `8788` → container `8788` |
 
-Then point the reverse proxy (SWAG/NPM) for `dbzocchi.app` at `:8788`. Port 8788 because the SiYuan Companion already owns 8787.
+**Paths** (add both — without persistent `/data` every connector dies on redeploy):
 
-No Docker Hub? Build straight from the repo on any box with Docker: `docker compose up -d --build`.
-
-## Environment
-
-| Variable | Default | What it does |
+| Host path | Container path | Purpose |
 |---|---|---|
-| `APP_PASSWORD` | *(required)* | Admin UI login + OAuth approval gate |
-| `PUBLIC_URL` | *(unset → OAuth off)* | Public https base, e.g. `https://dbzocchi.app` — enables the OAuth server |
-| `SESSION_SECRET` | *(auto-generated)* | Fixed random string: sessions + encrypted secrets survive container rebuilds (otherwise a key is persisted at `/data/secret.key`) |
-| `MCP_TOKEN` | *(unset)* | Static bearer accepted on every MCP endpoint |
-| `ASSISTANT_PROVIDER` | `anthropic` | Which backend the ✦ popup uses: `anthropic` or `gemini` — the ⚙ Station toggle overrides it |
-| `ANTHROPIC_API_KEY` | *(unset)* | Powers the ✦ popup (or set it in the UI, stored encrypted) |
-| `ANTHROPIC_MODEL` | `claude-sonnet-4-6` | Popup model |
-| `GEMINI_API_KEY` | *(unset)* | Powers the ✦ popup when the provider is `gemini` (or set it in the UI, stored encrypted) |
-| `GEMINI_MODEL` | `gemini-2.5-flash` | Popup model on Gemini |
-| `PORT` | `8788` | Listen port |
-| `COOKIE_SECURE` | `0` | Set `1` behind HTTPS |
-| `DATA_DIR` / `MCPS_DIR` | `/data` / `/app/mcps` | Volumes |
+| `/mnt/user/appdata/mcp-station/data` | `/data` | OAuth store, encrypted settings, key, backups |
+| `/mnt/user/appdata/mcp-station/mcps` | `/app/mcps` | module folders (seeded on first boot) |
 
-## Connecting MCPs to Claude
+**Variables:**
 
-**claude.ai (permanent, OAuth):** Settings → Connectors → **Add custom connector** → paste e.g. `https://mcp.example.com/gemini_mcp/mcp` → the browser lands on the station's approval page → enter `APP_PASSWORD` → done. Tokens refresh automatically (access 1 h, rotating refresh).
+| Variable | Required | Example / notes |
+|---|---|---|
+| `APP_PASSWORD` | ✅ | admin login + OAuth consent password |
+| `PUBLIC_URL` | ✅ for claude.ai | `https://mcp.example.com` — see the three rules above |
+| `PORT` | — | `8788` (match the port mapping) |
+| `MCP_TOKEN` | — | static bearer for Claude Code / scripts |
+| `COOKIE_SECURE` | — | `1` when served over HTTPS |
+| `SESSION_SECRET` | — | leave **unset** (a key is generated and persisted in `/data`). If you set it, pick the final value **before** configuring modules — changing it later makes encrypted settings unreadable |
+| `ASSISTANT_PROVIDER` | — | `anthropic` or `gemini` (the ✦ assistant popup) |
+| `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | — | assistant on Claude |
+| `GEMINI_API_KEY` / `GEMINI_MODEL` | — | assistant on Gemini |
 
-**Claude Code CLI (static bearer):**
-```bash
-claude mcp add --transport http gemini https://mcp.example.com/gemini_mcp/mcp \
-  --header "Authorization: Bearer $MCP_TOKEN"
+> Module settings such as a SiYuan URL/token are **not** env vars — set them in the station UI
+> per module. They're stored encrypted in `/data` and mirrored into the module folder.
+
+After starting: browse to `https://<your-hostname>` (or `http://<unraid-ip>:8788`) → log in →
+configure modules. Check the container log's boot line: if it says the OAuth store loaded
+`0 client(s)` after you previously had working connectors, your `/data` mapping isn't
+persisting.
+
+---
+
+## TrueNAS SCALE (custom app YAML)
+
+Apps → **Discover Apps** → ⋮ → **Install via YAML**:
+
+```yaml
+services:
+  mcp-station:
+    image: dbzocchi/mcp-station:latest
+    container_name: mcp-station
+    restart: unless-stopped
+    ports:
+      - "8788:8788"
+    environment:
+      APP_PASSWORD: change-me
+      PUBLIC_URL: https://mcp.example.com
+      COOKIE_SECURE: "1"
+      MCP_TOKEN: ""
+    volumes:
+      - /mnt/tank/apps/mcp-station/data:/data
+      - /mnt/tank/apps/mcp-station/mcps:/app/mcps
 ```
 
-## Endpoint map
+Create the two datasets/directories first (`…/data`, `…/mcps`) and point the volumes at them.
+Everything from the Unraid variable table applies unchanged.
 
-| Group | Endpoints |
+---
+
+## Cloudflare — read this if connectors fail after the password page
+
+If your station sits behind Cloudflare (orange-clouded DNS), one zone setting can silently kill
+claude.ai connectors while every test you run passes:
+
+**Symptom:** the connector flow works all the way through the password page, the station log
+shows `token ISSUED`, and then… nothing. claude.ai shows *"Couldn't connect to the server"* or
+*"Authorization with the MCP server failed."* Meanwhile curl works, browsers work, and even
+claude.ai's *pre-auth* probe reaches your server.
+
+**Cause:** Cloudflare's AI-bot blocking. claude.ai's OAuth calls go out with a generic client
+(`python-httpx`) and pass — but its actual MCP data-plane calls identify as **`Claude-User`**,
+which is on Cloudflare's AI-bots list. The managed rule **"Manage AI bots"** blocks them at the
+edge with a 403 your origin never sees.
+
+**Fix:**
+
+1. Cloudflare dashboard → your zone → **Security → Settings → Configure AI bot policies** →
+   set **Agent → Allow (do not block)**. (`Claude-User` is Agent-category: real-time actions on
+   a person's behalf. Search/Training categories can stay blocked if you want.)
+   On zones still showing the older one-click **"Block AI bots"** toggle: turn it **Off**.
+2. Check **AI Crawl Control → Crawlers** → ensure `Claude-User` is **Allow** (a Block here
+   creates hidden WAF custom rules — check **Security → WAF → Custom rules** too).
+3. Verify in **Security → Events**: filter your hostname; connector attempts must stop logging
+   `Manage AI bots / Block` for user-agent `Claude-User`.
+
+**Also, when renaming hostnames:** DNS answers (including *negative* "no such host" answers) are
+cached for ~5 minutes. A just-created record can look dead and a just-deleted one alive. Judge
+DNS changes by an authoritative query (`nslookup <name> 1.1.1.1`), not by the browser, and give
+changes five minutes.
+
+**Reverse proxy (SWAG / NPM / Caddy / plain nginx):** nothing special — a standard HTTPS
+`proxy_pass` to `:8788` is all the station needs. No websocket config, no buffering tweaks, no
+`trust proxy` anywhere.
+
+---
+
+## Writing a module
+
+A module is a folder in `mcps/`:
+
+```
+mcps/my-module/
+├── manifest.json     # id, slug, name, icon, description, settings[]
+├── index.js          # export function register({ server, z, getSettings, log, fetchJson })
+└── instructions.md   # optional — served to every client as MCP instructions at initialize
+```
+
+`manifest.json` declares the URL slug and the settings form (types: `text`, `secret` —
+secrets are encrypted at rest and masked in the UI). `register()` receives the MCP `server` to
+add tools/prompts to, a zod instance `z` for schemas, `getSettings()` for live config, and
+helpers. Copy `mcps/_template`, or open any module's ✦ Chat in the station UI and ask the
+assistant to write one — it knows the contract.
+
+Each module card shows 🧰 **Tools** (live capabilities inspection — what a client actually
+sees), 🔑 **Access** (per-module token + connected clients with revoke), and the code editor.
+
+---
+
+## Troubleshooting
+
+| Symptom | Cause → fix |
 |---|---|
-| UI / API | `/` · `/api/login` · `/api/mcps` · `/api/assistant` (SSE) · `/api/export` · `/api/import` · `/api/backup(s)` · `/api/restore` · `/api/logs` · `/healthz` |
-| MCP | `POST /<slug>/mcp` (stateless streamable HTTP; bare `/<slug>` alias) |
-| OAuth | `/.well-known/oauth-authorization-server` · `/.well-known/oauth-protected-resource/<slug>/mcp` · `/register` · `/authorize` · `/oauth/approve` · `/token` · `/revoke` |
+| Password page works, then "Couldn't connect" / auth failed; log ends at `token ISSUED` | Cloudflare blocking `Claude-User` — see the Cloudflare section above |
+| "Authorization with the MCP server failed" immediately | Hostname in the connector URL ≠ `PUBLIC_URL`, or a stale authorize page (>5 min old) — fix `PUBLIC_URL`/restart, retry fresh |
+| "Couldn't register with the sign-in service" | Hostname doesn't resolve (DNS caching after a rename), or `/register` rate-limited after many attempts (20/h — restarting the container resets it) |
+| Connectors die whenever you redeploy | `/data` isn't on a persistent volume — boot log says `0 client(s)` |
+| Connector connects but every tool call errors "not configured" | Module settings are blank — set them in the station UI (not env vars) |
+| Connect flow 404s before the password page | Wrong module slug in the URL — the 404 body lists the hosted MCPs, and unknown slugs are refused at discovery on purpose |
+| Module responds 404 with a valid token | Module is toggled off in the UI |
 
-## Building your own MCP
+The **Logs panel** (admin UI) records every OAuth endpoint response and every MCP request with
+status, auth mode and user-agent — whatever a client does, it leaves a line. For a full
+client-side re-enactment, run `scripts/claude-flow-sim.mjs` (above).
 
-Read **[docs/BUILDING_MCPS.md](docs/BUILDING_MCPS.md)** — or just ask the ✦ popup, that's what it's for. Short version: `➕ Add MCP` → open **Code** → fill `manifest.json` (declares settings the UI renders) and `index.js` (`export function register({ server, z, getSettings, log, fetchJson })`) → **Save & reload** → **Settings** → **Test** → connect.
+---
 
-## More docs
+## Endpoints reference
 
-- [docs/BUILD_JOURNAL.md](docs/BUILD_JOURNAL.md) — design decisions, architecture, work log
-- [docs/BUILDING_MCPS.md](docs/BUILDING_MCPS.md) — the module contract
-- [docs/OAUTH.md](docs/OAUTH.md) — auth flows in detail
-- [CLAUDE.md](CLAUDE.md) — orientation for AI sessions working on this repo
+| Surface | Path |
+|---|---|
+| MCP (canonical) | `POST /<slug>/mcp` — stateless streamable HTTP; `/<slug>` kept as alias |
+| OAuth discovery | `/.well-known/oauth-authorization-server` · `/.well-known/oauth-protected-resource/<slug>/mcp` |
+| OAuth flow | `/register` · `/authorize` · `/oauth/approve` · `/token` · `/revoke` |
+| Health | `GET /healthz` → `{ok, version, modules, oauth}` |
+| Admin UI / API | `/` · `/api/*` (session cookie, same-origin) |
 
-## Ops notes
-
-- **Backups** land in `/data/backups` (last 20 kept). They include `secret.key` — restoring on a box with a *different* `SESSION_SECRET` env means stored secrets can't decrypt; keep the same secret or re-enter credentials.
-- Deleted modules go to `/data/trash`, not oblivion.
-- `GET /healthz` for uptime checks.
+Data lives in `/data` (`station.json` state + OAuth store, `secret.key`, `backups/`, `trash/`);
+modules in `/app/mcps`. Backup = tar of both (or use the UI's backup button).
