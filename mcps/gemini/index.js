@@ -46,22 +46,18 @@ export function register({ server, z, getSettings, log, fetchJson }) {
     return { model: m, data };
   };
 
-  const generateImageApiCall = async ({ prompt, quality, response_format }) => {
+  // Image generation is a generateContent call against an image-capable model
+  // (e.g. gemini-2.5-flash-image); the PNG comes back as an inlineData part.
+  // (The previous `images:generate` endpoint never existed in Google's API — every call 404'd.)
+  const generateImageApiCall = async ({ prompt, model }) => {
     const { api_key } = getSettings();
-    const body = {
-      prompt: { text: prompt },
-      generationConfig: {
-        ...(quality !== 'standard' ? { quality } : {}),
-        ...(response_format !== 'url' ? { responseFormat: response_format } : {})
-      }
-    };
-    // The image generation endpoint is different from content generation, but uses the same BASE and API key.
-    const data = await fetchJson(`${BASE}/images:generate?key=${api_key}`, {
+    const m = model || 'gemini-2.5-flash-image';
+    const data = await fetchJson(`${BASE}/models/${encodeURIComponent(m)}:generateContent?key=${api_key}`, {
       method: 'POST',
-      body: JSON.stringify(body),
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
       timeoutMs: 120_000 // Image generation can take longer
     });
-    return data;
+    return (data?.candidates?.[0]?.content?.parts || []).filter((p) => p.inlineData);
   };
 
   server.registerTool(
@@ -218,53 +214,28 @@ Returns: vector dimensionality + the values (structured content carries the full
     'gemini_generate_image',
     {
       title: 'Generate image',
-      description: `Generate an image from a text prompt using Gemini.
+      description: `Generate an image from a text prompt using a Gemini image model.
 
 Args:
   - prompt (string, required): A detailed description of the image to generate.
-  - quality ('standard' | 'hd', optional): Image quality. Default 'standard'.
-  - response_format ('url' | 'b64_json', optional): Format for the generated image. Default 'url'.
-    URLs are temporary and expire. Base64 data can be very large and will be truncated in text content.
-Returns:
-  - If response_format is 'url': A list of URLs to the generated images.
-  - If response_format is 'b64_json': Base64 encoded image data (potentially truncated in text content, full data in structuredContent).
-Errors: "Error: api_key is not configured…" | "Error: HTTP 400/403 …" (bad key or permissions).`,
+  - model (string, optional): image-capable model id. Default gemini-2.5-flash-image.
+Returns: the generated image as MCP image content (base64 PNG/JPEG) that clients render inline.
+Errors: "Error: api_key is not configured…" | "Error: HTTP 400/403 …" (bad key or model name).`,
       inputSchema: {
         prompt: z.string().min(1).describe('The text prompt for the image generation'),
-        quality: z.enum(['standard', 'hd']).default('standard').describe('Image quality: "standard" or "hd"'),
-        response_format: z.enum(['url', 'b64_json']).default('url').describe('Output format: "url" or "b64_json"')
+        model: z.string().optional().describe('Image-capable model id (default gemini-2.5-flash-image)')
       },
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: true }
     },
-    async ({ prompt, quality, response_format }) => {
+    async ({ prompt, model }) => {
       const missing = needKey(getSettings());
       if (missing) return { content: [{ type: 'text', text: missing }] };
       try {
-        const data = await generateImageApiCall({ prompt, quality, response_format });
-        const images = data?.images || [];
-
-        if (images.length === 0) {
-          return { content: [{ type: 'text', text: 'No images generated.' }] };
-        }
-
-        if (response_format === 'url') {
-          const urls = images.map(img => img.url).filter(Boolean);
-          if (urls.length > 0) {
-            const text = `Generated images:\n${urls.map(url => `- ${url}`).join('\n')}`;
-            return { content: [{ type: 'text', text: truncate(text) }], structuredContent: { images: urls } };
-          } else {
-            return { content: [{ type: 'text', text: 'No image URLs found in the response.' }] };
-          }
-        } else { // b64_json
-          const base64Data = images.map(img => img.base64_data).filter(Boolean);
-          if (base64Data.length > 0) {
-            const firstB64 = base64Data[0];
-            const text = `Generated image (base64, truncated to first ${CHARACTER_LIMIT} chars):\n${truncate(firstB64)}` + (base64Data.length > 1 ? `\n\nAnd ${base64Data.length - 1} more images (structuredContent has all base64 data).` : '');
-            return { content: [{ type: 'text', text: text }], structuredContent: { images: base64Data } };
-          } else {
-            return { content: [{ type: 'text', text: 'No base64 image data found in the response.' }] };
-          }
-        }
+        const parts = await generateImageApiCall({ prompt, model });
+        if (!parts.length) return { content: [{ type: 'text', text: 'No image was generated (the model may have refused the prompt).' }] };
+        return {
+          content: parts.map((p) => ({ type: 'image', data: p.inlineData.data, mimeType: p.inlineData.mimeType || 'image/png' }))
+        };
       } catch (e) {
         return { content: [{ type: 'text', text: `Error: ${e.message}` }] };
       }

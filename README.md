@@ -1,4 +1,6 @@
-# ⛽ MCP Station
+<p align="center"><img src="public/assets/logo.png" width="340" alt="MCP Station — one hub, many docked MCP modules"></p>
+
+# MCP Station
 
 **Self-hosted multi-MCP server host.** Drop a module folder in `mcps/`, get a remote MCP endpoint
 at `https://your-host/<module>/mcp` that connects to **claude.ai (web + mobile)** as a custom
