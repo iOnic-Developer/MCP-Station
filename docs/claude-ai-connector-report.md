@@ -1,4 +1,25 @@
-# Custom connector fails after successful OAuth — evidence report
+# ~~Custom connector fails after successful OAuth~~ — SOLVED 2026-07-16
+
+**Root cause (from claude.ai's own connector proxy, via an authenticated call to
+`/v1/toolbox/shttp/mcp/<connector-uuid>`):**
+
+```json
+{"type":"permission_error","message":"MCP server returned 403 Forbidden. The request was
+blocked by Cloudflare. Check the server's Cloudflare configuration.",
+"details":{"error_code":"mcp_request_blocked"}}
+```
+
+Cloudflare's edge 403s claude.ai's **authenticated** MCP calls before they reach the origin.
+The OAuth endpoints, browsers, curl (any fingerprint we could produce), and claude.ai's own
+*unauthenticated* pre-flight all pass — so every server-side log showed a perfect handshake
+followed by silence, and no client-side reproduction could trigger the block (bot scoring uses
+TLS fingerprints). Identify the exact rule in Cloudflare Dashboard → Security → Events for the
+failing hostname at the attempt timestamps; the usual suspects are Bot Fight Mode, the "block AI
+bots" toggle, or a custom WAF rule. Everything below this line is the (historically useful)
+evidence chain that exonerated the server itself.
+
+---
+# Original report
 
 **Support references:** `ofid_7522a001898de256`, `ofid_d6cd747993eb851e`
 **Date:** 2026-07-16 · **Reporter:** David (dbzocchi.app)
