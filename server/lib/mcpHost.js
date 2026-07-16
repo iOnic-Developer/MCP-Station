@@ -19,7 +19,10 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { cfg } from './env.js';
 import { getState, save } from './state.js';
 import { encrypt, decrypt } from './crypto.js';
+import { createShare, listShares, revokeShare, parseTtl } from './fileShares.js';
 import { log } from './log.js';
+
+const shareStore = { createShare, listShares, revokeShare, parseTtl };
 
 // 'mcp' is deliberately NOT reserved: nothing in the station routes it, and hosting a module at
 // /mcp makes the endpoint path-identical to the working SiYuan Companion — the last wire-visible
@@ -215,7 +218,8 @@ export function buildServerFor(mod) {
     z,
     getSettings: () => getSettingsFor(mod.id),
     log: (m) => log(`mcp:${mod.id}`, m),
-    fetchJson
+    fetchJson,
+    shareStore // { createShare, listShares, revokeShare, parseTtl } — public /f/<token> links
   });
   return server;
 }

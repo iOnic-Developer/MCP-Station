@@ -10,7 +10,9 @@
  */
 import express from 'express';
 import path from 'node:path';
+import fs from 'node:fs';
 import { cfg, ROOT } from './lib/env.js';
+import * as fileShares from './lib/fileShares.js';
 import { initKey, encrypt, decrypt, randomToken } from './lib/crypto.js';
 import { loadState, getState, save, persist, gc } from './lib/state.js';
 import { log, getLogs } from './lib/log.js';
@@ -315,6 +317,26 @@ api.post('/restore/:name', async (req, res) => {
 });
 
 api.get('/logs', (req, res) => res.json({ logs: getLogs() }));
+
+/* ── Public file shares (unauthenticated by design) ──────────────────── */
+// GET /f/<token> streams ONE file a module explicitly shared. The token is the only credential;
+// it's unguessable (128-bit), can expire, and resolveShare re-checks the file is still inside the
+// recorded jail root. This is the one route on the station that intentionally bypasses auth —
+// registered before the static handler and the /:slug MCP catch-all so /f/ can never be a module.
+app.get('/f/:token', (req, res) => {
+  const hit = fileShares.resolveShare(req.params.token);
+  if (!hit) {
+    log('files', `share miss /f/${String(req.params.token).slice(0, 8)}… → 404 (unknown/expired/removed)`);
+    return res.status(404).send('This link is invalid or has expired.');
+  }
+  res.setHeader('Content-Type', hit.contentType);
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Content-Disposition', `inline; filename="${hit.name.replace(/[^\w.\-]+/g, '_')}"`);
+  res.setHeader('Cache-Control', 'no-store'); // honour revocation immediately
+  fs.createReadStream(hit.abs)
+    .on('error', () => { if (!res.headersSent) res.status(500).end(); })
+    .pipe(res);
+});
 
 /* ── Static UI ───────────────────────────────────────────────────────── */
 // no-cache = "revalidate every load" (ETags still make that a cheap 304). The SPA's assets are

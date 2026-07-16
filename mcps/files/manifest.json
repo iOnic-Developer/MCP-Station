@@ -3,8 +3,8 @@
   "slug": "files",
   "name": "Files",
   "icon": "📁",
-  "description": "File storage for Claude — read, write, list, move and delete files inside one jailed root folder (map a host folder to it in Docker).",
-  "version": "1.0.0",
+  "description": "File storage for Claude — read, write, list, move and delete files inside one jailed root folder, save images from base64, and mint public share URLs.",
+  "version": "1.1.0",
   "settings": [
     {
       "key": "root_dir",

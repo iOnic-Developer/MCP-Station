@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { cfg } from './env.js';
+import { gcShares } from './fileShares.js';
 
 /**
  * Single-file JSON state store (atomic tmp+rename writes, debounced).
@@ -24,7 +25,9 @@ const DEFAULTS = () => ({
   /** id -> { id, enabled, settings: { key: encryptedValue }, createdAt, updatedAt } */
   mcps: {},
   oauth: { clients: {}, codes: {}, tokens: {}, refresh: {} },
-  sessions: {}
+  sessions: {},
+  /** token -> { rootDir, rel, name, createdAt, expiresAt } — public /f/<token> file shares */
+  shares: {}
 });
 
 export function loadState() {
@@ -72,5 +75,6 @@ export function gc() {
   for (const [k, v] of Object.entries(st.oauth.codes)) if ((v.exp ?? 0) < now) { delete st.oauth.codes[k]; dirty = true; }
   for (const [k, v] of Object.entries(st.oauth.tokens)) if ((v.expiresAt ?? 0) * 1000 < now) { delete st.oauth.tokens[k]; dirty = true; }
   // refresh tokens: no server-side expiry, rotated on use — exactly like the Companion. Never swept.
+  if (gcShares()) dirty = true;
   if (dirty) save();
 }

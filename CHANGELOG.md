@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.4.20 — 2026-07-16
+
+**Files module can store images and mint public share links — the "Gemini image → URL" flow.**
+
+- **`save_base64`** — store binary (an image, PDF, audio) from base64 into the jail. Pass the
+  Gemini image tool's output straight in; `share: true` also returns a public URL in the same call.
+- **`create_share_link` / `list_shares` / `revoke_share`** — mint, list and revoke public links.
+- **`GET /f/<token>`** (station core, unauthenticated by design) streams one shared file with the
+  right `Content-Type` (browsers render images inline), `nosniff`, and `no-store` so revocation is
+  instant. This is the only route that intentionally bypasses auth — registered before the static
+  handler and the `/:slug` MCP catch-all.
+- **Safe by default:** tokens are 128-bit unguessable (`crypto.randomBytes(16)`), links expire
+  (default `7d`; `never` allowed), the resolver re-checks the file is still inside the recorded
+  jail root, and shares are swept by the state GC. Verified end-to-end: base64 image saved →
+  fetched by URL (exact bytes, correct magic) → bad token 404 → revoke → immediate 404; path
+  traversal through `save_base64` refused.
+- Modules now receive a `shareStore` in their `register()` context (`createShare`, `listShares`,
+  `revokeShare`, `parseTtl`), so any module can offer share links.
+
 ## v1.4.19 — 2026-07-16
 
 **📁 Files module — Claude gets a folder.**

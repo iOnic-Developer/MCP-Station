@@ -63,7 +63,7 @@ const fmtSize = (n) => (n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixe
 const ok = (text) => ({ content: [{ type: 'text', text }] });
 const fail = (e) => ({ content: [{ type: 'text', text: `Error: ${e.message}` }], isError: true });
 
-export function register({ server, z, getSettings }) {
+export function register({ server, z, getSettings, shareStore }) {
   const resolve = async (p) => {
     const r = root(getSettings());
     return { rootAbs: r, abs: await realJail(r, jail(r, p)) };
@@ -153,6 +153,91 @@ export function register({ server, z, getSettings }) {
         else await fs.writeFile(abs, content, 'utf8');
         const st = await fs.stat(abs);
         return ok(`${append ? 'Appended to' : 'Saved'} ${path.relative(rootAbs, abs).replaceAll('\\', '/')} (${fmtSize(st.size)}).`);
+      } catch (e) { return fail(e); }
+    }
+  );
+
+  server.registerTool(
+    'save_base64',
+    {
+      title: 'Save binary (base64)',
+      description: 'Save binary data (an image, PDF, audio…) from base64 into the root folder — this is how you store a generated image. Give the base64 WITHOUT any "data:...;base64," prefix. Pass share=true (optionally share_expires_in like "24h"/"7d"/"never") to also mint a public URL and get it back in one call.',
+      inputSchema: {
+        path: z.string().min(1).describe('File path relative to the root, with a real extension e.g. "images/logo.png"'),
+        data: z.string().min(1).describe('Base64-encoded file bytes (no data: URI prefix)'),
+        share: z.boolean().default(false).describe('Also create a public share link for it'),
+        share_expires_in: z.string().default('7d').describe('If sharing: "24h", "7d", "30m", seconds, or "never" (default 7d)')
+      },
+      annotations: { destructiveHint: true }
+    },
+    async ({ path: p, data, share, share_expires_in }) => {
+      try {
+        const b64 = String(data).replace(/^data:[^;]+;base64,/, '');
+        const buf = Buffer.from(b64, 'base64');
+        if (!buf.length) throw new Error('Decoded to zero bytes — is the base64 valid?');
+        if (buf.length > MAX_WRITE_BYTES) throw new Error(`Decoded file too large (${fmtSize(buf.length)}, max ${fmtSize(MAX_WRITE_BYTES)}).`);
+        const { rootAbs, abs } = await resolve(p);
+        await fs.mkdir(path.dirname(abs), { recursive: true });
+        await fs.writeFile(abs, buf);
+        const rel = path.relative(rootAbs, abs).replaceAll('\\', '/');
+        let text = `Saved ${rel} (${fmtSize(buf.length)}).`;
+        if (share) {
+          const s = shareStore.createShare({ rootDir: rootAbs, absPath: abs, ttlMs: shareStore.parseTtl(share_expires_in) });
+          text += `\nPublic link: ${s.url}` + (s.expiresAt ? ` (expires ${new Date(s.expiresAt).toISOString().slice(0, 16).replace('T', ' ')} UTC)` : ' (no expiry)');
+        }
+        return ok(text);
+      } catch (e) { return fail(e); }
+    }
+  );
+
+  server.registerTool(
+    'create_share_link',
+    {
+      title: 'Create share link',
+      description: 'Mint a PUBLIC URL for a file already in the root folder — anyone with the link can fetch it with no login, so only share what you mean to. Returns a https URL like PUBLIC_URL/f/<token>.',
+      inputSchema: {
+        path: z.string().min(1).describe('File path relative to the root'),
+        expires_in: z.string().default('7d').describe('"24h", "7d", "30m", seconds, or "never" (default 7d)')
+      },
+      annotations: {}
+    },
+    async ({ path: p, expires_in }) => {
+      try {
+        const { rootAbs, abs } = await resolve(p);
+        const s = shareStore.createShare({ rootDir: rootAbs, absPath: abs, ttlMs: shareStore.parseTtl(expires_in) });
+        return ok(`${s.url}${s.expiresAt ? `\nExpires ${new Date(s.expiresAt).toISOString().slice(0, 16).replace('T', ' ')} UTC.` : '\nNo expiry — revoke with revoke_share when done.'}`);
+      } catch (e) { return fail(e); }
+    }
+  );
+
+  server.registerTool(
+    'list_shares',
+    {
+      title: 'List share links',
+      description: 'List the active public share links for files in the root folder (token, url, path, expiry).',
+      inputSchema: {},
+      annotations: { readOnlyHint: true }
+    },
+    async () => {
+      try {
+        const rows = shareStore.listShares(root(getSettings()));
+        if (!rows.length) return ok('No active share links.');
+        return ok(rows.map((r) => `🔗 ${r.url}\n   → ${r.path}${r.expiresAt ? `  (expires ${new Date(r.expiresAt).toISOString().slice(0, 16).replace('T', ' ')} UTC)` : '  (no expiry)'}`).join('\n'));
+      } catch (e) { return fail(e); }
+    }
+  );
+
+  server.registerTool(
+    'revoke_share',
+    {
+      title: 'Revoke share link',
+      description: 'Revoke a public share link by its full URL or token — the file stays, the link stops working immediately.',
+      inputSchema: { link: z.string().min(1).describe('The share URL or its token') },
+      annotations: { destructiveHint: true }
+    },
+    async ({ link }) => {
+      try {
+        return ok(shareStore.revokeShare(link) ? 'Link revoked — it no longer resolves.' : 'No matching active link found.');
       } catch (e) { return fail(e); }
     }
   );
