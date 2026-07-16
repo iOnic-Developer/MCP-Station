@@ -30,26 +30,33 @@ function jail(rootAbs, p) {
   return abs;
 }
 
-/** Symlinks inside the root could point outside it — re-check the REAL location too. */
-async function realJail(rootAbs, abs) {
-  let probe = abs;
+/** Canonicalize a path via its nearest EXISTING ancestor (the tail may not exist yet). */
+async function realOfNearest(p) {
+  let cur = p, tail = '';
   for (;;) {
     try {
-      const real = await fs.realpath(probe);
-      const realRoot = await fs.realpath(rootAbs).catch(() => rootAbs);
-      const tail = path.relative(probe, abs); // '' when probe === abs
-      const realAbs = tail ? path.join(real, tail) : real;
-      if (realAbs !== realRoot && !realAbs.startsWith(realRoot + path.sep)) {
-        throw new Error('Path resolves outside the root folder (symlink escape refused).');
-      }
-      return abs;
+      const real = await fs.realpath(cur);
+      return tail ? path.join(real, tail) : real;
     } catch (e) {
       if (e.code !== 'ENOENT') throw e;
-      const parent = path.dirname(probe);
-      if (parent === probe) return abs; // filesystem root — nothing real to check
-      probe = parent; // walk up to the nearest existing ancestor
+      const parent = path.dirname(cur);
+      if (parent === cur) return p; // nothing on this filesystem exists — compare as-is
+      tail = tail ? path.join(path.basename(cur), tail) : path.basename(cur);
+      cur = parent;
     }
   }
+}
+
+/** Symlinks inside the root could point outside it — re-check the REAL locations.
+ * Both sides are canonicalized the same way, or a not-yet-created root (or Windows
+ * path-form differences) reads as a false escape. */
+async function realJail(rootAbs, abs) {
+  const realAbs = await realOfNearest(abs);
+  const realRoot = await realOfNearest(rootAbs);
+  if (realAbs !== realRoot && !realAbs.startsWith(realRoot + path.sep)) {
+    throw new Error('Path resolves outside the root folder (symlink escape refused).');
+  }
+  return abs;
 }
 
 const fmtSize = (n) => (n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`);
