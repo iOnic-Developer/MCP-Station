@@ -1,9 +1,11 @@
 /**
  * Gemini MCP — Google Generative Language API (v1beta).
- * Settings: api_key (required), default_model (default gemini-2.5-flash).
+ * Settings: api_key (required), default_model (default gemini-2.5-flash),
+ *           default_image_model (default gemini-3.1-flash-image — "Nano Banana 2").
  */
 const BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const CHARACTER_LIMIT = 25000;
+const DEFAULT_IMAGE_MODEL = 'gemini-3.1-flash-image'; // latest native Gemini image ("Nano Banana 2")
 
 function needKey(settings) {
   if (!settings.api_key) {
@@ -46,18 +48,33 @@ export function register({ server, z, getSettings, log, fetchJson }) {
     return { model: m, data };
   };
 
-  // Image generation is a generateContent call against an image-capable model
-  // (e.g. gemini-2.5-flash-image); the PNG comes back as an inlineData part.
-  // (The previous `images:generate` endpoint never existed in Google's API — every call 404'd.)
-  const generateImageApiCall = async ({ prompt, model }) => {
-    const { api_key } = getSettings();
-    const m = model || 'gemini-2.5-flash-image';
+  // Native Gemini image generation: a generateContent call against an image-capable Gemini model
+  // (gemini-3.1-flash-image "Nano Banana 2" by default; gemini-3-pro-image "Nano Banana Pro" for
+  // higher fidelity). The image returns as an inlineData part. Aspect ratio is set via
+  // generationConfig.imageConfig.aspectRatio — verified live against the v1beta API.
+  // NOT Imagen: Imagen models use a different :predict endpoint and are a separate model line.
+  const generateImageApiCall = async ({ prompt, model, aspect_ratio }) => {
+    const { api_key, default_image_model } = getSettings();
+    const m = model || default_image_model || DEFAULT_IMAGE_MODEL;
+    const body = {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        responseModalities: ['IMAGE'],
+        ...(aspect_ratio ? { imageConfig: { aspectRatio: aspect_ratio } } : {})
+      }
+    };
     const data = await fetchJson(`${BASE}/models/${encodeURIComponent(m)}:generateContent?key=${api_key}`, {
       method: 'POST',
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-      timeoutMs: 120_000 // Image generation can take longer
+      body: JSON.stringify(body),
+      timeoutMs: 120_000 // image generation can take longer
     });
-    return (data?.candidates?.[0]?.content?.parts || []).filter((p) => p.inlineData);
+    const cand = data?.candidates?.[0];
+    const part = (cand?.content?.parts || []).find((p) => p.inlineData);
+    if (part) return { model: m, data: part.inlineData.data, mimeType: part.inlineData.mimeType || 'image/png' };
+    // No image → surface why (safety block, text-only refusal, etc.) instead of a bare null.
+    const why = cand?.finishReason && cand.finishReason !== 'STOP' ? cand.finishReason
+      : (cand?.content?.parts || []).map((p) => p.text).filter(Boolean).join(' ').slice(0, 200) || 'no image in response';
+    return { model: m, data: null, reason: why };
   };
 
   server.registerTool(
@@ -210,31 +227,58 @@ Returns: vector dimensionality + the values (structured content carries the full
     }
   );
 
+  const IMAGE_ARGS = {
+    prompt: z.string().min(1).describe('A detailed description of the image to generate'),
+    aspect_ratio: z.enum(['1:1', '3:4', '4:3', '9:16', '16:9']).default('1:1').describe('Aspect ratio of the image'),
+    model: z.string().optional().describe(`Image model id — default ${DEFAULT_IMAGE_MODEL} (Nano Banana 2). Use gemini-3-pro-image (Nano Banana Pro) for higher fidelity.`)
+  };
+
   server.registerTool(
     'gemini_generate_image',
     {
-      title: 'Generate image',
-      description: `Generate an image from a text prompt using a Gemini image model.
+      title: 'Generate image (native)',
+      description: `Generate an image from a text prompt with the latest native Gemini image model and return it as an MCP image block (rendered inline by the client).
 
 Args:
-  - prompt (string, required): A detailed description of the image to generate.
-  - model (string, optional): image-capable model id. Default gemini-2.5-flash-image.
-Returns: the generated image as MCP image content (base64 PNG/JPEG) that clients render inline.
-Errors: "Error: api_key is not configured…" | "Error: HTTP 400/403 …" (bad key or model name).`,
-      inputSchema: {
-        prompt: z.string().min(1).describe('The text prompt for the image generation'),
-        model: z.string().optional().describe('Image-capable model id (default gemini-2.5-flash-image)')
-      },
+  - prompt (string, required): a detailed description of the image.
+  - aspect_ratio (optional): '1:1' | '3:4' | '4:3' | '9:16' | '16:9' (default '1:1').
+  - model (optional): default ${DEFAULT_IMAGE_MODEL} (Nano Banana 2); gemini-3-pro-image for higher fidelity.
+Returns: the image as MCP image content (base64). Errors: "Error: api_key is not configured…" | "Error: HTTP 400/403 …".`,
+      inputSchema: IMAGE_ARGS,
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: true }
     },
-    async ({ prompt, model }) => {
+    async ({ prompt, aspect_ratio, model }) => {
       const missing = needKey(getSettings());
       if (missing) return { content: [{ type: 'text', text: missing }] };
       try {
-        const parts = await generateImageApiCall({ prompt, model });
-        if (!parts.length) return { content: [{ type: 'text', text: 'No image was generated (the model may have refused the prompt).' }] };
+        const img = await generateImageApiCall({ prompt, model, aspect_ratio });
+        log(`generate_image via ${img.model}`);
+        if (!img.data) return { content: [{ type: 'text', text: `No image was generated (${img.reason}).` }] };
+        return { content: [{ type: 'image', data: img.data, mimeType: img.mimeType }] };
+      } catch (e) {
+        return { content: [{ type: 'text', text: `Error: ${e.message}` }] };
+      }
+    }
+  );
+
+  server.registerTool(
+    'gemini_generate_image_base64',
+    {
+      title: 'Generate image (base64 data URI)',
+      description: `Same as gemini_generate_image but returns a base64 data URI as text — use when the client can't render native MCP image blocks but can show a markdown/HTML data URI. Same args (prompt, aspect_ratio, model).`,
+      inputSchema: IMAGE_ARGS,
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: true }
+    },
+    async ({ prompt, aspect_ratio, model }) => {
+      const missing = needKey(getSettings());
+      if (missing) return { content: [{ type: 'text', text: missing }] };
+      try {
+        const img = await generateImageApiCall({ prompt, model, aspect_ratio });
+        if (!img.data) return { content: [{ type: 'text', text: `No image was generated (${img.reason}).` }] };
+        const dataUri = `data:${img.mimeType};base64,${img.data}`;
         return {
-          content: parts.map((p) => ({ type: 'image', data: p.inlineData.data, mimeType: p.inlineData.mimeType || 'image/png' }))
+          content: [{ type: 'text', text: `Image generated with ${img.model}.\n\nMarkdown:\n![Generated image](${dataUri})\n\nData URI:\n${dataUri}` }],
+          structuredContent: { model: img.model, mimeType: img.mimeType, base64: img.data, dataUri }
         };
       } catch (e) {
         return { content: [{ type: 'text', text: `Error: ${e.message}` }] };

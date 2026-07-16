@@ -3,8 +3,8 @@
   "slug": "gemini_mcp",
   "name": "Gemini",
   "icon": "✨",
-  "description": "Google Gemini — text generation, multi-turn chat, embeddings and model listing.",
-  "version": "1.1.0",
+  "description": "Google Gemini — text, multi-turn chat, embeddings, model listing, and native image generation (Nano Banana 2 / Gemini 3.1 flash-image).",
+  "version": "1.2.0",
   "settings": [
     {
       "key": "api_key",
@@ -15,11 +15,19 @@
     },
     {
       "key": "default_model",
-      "label": "Default model",
+      "label": "Default text model",
       "type": "text",
       "required": false,
       "default": "gemini-2.5-flash",
-      "help": "Used when a tool call omits model. See gemini_list_models."
+      "help": "Used when a text/chat tool omits model. e.g. gemini-3.1-flash-preview, gemini-flash-latest. See gemini_list_models."
+    },
+    {
+      "key": "default_image_model",
+      "label": "Default image model",
+      "type": "text",
+      "required": false,
+      "default": "gemini-3.1-flash-image",
+      "help": "Native Gemini image model. gemini-3.1-flash-image = Nano Banana 2 (latest); gemini-3-pro-image = Nano Banana Pro (higher fidelity)."
     }
   ]
 }

@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.4.22 — 2026-07-16
+
+**Gemini module v1.2.0 — image generation on the latest Gemini 3.1 model (Nano Banana 2).**
+
+- `gemini_generate_image` now defaults to **`gemini-3.1-flash-image`** ("Nano Banana 2"), with
+  `gemini-3-pro-image` ("Nano Banana Pro") selectable for higher fidelity, and an `aspect_ratio`
+  arg (`1:1`/`3:4`/`4:3`/`9:16`/`16:9`) via `generationConfig.imageConfig.aspectRatio`. Added
+  `gemini_generate_image_base64` (data-URI text output for clients that can't render native image
+  blocks) and a `default_image_model` setting.
+- The path is the native `…:generateContent` → `inlineData` flow. (A hand-edited live version was
+  calling **Imagen 3** via a `:generateImages` endpoint — wrong model line, an unavailable default
+  `imagen-3.0-generate-002`, and an endpoint Imagen doesn't even expose here, so it would have
+  errored outright.) Verified live against the API: Nano Banana 2 + Pro both return images,
+  16:9 aspect honored, both output tools work.
+
 ## v1.4.21 — 2026-07-16
 
 **Gemini 3 support in the ✦ assistant — thoughtSignature round-trip.**
