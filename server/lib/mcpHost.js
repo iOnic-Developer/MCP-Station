@@ -21,9 +21,12 @@ import { getState, save } from './state.js';
 import { encrypt, decrypt } from './crypto.js';
 import { log } from './log.js';
 
+// 'mcp' is deliberately NOT reserved: nothing in the station routes it, and hosting a module at
+// /mcp makes the endpoint path-identical to the working SiYuan Companion — the last wire-visible
+// difference between the two servers once headers and metadata match.
 export const RESERVED_SLUGS = new Set([
   'api', 'assets', 'authorize', 'backups', 'favicon.ico', 'healthz', 'index.html',
-  'login', 'logout', 'mcp', 'oauth', 'register', 'revoke', 'token', '.well-known'
+  'login', 'logout', 'oauth', 'register', 'revoke', 'token', '.well-known'
 ]);
 
 export const ManifestSchema = z.object({

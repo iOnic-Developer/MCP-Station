@@ -1,5 +1,91 @@
 # Changelog
 
+## v1.4.16 — 2026-07-16
+
+**The machine surface is now indistinguishable from the working Companion, header for header.**
+
+The fresh-subdomain test (station.dbzocchi.app, v1.4.14) reproduced the failure on a hostname
+claude.ai had never seen — killing the "claude.ai-side host state" theory and exonerating the
+v1.4.14 scope/ASCII fixes in the same stroke. It also identified claude.ai's backend client
+(python-httpx) and confirmed its pre-auth `initialize` arrives. What remained were structural
+deltas, all removed:
+
+- **The hand-rolled CORS layer is gone.** The Companion serves NO CORS headers on its MCP endpoint
+  and only the SDK's own `cors()` on the OAuth routes — now the station is identical (verified
+  header-for-header: `/siyuan` answers with no Access-Control headers at all, `/token` with only
+  `Access-Control-Allow-Origin: *`). Preflights on the OAuth routes are still handled by the SDK's
+  internal cors(); browsers were never the client that mattered here.
+- **`trust proxy` removed and `x-powered-by` no longer suppressed** — the Companion sets neither.
+  Also silences the per-request express-rate-limit `ERR_ERL_PERMISSIVE_TRUST_PROXY` spam.
+- **The `mcp` slug is no longer reserved**, so a module can live at `/mcp` — after this release the
+  connector *path name* is the single remaining wire-visible difference from the Companion, and
+  renaming a module's slug to `mcp` eliminates even that.
+
+**The /token endpoint can no longer fail silently, and the claude.ai flow is a one-command test.**
+
+- **Every OAuth endpoint response is logged** — status, grant_type, client_id and the OAuth error
+  code (never bodies, codes, secrets or token values). The SDK's handlers reject without logging, so
+  a 400 from a second `/token` call was invisible: the log ended at "token ISSUED" and looked like
+  claude.ai walked away, when it may have come back and been refused. The 2026-07-16 11:19 live
+  attempt also showed **two DCR registrations one second apart** — claude.ai's backend makes more
+  calls than the old logging showed; now they all leave lines.
+- **`scripts/claude-flow-sim.mjs`** — a faithful re-enactment of claude.ai's connector flow
+  (WWW-Authenticate discovery, PRM scope echo, DCR as a public client, PKCE S256, form-encoded token
+  exchange with `resource`, authenticated initialize/tools, refresh rotation) runnable against the
+  live station: `node scripts/claude-flow-sim.mjs https://mcp.example.com /siyuan '<password>'`.
+  If it prints FLOW OK against production, the server and transport are exonerated end to end.
+- Live probes this session confirmed the **OAuth store is being wiped at rebuild** on the production
+  host (a client registered before the rebuild now answers `invalid_client`; the boot line read
+  "0 client(s)"). That kills every existing connector on every redeploy — `/data` must map to a
+  persistent host volume, exactly as the v1.4.10 notes warned.
+
+## v1.4.14 — 2026-07-16
+
+**The last two observable differences from the working Companion are gone.**
+
+A field-by-field diff of both servers' full live OAuth surfaces (discovery, DCR, token, challenges —
+host/path normalized) left exactly two content deltas, so they die on principle; this backend has
+already rejected byte-level quirks (base64url token values) that curl and the RFC were fine with:
+
+- **The scope literal `mcp` is out of the flow.** The per-slug protected-resource metadata now
+  advertises the slug itself as the scope (`/siyuan` → `scopes_supported: ["siyuan"]`), which
+  claude.ai echoes into its authorize request and token grant — for the SiYuan module the granted
+  scope is now byte-identical to the working Companion's. The AS metadata no longer lists a global
+  scope (modules aren't loaded when it's built; the PRM is the RFC 9728 source anyway).
+- **`resource_name` is ASCII-only** (`MCP Station - siyuan`). The em dash was the single non-ASCII
+  byte sequence anywhere in the OAuth surface.
+- Log the last silent approve outcome: posting the password from a **stale authorize page** (older
+  than the 5-minute login ticket, or spanning a restart) returned the "sign-in expired" page without
+  logging anything — while claude.ai, never receiving its callback, timed out with the generic
+  "Authorization with the MCP server failed". Every approve outcome now leaves a log line.
+
+Live logs (23:49, first attempt on v1.4.13) confirmed the failure signature one more time: authorize →
+approve → token ISSUED for `/siyuan` → zero further requests of any kind (the new 404 logging proves
+nothing arrived on a wrong path either). Authenticated POSTs demonstrably traverse Cloudflare to this
+origin (probed with a garbage bearer), so if this release still shows "token issued then silence", the
+remaining variable is claude.ai-side state keyed to this hostname — test by serving the station at a
+fresh subdomain (same proxy config, new PUBLIC_URL) and connecting to that.
+
+## v1.4.13 — 2026-07-16
+
+**Every connector was dying within 10 minutes of connecting: `gc()` compared seconds to milliseconds.**
+
+- Access tokens store `expiresAt` in **seconds** (the OAuth wire format `requireBearerAuth` checks);
+  `gc()` compared that against `Date.now()` — **milliseconds**. Seconds-epoch is always smaller, so the
+  10-minute sweep deleted every live access token it saw, at most 10 minutes after issue. A connector
+  would authorize, work briefly, then 401 — and a retry/refresh race on claude.ai's side lands it in
+  "Connection issue". This never showed in any end-to-end test because the tests finish inside one
+  sweep interval. Auth codes were the mirror image (stored `exp`, swept on `expiresAt`) so they leaked
+  instead. Both fixed; refresh tokens keep no server-side expiry, exactly like the Companion.
+- **Protected-resource metadata now 404s for unknown slugs.** It used to answer for *any* slug, so a
+  typo'd or stale connector URL (an old `_mcp`-suffixed slug, a renamed module) sailed through the
+  entire OAuth flow — password page, token, everything — and only failed at the final MCP call with
+  claude.ai's generic "Couldn't connect to the server". Now the flow refuses at discovery, before the
+  password page, and logs which slug was asked for.
+- **The 404 catch-all logs now.** An authenticated call to a wrong path vanished without a trace —
+  indistinguishable from "claude.ai never called". Every unmatched request now logs method, path,
+  auth presence and user-agent, so the logs finally show what claude.ai does after the token.
+
 ## v1.4.12 — 2026-07-15
 
 **The full copy: OAuth now runs the MCP SDK's own handlers, exactly like the SiYuan Companion.**

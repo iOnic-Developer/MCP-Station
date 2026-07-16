@@ -156,16 +156,50 @@ export function mountOAuth(app) {
     },
   };
 
+  // Outcome log for every OAuth endpoint response — the SDK's handlers reject silently (a 400
+  // from /token never logged), which left "token ISSUED" as the last line even when the client
+  // came straight back with a failing second call. Discovery fetches are included so the log
+  // finally shows claude.ai's WHOLE server-side conversation, including any post-token
+  // re-validation of the metadata. Logs status + grant_type + client_id + the OAuth error code
+  // only; never bodies, codes, secrets or token values.
+  app.use(['/token', '/register', '/authorize', '/revoke', '/.well-known/oauth-protected-resource', '/.well-known/oauth-authorization-server', '/.well-known/openid-configuration'], (req, res, next) => {
+    const json = res.json.bind(res);
+    let errCode;
+    res.json = (body) => { errCode = body && body.error; return json(body); };
+    res.on('finish', () => {
+      const q = { ...(req.query || {}), ...(req.body || {}) };
+      const fullPath = `${req.baseUrl || ''}${req.path === '/' ? '' : req.path}` || req.path;
+      const bits = [
+        `${req.method} ${fullPath} → ${res.statusCode}`,
+        q.grant_type ? `grant=${q.grant_type}` : '',
+        q.client_id ? `client=${q.client_id}` : '',
+        errCode ? `error=${errCode}` : '',
+      ].filter(Boolean);
+      log('oauth', bits.join(' '));
+    });
+    next();
+  });
+
   // Consent target — must be registered before mcpAuthRouter so it wins at /oauth/approve.
   app.post('/oauth/approve', express.urlencoded({ extended: false }), handleApprove);
   // Per-slug PRM (RFC 9728) — registered before the router so /:slug resolves to the module resource.
   app.get('/.well-known/oauth-protected-resource/:slug', protectedResourceMetadata);
+  // Root PRM: the station root is not an MCP, so don't advertise it as one (shadows the SDK's
+  // root handler). A connector added with the bare station URL now fails at discovery, not after
+  // the password page. The AS metadata at /.well-known/oauth-authorization-server is unaffected.
+  app.get('/.well-known/oauth-protected-resource', (_req, res) => {
+    log('oauth', 'PRM refused for the station root — connectors must use a module URL like /siyuan');
+    res.status(404).json({ error: 'The station root is not an MCP. Connect to a module URL, e.g. /siyuan' });
+  });
 
+  // No scopes_supported at the AS level: modules aren't loaded yet when this mounts, and the
+  // per-slug PRM (above) is the RFC 9728 source clients take resource scopes from. This keeps
+  // the literal scope value 'mcp' out of the flow entirely — for /siyuan the scope claude.ai
+  // requests and is granted is now 'siyuan', exactly like the working Companion.
   app.use(mcpAuthRouter({
     provider,
     issuerUrl: new URL(base),
     resourceServerUrl: new URL(base),
-    scopesSupported: ['mcp'],
     resourceName: 'MCP Station',
   }));
 
@@ -177,7 +211,13 @@ export function handleApprove(req, res) {
   sweepPending();
   const { login_id: loginId, password } = req.body || {};
   const p = pending.get(loginId);
-  if (!p) return res.status(400).send(errPage('This sign-in expired or was already used. Start again from your client.'));
+  if (!p) {
+    // The one approve outcome that used to log nothing — a stale authorize page (>5 min old,
+    // or a restart in between) swallows the password and claude.ai times out with its generic
+    // "Authorization with the MCP server failed". Now it's in the logs.
+    log('oauth', 'Approve with expired/unknown login_id — stale authorize page; the client must restart the connect flow');
+    return res.status(400).send(errPage('This sign-in expired or was already used. Start again from your client.'));
+  }
 
   const ip = req.ip || 'unknown';
   if (!checkRate(ip)) return res.status(429).send(errPage('Too many attempts. Wait a minute and try again.'));
@@ -207,15 +247,27 @@ export function handleApprove(req, res) {
 }
 
 /* Per-slug protected-resource metadata (RFC 9728) — the SDK router is single-resource, so we serve
- * these ourselves so claude.ai's `resource` (the URL it connected to) matches exactly. */
+ * these ourselves so claude.ai's `resource` (the URL it connected to) matches exactly.
+ * Unknown slugs get 404, like the Companion's single-resource router: serving metadata for a
+ * nonexistent endpoint let claude.ai run the WHOLE OAuth flow (password page and all) against a
+ * typo'd or stale URL and only fail at the final MCP call — "password worked, then it failed". */
 export function protectedResourceMetadata(req, res) {
   const base = baseUrl(req);
   const slug = req.params.slug || '';
+  if (slug && !getModuleBySlug(slug)) {
+    log('oauth', `PRM refused for unknown slug '/${slug}' — connector URL doesn't match a hosted MCP`);
+    return res.status(404).json({ error: `No MCP is hosted at /${slug}` });
+  }
+  // Mirror the Companion's PRM byte-for-byte in kind: per-resource scope named after the
+  // resource (claude.ai echoes this value into its authorize request and token grant), and an
+  // ASCII-only resource_name — the em dash here was the single non-ASCII byte sequence in the
+  // whole OAuth surface, and this backend has already rejected byte-level quirks (base64url
+  // tokens) that curl and the spec were both fine with.
   res.json({
     resource: slug ? `${base}/${slug}` : base,
     authorization_servers: [`${base}/`],
-    scopes_supported: ['mcp'],
-    resource_name: slug ? `MCP Station — ${slug}` : 'MCP Station',
+    scopes_supported: [slug || 'mcp'],
+    resource_name: slug ? `MCP Station - ${slug}` : 'MCP Station',
   });
 }
 

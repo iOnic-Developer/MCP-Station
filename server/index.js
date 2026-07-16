@@ -21,25 +21,24 @@ import * as assistant from './lib/assistant.js';
 import * as backup from './lib/backup.js';
 
 const app = express();
-app.set('trust proxy', true);
-app.disable('x-powered-by');
+// Deliberately NO `trust proxy` and NO x-powered-by suppression: the working SiYuan Companion
+// sets neither, and the mandate is a machine surface indistinguishable from it. (`trust proxy`
+// only fed rate-limit keys — and its absence silences the express-rate-limit ValidationError
+// spam; the Companion runs the same shared-bucket behaviour behind the same proxy.)
 app.use(express.json({ limit: '4mb' }));
 app.use(express.urlencoded({ extended: false }));
 
-/* ── CORS for machine-facing surfaces (MCP + OAuth) ──────────────────── */
+/* ── Security headers for the admin UI only ──────────────────────────── */
+// The hand-rolled CORS layer for the OAuth/MCP surfaces is GONE on purpose. The Companion serves
+// zero CORS headers on /mcp and only the SDK's own cors() on /token, /register, /revoke and the
+// metadata routes — and it connects. Ours now does exactly the same: the SDK router carries its
+// own CORS; the MCP endpoints carry none. (v1.3.3 added this layer chasing the connector bug; it
+// was never the cause, and it was the last header-level difference from the working server.)
 app.use((req, res, next) => {
-  const p = req.path;
-  const machine = p.startsWith('/.well-known/')
-    || ['/register', '/token', '/revoke'].includes(p)
-    || Boolean(host.getModuleBySlug(p.slice(1)));
-  if (machine) {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Mcp-Session-Id, MCP-Protocol-Version, Last-Event-ID');
-    res.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id, WWW-Authenticate');
-    res.setHeader('Access-Control-Max-Age', '86400');
-    if (req.method === 'OPTIONS') return res.sendStatus(204); // preflight carries no Authorization header
-  } else {
+  const machine = req.path.startsWith('/.well-known/')
+    || ['/register', '/token', '/revoke', '/authorize', '/oauth/approve'].includes(req.path)
+    || Boolean(host.getModuleBySlug(req.path.slice(1)));
+  if (!machine) {
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
@@ -342,7 +341,14 @@ app.all('/:slug', (req, res, next) => {
   oauth.bearerGate(req, res, () => host.handleMcpRequest(req, res));
 });
 
-app.use((req, res) => res.status(404).json({ error: `Nothing here. Hosted MCPs: ${[...host.getModules().keys()].map((s) => '/' + s).join(', ') || '(none)'}` }));
+app.use((req, res) => {
+  // Log the misses too — an authenticated call to a wrong/stale path used to vanish without a
+  // trace, which read as "claude.ai never called" when it actually called the wrong URL.
+  const auth = req.headers.authorization ? 'bearer' : 'NONE';
+  const ua = String(req.headers['user-agent'] || '-').slice(0, 60);
+  log('mcp', `${req.method} ${req.path} → 404 no such path (auth=${auth}, ua=${ua})`);
+  res.status(404).json({ error: `Nothing here. Hosted MCPs: ${[...host.getModules().keys()].map((s) => '/' + s).join(', ') || '(none)'}` });
+});
 
 /* ── Boot ────────────────────────────────────────────────────────────── */
 async function main() {
