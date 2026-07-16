@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.4.21 — 2026-07-16
+
+**Gemini 3 support in the ✦ assistant — thoughtSignature round-trip.**
+
+- Gemini 3 attaches a `thoughtSignature` to every function-call part and **requires** it echoed
+  back on the next turn, or the request 400s "Function call is missing a thought_signature" — which
+  broke the assistant's tool loop (create_module/reload_modules) the moment you pointed it at a
+  Gemini 3 model. The Gemini adapter now stashes the signature off each returned part and
+  re-attaches it to the exact part on the following turn (the same fix the SiYuan Companion
+  shipped). The Anthropic adapter strips the internal `_sig`/`_toolName` markers so its strict
+  content-block validation still passes. Verified both providers: signature round-trips on Gemini,
+  nothing leaks on Anthropic, tool loop completes on both.
+- Set your Gemini 3 model id in ⚙ Station → Assistant (or `GEMINI_MODEL`); the `gemini` module's
+  own text/chat/image tools already accept any model id, so they needed no change.
+
 ## v1.4.20 — 2026-07-16
 
 **Files module can store images and mint public share links — the "Gemini image → URL" flow.**

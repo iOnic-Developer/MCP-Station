@@ -70,13 +70,14 @@ const PROVIDERS = {
       headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
       body: {
         model, max_tokens: 8192, system, tools: ASSISTANT_TOOLS,
-        // The API validates content blocks strictly: strip our internal _toolName marker
-        // (Gemini needs it for functionResponse naming) and any empty text blocks.
+        // The API validates content blocks strictly: strip our internal markers (_toolName for
+        // Gemini functionResponse naming, _sig for the Gemini 3 thoughtSignature round-trip) and
+        // any empty text blocks.
         messages: messages.map((m) => ({
           role: m.role,
           content: typeof m.content === 'string' ? m.content : m.content
             .filter((b) => b.type !== 'text' || (b.text && b.text.length))
-            .map(({ _toolName, ...b }) => b)
+            .map(({ _toolName, _sig, ...b }) => b)
         }))
       }
     }),
@@ -93,22 +94,30 @@ const PROVIDERS = {
         tools: [{ functionDeclarations: ASSISTANT_TOOLS.map((t) => ({ name: t.name, description: t.description, parameters: t.input_schema })) }],
         contents: messages.map((m) => ({
           role: m.role === 'assistant' ? 'model' : 'user',
+          // Gemini 3 REQUIRES the thoughtSignature it returned with a functionCall (stashed as
+          // _sig) to be echoed back on the next turn, or the request 400s "Function call is
+          // missing a thought_signature". Re-attach it to the exact part it belongs to.
           parts: (typeof m.content === 'string' ? [{ type: 'text', text: m.content }] : m.content).map((b) => {
-            if (b.type === 'tool_use') return { functionCall: { name: b.name, args: b.input || {} } };
+            const sig = b._sig ? { thoughtSignature: b._sig } : {};
+            if (b.type === 'tool_use') return { functionCall: { name: b.name, args: b.input || {} }, ...sig };
             if (b.type === 'tool_result') return { functionResponse: { name: b._toolName || 'tool', response: { result: b.content } } };
-            return { text: b.text || '' };
+            return { text: b.text || '', ...sig };
           })
         })),
         generationConfig: { maxOutputTokens: 8192 }
       }
     }),
     blocks: (resp) => {
-      const parts = resp.candidates?.[0]?.content?.parts || [];
       if (resp.error) throw new Error(resp.error.message || 'Gemini error');
+      const parts = resp.candidates?.[0]?.content?.parts || [];
+      const out = [];
       let n = 0;
-      return parts.map((p) => p.functionCall
-        ? { type: 'tool_use', id: `g_${Date.now()}_${n++}`, name: p.functionCall.name, input: p.functionCall.args || {} }
-        : { type: 'text', text: p.text || '' });
+      for (const p of parts) {
+        const sig = p.thoughtSignature ? { _sig: p.thoughtSignature } : {}; // must round-trip on v3
+        if (p.functionCall) out.push({ type: 'tool_use', id: `g_${Date.now()}_${n++}`, name: p.functionCall.name, input: p.functionCall.args || {}, ...sig });
+        else if (p.text) out.push({ type: 'text', text: p.text, ...sig });
+      }
+      return out;
     }
   }
 };
