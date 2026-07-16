@@ -9,11 +9,28 @@ streamable HTTP. One container, one password, unlimited MCPs.
 https://mcp.example.com/siyuan/mcp        → SiYuan knowledge base MCP  📓
 https://mcp.example.com/gemini_mcp/mcp    → Google Gemini MCP          ✨
 https://mcp.example.com/telegram_mcp/mcp  → Telegram MCP               ✈️
+https://mcp.example.com/<anything>/mcp    → whatever you build next    🪄
 ```
 
+## 🪄 AI-generated MCPs — turn any API into a connector
+
+You don't have to write modules yourself. The built-in **✦ assistant** (Claude or Gemini) lives
+in the station UI, knows the exact module contract, and sees the station's live context — so you
+can open ➕ Add MCP, describe what you want, and paste in whatever you have:
+
+- a REST API's docs page, an OpenAPI spec, or just a couple of example `curl` calls
+- a service you use (weather, home automation, your NAS, an RSS feed, a database…)
+- an existing script you want claude.ai to be able to call
+
+…and it writes the complete module — `manifest.json` with a settings form for the API keys,
+`index.js` with typed tools, descriptions Claude understands — straight into the in-browser
+editor. **⤵ Insert**, toggle it on, and it's a live MCP endpoint at `/<slug>/mcp` you can add to
+claude.ai thirty seconds later. Hot reload, no rebuilds, no SDK boilerplate, no local tooling.
+If it speaks HTTP, it can be an MCP.
+
 - **Modules are folders** — `manifest.json` + `index.js` (+ optional `instructions.md`). Hot
-  reload, no restarts. A `_template` module is included; the built-in ✦ assistant (Claude or
-  Gemini) can write new modules for you in the browser.
+  reload, no restarts. A `_template` module is included, and the ✦ assistant writes new modules
+  for you in the browser (see above).
 - **OAuth 2.1 authorization server built in** — discovery metadata, dynamic client registration,
   PKCE S256, rotating refresh tokens, all served by the official MCP SDK's own auth router. A
   single station password gates the consent page. This is what lets claude.ai connect by URL
