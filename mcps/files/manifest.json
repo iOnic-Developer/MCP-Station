@@ -12,7 +12,7 @@
       "type": "text",
       "required": false,
       "default": "/files",
-      "help": "Container path every tool is jailed to. Map a host folder here in Docker, e.g. /mnt/user/appdata/mcp-files → /files."
+      "help": "Container path every tool is jailed to. Blank = the FILES_DIR env var, else /files. Map a host folder to it in Docker, e.g. /mnt/user/appdata/mcp-files → /files."
     }
   ]
 }

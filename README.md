@@ -146,6 +146,7 @@ Docker tab → **Add Container**:
 | `MCP_TOKEN` | — | static bearer for Claude Code / scripts |
 | `COOKIE_SECURE` | — | `1` when served over HTTPS |
 | `SESSION_SECRET` | — | leave **unset** (a key is generated and persisted in `/data`). If you set it, pick the final value **before** configuring modules — changing it later makes encrypted settings unreadable |
+| `FILES_DIR` | — | container path the 📁 Files module is jailed to (default `/files`); the module's `root_dir` UI setting overrides it. Map a host folder to this path |
 | `ASSISTANT_PROVIDER` | — | `anthropic` or `gemini` (the ✦ assistant popup) |
 | `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | — | assistant on Claude |
 | `GEMINI_API_KEY` / `GEMINI_MODEL` | — | assistant on Gemini |

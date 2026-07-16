@@ -12,7 +12,9 @@ const MAX_WRITE_BYTES = 3_000_000; // keep writes under the station's request bo
 const MAX_LIST = 500;              // entries per listing
 
 function root(settings) {
-  return path.resolve(settings.root_dir || '/files');
+  // Precedence: UI setting → FILES_DIR env var → /files. All three name the CONTAINER path;
+  // the Docker volume mapping decides which host folder that actually is.
+  return path.resolve(settings.root_dir || process.env.FILES_DIR || '/files');
 }
 
 /** Resolve a user-supplied relative path inside the jail, or throw. */

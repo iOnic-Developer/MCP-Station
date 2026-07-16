@@ -14,6 +14,7 @@ services:
       SESSION_SECRET: ""                     # long random string (sessions + secret encryption survive rebuilds)
       MCP_TOKEN: ""                          # static bearer for Claude Code CLI / scripts
       COOKIE_SECURE: "1"                     # you're behind HTTPS (SWAG / NPM)
+      FILES_DIR: /files                      # 📁 Files module root (container path — see volume below)
       # ── assistant (can also be set in the UI) ──
       ASSISTANT_PROVIDER: anthropic          # anthropic | gemini — UI toggle overrides this
       ANTHROPIC_API_KEY: ""
