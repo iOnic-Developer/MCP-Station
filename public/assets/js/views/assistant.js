@@ -36,8 +36,12 @@ export function mountAssistant(ctx) {
     el: panel.querySelector('.chat-body'),
     history,
     persist: (h) => localStorage.setItem(STORE, JSON.stringify(h.slice(-60))),
-    placeholder: 'e.g. Build me a weather MCP using open-meteo, no key needed',
-    greeting: `Hi — I'm the station assistant, running on <b>${who}</b> (${esc(ctx.me.model || '')}). Switch provider in ⚙ Station.<br><br>I know how this station works and exactly how its MCP modules are built. Ask me to <b>write a new MCP</b>, debug one, or explain the OAuth hookup — I'll give you complete files to paste into the Code editor.<br><br>For changes to an <i>existing</i> module, open its <b>‹/› Code</b> drawer — the chat in there can see that module's files.`
+    placeholder: 'e.g. Make me a Gmail MCP',
+    fields: [
+      { key: 'apiHost', label: 'API base URL', placeholder: 'API base URL (optional — I can usually find it)' },
+      { key: 'apiDocs', label: 'API docs', placeholder: 'API docs link (optional)' }
+    ],
+    greeting: `Hi — I'm the station assistant, running on <b>${who}</b> (${esc(ctx.me.model || '')}). Switch provider in ⚙ Station.<br><br>Ask me to <b>build an MCP</b> and I'll <b>actually create it</b> on this station and reload it live — say <i>“make one for Gmail”</i> and I'll find everything I need. The two boxes below are <b>optional</b>: fill them only if you want to point me at a specific API host or docs page.<br><br>For changes to an <i>existing</i> module, open its <b>‹/› Code</b> drawer — the chat in there can see that module's files.`
   });
 
   fab.onclick = () => {

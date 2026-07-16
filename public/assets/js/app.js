@@ -15,6 +15,8 @@ const ctx = {
 };
 
 window.addEventListener('station:unauthed', () => boot(false));
+// The ✦ assistant creates/reloads modules with its tools — refresh the cards when it does.
+window.addEventListener('station:mcps-changed', () => boot(true));
 
 async function boot(authedHint) {
   try {

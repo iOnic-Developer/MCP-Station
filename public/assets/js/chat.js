@@ -6,16 +6,20 @@ import { esc, toast, md } from './ui.js';
  * is called with the updated array after every turn (localStorage / module folder).
  * `extra()` adds fields to the POST body — the editor passes { mcpId } to scope it.
  */
-export function chatPane({ el, greeting, history = [], persist = () => {}, extra = () => ({}), placeholder = 'Ask…' }) {
+export function chatPane({ el, greeting, history = [], persist = () => {}, extra = () => ({}), placeholder = 'Ask…', fields = [] }) {
   el.innerHTML = `
     <div class="a-msgs"></div>
+    ${fields.length ? `<div class="a-fields" title="Optional — leave blank and the assistant finds what it needs">${fields
+      .map((f) => `<input class="input" data-field="${esc(f.key)}" placeholder="${esc(f.placeholder)}">`)
+      .join('')}</div>` : ''}
     <div class="a-input">
       <textarea class="input" rows="2" placeholder="${esc(placeholder)}"></textarea>
       <button class="btn primary">Send</button>
     </div>`;
   const msgsEl = el.querySelector('.a-msgs');
   const input = el.querySelector('textarea');
-  const sendBtn = el.querySelector('button');
+  const sendBtn = el.querySelector('.a-input button');
+  const fieldEls = [...el.querySelectorAll('.a-fields input')];
 
   function render() {
     msgsEl.innerHTML = history.length ? '' : `<div class="msg bot">${greeting}</div>`;
@@ -33,8 +37,15 @@ export function chatPane({ el, greeting, history = [], persist = () => {}, extra
   }
 
   async function send() {
-    const text = input.value.trim();
+    let text = input.value.trim();
     if (!text || sendBtn.disabled) return;
+    // Optional context fields (API host / docs) ride along inside the message so they
+    // persist in history and work identically on both providers.
+    const hints = fields
+      .map((f, i) => ({ label: f.label || f.key, val: fieldEls[i]?.value.trim() }))
+      .filter((h) => h.val)
+      .map((h) => `${h.label}: ${h.val}`);
+    if (hints.length) text += `\n\n(${hints.join(' · ')})`;
     input.value = '';
     history.push({ role: 'user', content: text });
     addBubble('user', text);
@@ -77,6 +88,24 @@ export function chatPane({ el, greeting, history = [], persist = () => {}, extra
             if (!bubble) bubble = addBubble('assistant', '');
             bubble.innerHTML = md(acc);
             msgsEl.scrollTop = msgsEl.scrollHeight;
+          }
+          if (ev.tool) {
+            // Tool status line — a new text bubble follows it, so close the current one.
+            const t = ev.tool;
+            if (t.status === 'running') {
+              const note = addBubble('assistant', '');
+              note.classList.add('tool-note');
+              note.innerHTML = `🛠 <code>${esc(t.name)}</code> …`;
+            } else {
+              const notes = msgsEl.querySelectorAll('.tool-note');
+              const last = notes[notes.length - 1];
+              if (last) last.innerHTML = `${t.ok ? '✅' : '⚠️'} <code>${esc(t.name)}</code>${t.detail ? ` — ${esc(String(t.detail))}` : ''}`;
+              if (acc) { history.push({ role: 'assistant', content: acc }); acc = ''; bubble = null; }
+            }
+          }
+          if (ev.modules_changed) {
+            toast('Modules updated — refreshing');
+            window.dispatchEvent(new CustomEvent('station:mcps-changed'));
           }
           if (ev.error) throw new Error(ev.error);
         }

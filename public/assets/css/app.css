@@ -232,6 +232,10 @@ table.args td:first-child { white-space: nowrap; color: var(--accent-2); }
 .msg .insert-code { position: absolute; top: 6px; right: 62px; }
 .chat .a-input { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--border); }
 .chat .a-input textarea { flex: 1; min-height: 40px; max-height: 130px; }
+.chat .a-fields { display: flex; gap: 8px; padding: 10px 12px 0; border-top: 1px solid var(--border); }
+.chat .a-fields input { flex: 1; font-size: 12px; padding: 7px 9px; opacity: .85; }
+.chat .a-fields input::placeholder { color: var(--muted); }
+.msg.tool-note { background: none; border: 1px dashed var(--border); color: var(--muted); font-size: 12px; padding: 6px 10px; }
 .thinking { color: var(--muted); font-size: 12px; padding: 0 4px; }
 .thinking::after { content: '…'; animation: blink 1.2s infinite; }
 @keyframes blink { 50% { opacity: .3; } }

@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.4.18 — 2026-07-16
+
+**The ✦ assistant builds modules for real now — tools, not pasted code.**
+
+- **Agent loop with real tools** (both providers): `create_module` writes `mcps/<id>/manifest.json`
+  + `index.js` (+ optional `instructions.md`), validates the manifest against the schema, refuses
+  reserved/colliding slugs, hot-reloads, and reports the load result — on a load error the
+  assistant fixes the file and calls again with the same id until it's live. `reload_modules`
+  re-scans everything. "Make one for Gmail" now ends with a working endpoint and its connector
+  URL, not a wall of code. Hops are non-streamed per round (tool calls arrive whole) and the
+  browser keeps the same SSE protocol, plus 🛠 tool status lines in the chat.
+- **Two optional context boxes** above the ✦ composer — *API base URL* and *API docs link* —
+  explicitly marked optional: the assistant knows most public APIs from the name alone; fill them
+  only to pin it to a specific host or docs page. Values travel inside the message, so they
+  persist in history and work on both providers.
+- **The module list refreshes itself** when the assistant creates or reloads modules
+  (`station:mcps-changed` event → cards re-render), and the seeded instructions teach the
+  tool-first workflow; live stations get the same guidance injected via the per-message context.
+
 ## v1.4.17 — 2026-07-16
 
 **Every module now serves at `/<slug>/mcp` — the path shape the rest of the MCP world uses.**

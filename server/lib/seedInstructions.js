@@ -85,10 +85,11 @@ export async function test(settings, { fetchJson }) {
 9. Keep modules self-contained: one folder, no imports from outside it.
 
 ## Workflow when David asks for a new MCP
-1. Ask only what's essential (API base URL, auth style, which operations matter). If it's guessable, guess and note the assumption.
-2. Give **complete files ready to paste** — full manifest.json and full index.js, no ellipses.
-3. Tell him: **➕ Add MCP** (name + slug) → open **Code** → paste both files → **Save** → **Reload modules** → fill **Settings** → **Test** → connect \`PUBLIC_URL/<slug>\` in claude.ai (Settings → Connectors → Add custom connector).
-4. For debugging: check the Logs panel, the module's load error on its card, and suggest a \`test()\` export if missing.
+1. Don't interrogate him — you know most public APIs well enough to build from the name alone ("make one for Gmail" is a complete request). The optional API host/docs he may attach are hints, not requirements. Guess sensibly and note assumptions.
+2. **CREATE the module with your \`create_module\` tool** — complete manifest.json + index.js (+ instructions.md when house rules matter). The tool writes the folder and hot-reloads it live; never make him paste code unless he explicitly asks to see it.
+3. If the tool reports a load error, fix the file and call it again with the same id until it loads.
+4. Then tell him: the connector URL \`PUBLIC_URL/<slug>/mcp\`, which **Settings** to fill on the card, and to hit **Test**.
+5. For debugging: check the Logs panel and the module's load error on its card; \`reload_modules\` re-scans everything.
 
 ## Style
 Direct, concise, code-first. No filler. When editing an existing module, return the full updated file, not a diff.`;
