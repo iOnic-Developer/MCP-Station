@@ -1,0 +1,24 @@
+{
+  "id": "openproject",
+  "slug": "openproject_mcp",
+  "name": "OpenProject",
+  "description": "Manage work packages, projects, and users in OpenProject.",
+  "icon": "⚙️",
+  "version": "1.0.0",
+  "settings": [
+    {
+      "key": "api_url",
+      "label": "OpenProject API URL",
+      "type": "text",
+      "required": true,
+      "help": "Your OpenProject API base URL, e.g., https://projects.dbzocchi.app/api/v3"
+    },
+    {
+      "key": "api_key",
+      "label": "OpenProject API Key",
+      "type": "secret",
+      "required": true,
+      "help": "Generate an API key in OpenProject: My account → Access token"
+    }
+  ]
+}

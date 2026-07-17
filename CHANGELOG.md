@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.4.27 — 2026-07-17
+
+**OpenProject becomes a bundled default module ⚙️ (openproject v1.0.0, slug `openproject_mcp`) + README refresh.**
+
+- `mcps/openproject` ships with the station: 14 tools — work packages (get / filtered list /
+  create with parent nesting for Epic → Task), projects (list/get/create/update/delete incl.
+  sub-projects), users, statuses, types. HTTP Basic auth (`apikey:<key>`) against OpenProject
+  API v3, tolerant of empty DELETE bodies, single url-encoded `filters` array.
+- Imported from the live station's known-working hand-built module; syntax-checked only by
+  request — David's OpenProject instance has since been retired, so the module ships for the
+  next install rather than a running backend.
+- **Every module that ever ran on the live station is now version-controlled** — nothing lives
+  only in the server mount any more.
+- README: new 📦 Bundled modules table (all 7 modules with slugs and tool counts), healthz
+  example updated to match.
+
 ## v1.4.26 — 2026-07-17
 
 **Gemini module v1.2.1 — Google retired the module's default models; text extraction hardened for thinking models.**

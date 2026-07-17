@@ -46,6 +46,23 @@ If it speaks HTTP, it can be an MCP.
   OAuth and MCP request, capabilities inspector (see exactly what tools a module exposes before
   trusting it), import/export and one-click tar.gz backup/restore.
 
+## 📦 Bundled modules
+
+These ship in `mcps/` and are seeded on first boot — they're just folders, so delete what you
+don't want and build what's missing:
+
+| Module | Slug | Tools | What it does |
+|---|---|---|---|
+| 📁 Files | `files` | 10 | Jailed file storage for Claude — read/write/move files, save images from base64, mint public share links |
+| ✨ Gemini | `gemini_mcp` | 6 | Google Gemini — text, chat, embeddings, native image generation (Nano Banana 2) |
+| ⚙️ OpenProject | `openproject_mcp` | 14 | Work packages (incl. parent nesting), projects & sub-projects, users, statuses, types |
+| 🎬 Radarr | `radarr_mcp` | 9 | Movie library — search & add (availability-aware), queue with warnings, disk space, command triggers |
+| 📓 SiYuan | `siyuan` | 19 | SiYuan knowledge base — read, search, create, edit, move and audit docs |
+| 📺 Sonarr | `sonarr_mcp` | 9 | TV library — search & add shows, episodes, queue with warnings, disk space, command triggers |
+| ✈️ Telegram | `telegram_mcp` | 5 | Send and read Telegram messages through a bot |
+
+(`_template` is the scaffold ➕ Add MCP copies — it isn't served as an endpoint.)
+
 ---
 
 ## Quick start (Docker Compose)
@@ -70,7 +87,7 @@ services:
 
 ```bash
 docker compose up -d
-curl http://localhost:8788/healthz   # → {"ok":true,"version":"…","modules":3,"oauth":true}
+curl http://localhost:8788/healthz   # → {"ok":true,"version":"…","modules":7,"oauth":true}
 ```
 
 Open `http://host:8788`, log in with `APP_PASSWORD`, configure each module's settings
@@ -256,24 +273,4 @@ sees), 🔑 **Access** (per-module token + connected clients with revoke), and t
 | "Couldn't register with the sign-in service" | Hostname doesn't resolve (DNS caching after a rename), or `/register` rate-limited after many attempts (20/h — restarting the container resets it) |
 | Connectors die whenever you redeploy | `/data` isn't on a persistent volume — boot log says `0 client(s)` |
 | Connector connects but every tool call errors "not configured" | Module settings are blank — set them in the station UI (not env vars) |
-| Connect flow 404s before the password page | Wrong module slug in the URL — the 404 body lists the hosted MCPs, and unknown slugs are refused at discovery on purpose |
-| Module responds 404 with a valid token | Module is toggled off in the UI |
-
-The **Logs panel** (admin UI) records every OAuth endpoint response and every MCP request with
-status, auth mode and user-agent — whatever a client does, it leaves a line. For a full
-client-side re-enactment, run `scripts/claude-flow-sim.mjs` (above).
-
----
-
-## Endpoints reference
-
-| Surface | Path |
-|---|---|
-| MCP (canonical) | `POST /<slug>/mcp` — stateless streamable HTTP; `/<slug>` kept as alias |
-| OAuth discovery | `/.well-known/oauth-authorization-server` · `/.well-known/oauth-protected-resource/<slug>/mcp` |
-| OAuth flow | `/register` · `/authorize` · `/oauth/approve` · `/token` · `/revoke` |
-| Health | `GET /healthz` → `{ok, version, modules, oauth}` |
-| Admin UI / API | `/` · `/api/*` (session cookie, same-origin) |
-
-Data lives in `/data` (`station.json` state + OAuth store, `secret.key`, `backups/`, `trash/`);
-modules in `/app/mcps`. Backup = tar of both (or use the UI's backup button).
+| Conn
