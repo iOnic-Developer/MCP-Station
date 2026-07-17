@@ -1,5 +1,28 @@
 # Changelog
 
+## v1.4.23 — 2026-07-17
+
+**Sonarr becomes a bundled default module 📺 (sonarr v1.1.0, slug `sonarr_mcp`).**
+
+- `mcps/sonarr` now ships with the station: 9 tools — list/lookup/add/delete series, episodes,
+  download queue, disk space, profiles & root folders, and command triggers (SeriesSearch,
+  SeasonSearch, EpisodeSearch, MissingEpisodeSearch, RefreshSeries, RescanSeries, RenameFiles,
+  RssSync).
+- Written against the current Sonarr v4 API (still served under `/api/v3`): the queue asks for
+  `pageSize` + `includeSeries`/`includeEpisode` and surfaces `trackedDownloadState`, warning
+  `statusMessages` and `errorMessage` (so "Severance S02E09 — importBlocked ⚠️ archive needs
+  extracting", not just a release name); add-series drives `addOptions.monitor`
+  (all/future/missing/firstSeason/…) plus `searchForCutoffUnmetEpisodes`; delete supports
+  `addImportListExclusion`; the deprecated v4 `/languageprofile` stub is never auto-detected
+  (a legacy `languageProfileId` arg remains for genuine v3 servers).
+- Fixes vs the hand-built live version: `log.error()` crashed on every failed request (`log` is
+  injected as a plain function) — the real API error now surfaces; adding a show that's already
+  in the library returns a friendly notice instead of a Sonarr 400; `deleteFiles` defaults to
+  **false** to match the API default (was true — it silently wiped files); `structuredContent`
+  is always an object; series/episode lists get filter/pagination args and ~24k truncation.
+- Verified end-to-end in a sandbox station against a mock Sonarr v4 (including the deprecated
+  languageprofile stub and 401 handling): 15/15 MCP checks green, all three ▶ Test paths correct.
+
 ## v1.4.22 — 2026-07-16
 
 **Gemini module v1.2.0 — image generation on the latest Gemini 3.1 model (Nano Banana 2).**
@@ -371,26 +394,4 @@ and added a boot-time self-check that warns if `PUBLIC_URL` doesn't reach the st
 
 ## v1.0.3 — 2026-07-14
 
-- Fix: the ✦ popup could not be closed and floated over the settings drawer — `.assistant { display: flex }` overrode the `[hidden]` attribute, so the ✕ / FAB toggle had no visual effect; the panel now also sits below drawers and modals
-
-## v1.0.2 — 2026-07-14
-
-- ✦ popup can run on **Gemini** as well as Claude — provider toggle in ⚙ Station settings, separate encrypted key + model per provider (`ASSISTANT_PROVIDER` / `GEMINI_API_KEY` / `GEMINI_MODEL` as env fallbacks)
-
-## v1.0.1 — 2026-07-14
-
-- Backup/restore uses busybox `tar`/`gzip` from the base image (stage + plain tar) — `apk add tar gzip` dropped from the Dockerfile
-- GitHub Actions lane: multi-arch (amd64/arm64) build + push to Docker Hub on `main` and `v*` tags
-- Unraid deployment guide in the README
-
-## v1.0.0 — 2026-07-11
-
-First release, built end-to-end by Claude (Cowork session).
-
-- Modular MCP host: folders in `mcps/` → streamable-HTTP endpoints at `/<slug>`, hot reload, fresh server per request
-- OAuth 2.1 authorization server (dynamic client registration + PKCE S256, `APP_PASSWORD`-gated approval, rotating refresh tokens) + static `MCP_TOKEN` dual auth — SiYuan Companion pattern
-- Starter modules: Telegram ✈️ (get_me, send_message, send_photo, get_updates, get_chat) and Gemini ✨ (generate_text, chat, list_models, embed_text) + `_template`
-- Admin SPA: login, MCP cards (toggle/status/test/copy-URL), manifest-driven settings with encrypted secrets, in-browser module code editor, add-new-from-template, logs panel
-- ✦ Claude popup: SSE streaming chat, retained instructions (seeded with the full module-building contract, editable), live station context injection
-- Import/export (JSON, optional secrets) · backup/restore (tar.gz of state + modules, server-side list + upload)
-- Docker: node:22-alpine, `/data` + `/app/mcps` volumes, module seeding entrypoint, healthcheck; compose file for dbzocchi.app behind SWAG/NPM
+- Fix: the ✦ popup could not be closed and floated over the settings drawer — `.assistant { display: flex }` overrode the `[hidden]` attribute, so the ✕ / FAB toggle had no visual effect; the panel now also sits below drawers and mo
