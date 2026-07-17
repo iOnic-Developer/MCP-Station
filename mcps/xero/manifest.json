@@ -1,0 +1,39 @@
+{
+  "id": "xero",
+  "slug": "xero_mcp",
+  "name": "Xero",
+  "icon": "🧾",
+  "description": "Xero accounting + payroll — contacts, invoices, quotes, payments, credit notes, bank transactions, items, live reports (P&L, balance sheet, aged debts), employees, leave balances & bookings, timesheets, pay runs. Uses a Xero Custom Connection (client credentials).",
+  "version": "1.0.0",
+  "settings": [
+    {
+      "key": "client_id",
+      "label": "Client ID",
+      "type": "secret",
+      "required": true,
+      "help": "From a Xero **Custom Connection** app: developer.xero.com → My Apps → New app → Custom Connection. Authorise it against your organisation."
+    },
+    {
+      "key": "client_secret",
+      "label": "Client secret",
+      "type": "secret",
+      "required": true,
+      "help": "Generated with the Custom Connection app."
+    },
+    {
+      "key": "scopes",
+      "label": "Scopes",
+      "type": "text",
+      "required": false,
+      "default": "accounting.transactions accounting.contacts accounting.settings accounting.reports.read payroll.settings payroll.employees payroll.timesheets",
+      "help": "Space-separated. Must match the scopes ticked on the Custom Connection. Drop the payroll.* ones if you don't use Xero Payroll."
+    },
+    {
+      "key": "tenant_id",
+      "label": "Tenant ID",
+      "type": "text",
+      "required": false,
+      "help": "Leave blank — auto-detected from /connections. Only set to pin a specific organisation."
+    }
+  ]
+}

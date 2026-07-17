@@ -1,5 +1,26 @@
 # Changelog
 
+## v1.4.28 — 2026-07-17
+
+**Xero becomes a bundled default module 🧾 (xero v1.0.0, slug `xero_mcp`) — accounting + payroll.**
+
+- 31 tools: organisation, chart of accounts, tax rates, tracking categories; contacts
+  (list/get/create/update with AR/AP balances); invoices (filtered list, line-item detail,
+  create-as-DRAFT, approve/void); quotes, credit notes, payments, bank transactions, items
+  (upsert by code); live reports rendered as tables (P&L, balance sheet, trial balance, aged
+  receivables/payables, bank summary, executive summary); payroll UK/NZ — employees,
+  **leave balances (the "how much holiday does X have left?" tool)**, leave booking, leave
+  types, timesheets, pay runs.
+- Auth mirrors Xero's official MCP server: **Custom Connection client_credentials** →
+  `identity.xero.com/connect/token` (Basic + form), tenant auto-detected from `/connections`
+  (pin with the tenant_id setting), module-scope token cache, automatic refresh-and-retry on a
+  mid-flight 401. Scopes are a setting (default matches the official server's list).
+- Ships `instructions.md` guardrails: money-touching writes default to DRAFT and need explicit
+  user confirmation to authorise/void; IDs are always looked up, never guessed.
+- Smoke-tested through a sandbox station against a full mock of identity + accounting +
+  payroll endpoints (auth failures, 401-refresh, filter passthrough, DRAFT enforcement,
+  report rendering, leave booking body): 29/29 green, plus 3/3 ▶ Test paths.
+
 ## v1.4.27 — 2026-07-17
 
 **OpenProject becomes a bundled default module ⚙️ (openproject v1.0.0, slug `openproject_mcp`) + README refresh.**
