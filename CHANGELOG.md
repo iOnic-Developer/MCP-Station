@@ -1,5 +1,52 @@
 # Changelog
 
+## v1.4.26 — 2026-07-17
+
+**Gemini module v1.2.1 — Google retired the module's default models; text extraction hardened for thinking models.**
+
+- Live-test findings (2026-07-17): Google now 404s `text-embedding-004` (the embed default) and
+  the whole 2.x text line (`gemini-2.0-flash` gone outright; `gemini-2.5-flash`/`-lite` "no longer
+  available to new users"). New defaults: text → `gemini-flash-latest` (alias that always tracks
+  Google's newest flash), embeddings → `gemini-embedding-2` (3072 dims). Manifest help refreshed
+  to warn that pinned old models get retired.
+- `extractText()` hardened for Gemini 3.x/3.5 thinking responses: `thought: true` parts are never
+  surfaced, every candidate is scanned for real text, a thought-only `MAX_TOKENS` finish returns a
+  raise-the-cap hint, and an unrecognized response shape prints the part keys it did get — the
+  tool output diagnoses itself instead of going silently empty.
+- Regression suite: sandbox station vs a mocked Generative Language API covering thinking /
+  classic / thought-only / unknown-shape responses + embed default + image + 404 passthrough —
+  12/12 green.
+- Testing note for the record: text+chat were initially misdiagnosed as broken live — Cowork's
+  tool-result rendering hides a result's text block whenever structuredContent is present
+  (verified against a known-good module). Images (Nano Banana 2, 16:9 + base64 variant) were
+  verified live end-to-end.
+
+## v1.4.25 — 2026-07-17
+
+**Radarr becomes a bundled default module 🎬 (radarr v1.0.0, slug `radarr_mcp`).**
+
+- `mcps/radarr` ships with the station: 9 tools — list movies (with a `missing` filter) /
+  lookup (by name, `tmdb:<id>` or `imdb:<ttid>`) / add / full details / delete, download queue
+  with warnings, disk space, profiles & root folders, and command triggers (MoviesSearch,
+  MissingMoviesSearch, CutOffUnmetMoviesSearch, RefreshMovie, RescanMovie, RenameFiles, RssSync).
+- Built against the current Radarr v5 API (still served under `/api/v3`), verified from source:
+  add drives `minimumAvailability` (default `released` — waits for a proper web/physical release
+  instead of grabbing cams) plus `addOptions.monitor` (`movieOnly`/`movieAndCollection`/`none`)
+  and `searchForMovie`; delete uses Radarr's `addImportExclusion` param (NOT Sonarr's
+  `addImportListExclusion`); the queue asks for `includeMovie` so items render as
+  "Mickey 17 (2025)" rather than bare release names; already-in-library guard instead of a 400.
+- Smoke-tested through a sandbox station against a mock Radarr v5 (auth, deprecated-param and
+  query-param verification included): 18/18 MCP checks, 3/3 ▶ Test paths.
+## v1.4.24 — 2026-07-17
+
+**Sonarr module v1.1.1 — the "works end-to-end" tweaks (field feedback).**
+
+- `sonarr_get_episodes` now prints each episode's internal `id` plus a hint line — they're what
+  `sonarr_trigger_command` → EpisodeSearch expects, so list → episodes → search-specific-episodes
+  chains without guesswork.
+- `sonarr_add_series` docs call out the `monitor: 'pilot'` try-a-show pattern explicitly
+  (the option itself shipped in v1.1.0 alongside `monitored`).
+
 ## v1.4.23 — 2026-07-17
 
 **Sonarr becomes a bundled default module 📺 (sonarr v1.1.0, slug `sonarr_mcp`).**
@@ -369,29 +416,4 @@ and added a boot-time self-check that warns if `PUBLIC_URL` doesn't reach the st
 
 - **OAuth tokens are now scoped to one MCP.** A token granted for `/siyuan` gets **403** on `/telegram_mcp`. The slug comes from the client's RFC 8707 `resource` param; a client that doesn't send one makes the *human* pick the MCP on the approval page (with an explicit "⚠ All MCPs" option). Previously any token opened every MCP.
 - **Each MCP can have its own bearer token** — 🔑 Access on the card → Generate / Rotate / Clear. It opens only that MCP, so a script or n8n can be handed one endpoint without the keys to the whole station. Shown once, stored encrypted, mirrored into the module's `.config.json`. The station-wide `MCP_TOKEN` still works everywhere as the master key.
-- **Connected clients, with Revoke** — 🔑 Access lists the live OAuth connectors that can reach this MCP, with last-used and expiry. Revoking kills the access token *and* that client's refresh tokens, so it can't quietly refresh back in.
-- **🧰 Tools — capabilities view.** Every card can show exactly what its MCP exposes: tools with descriptions, argument tables (type, required, description) and behaviour hints (read-only / destructive), plus prompts and any house instructions. Introspected by *running* the module over an in-memory MCP transport — it's what a real client sees, not a guess parsed from the source. Drop a stranger's module into `mcps/` and read its capabilities before trusting it.
-- `scripts/smoke-scoping.sh` — 15 checks: master token, per-module tokens, both scoping paths, cross-MCP 403, connections + revoke.
-
-## v1.2.1 — 2026-07-14
-
-- Fix: the SPA's assets were served with `maxAge: '1h'` but linked unversioned, so a redeploy left the browser running the previous `app.js`/`app.css` for an hour. Now `no-cache` + ETag (revalidate every load, cheap 304s).
-- The ✦ popup names its provider and model, so "am I talking to Claude or Gemini?" is answerable at a glance.
-
-## v1.2.0 — 2026-07-14
-
-- **SiYuan module** (`mcps/siyuan/`, 📓 `/siyuan`) — the SiYuan Companion's 19 kernel tools + 2 prompts, ported to the module contract. Its own OAuth/transport layer is gone: the station already is that. Settings: `siyuan_url` + `siyuan_token`. Keeps the browser User-Agent (Cloudflare 1010) and both retry ladders; `replace_doc` still preserves the doc id.
-- **Module `instructions.md`** — an optional file per module, handed to every client as the MCP `instructions` at `initialize()`. House style now applies on claude.ai web, phone, Desktop and Code automatically, without being restated. (`buildServerFor` previously passed no options, so modules could not set it at all.)
-- **Modules are self-contained** — config is mirrored to `mcps/<id>/.config.json` (encrypted secrets, hidden from the file tabs). Delete a module folder and put it back — by hand, or UI-delete then restore from `data/trash/` — and the station adopts it and carries on. Previously the UI delete purged the settings for good.
-- Prompts (`server.registerPrompt`) documented in the module contract — they already worked, nobody knew
-- `scripts/smoke-selfcontained.sh` — 10 checks covering the delete/restore drill and encryption-at-rest of the mirror
-
-## v1.1.0 — 2026-07-14
-
-- **Per-MCP chat in the code drawer** — ✦ Chat button next to each module's files. The assistant sees *that module's* source (manifest.json + index.js, inlined into its system prompt) and answers with complete files; **⤵ Insert** drops a returned code block straight into the open editor tab.
-- Per-module conversations persist in the module's own folder as `.chat.json` (hidden from the file tabs, travels with backups/exports)
-- Streaming chat pane extracted to `public/assets/js/chat.js` and shared by the ✦ station popup and the per-MCP chat
-
-## v1.0.3 — 2026-07-14
-
-- Fix: the ✦ popup could not be closed and floated over the settings drawer — `.assistant { display: flex }` overrode the `[hidden]` attribute, so the ✕ / FAB toggle had no visual effect; the panel now also sits below drawers and mo
+- **Connected clients, with Revoke** — 🔑 Access lists the live OAuth connectors that can reach this MCP, with last-used and expiry. Revoking kills the access toke

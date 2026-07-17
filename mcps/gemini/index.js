@@ -1,7 +1,9 @@
 /**
  * Gemini MCP — Google Generative Language API (v1beta).
- * Settings: api_key (required), default_model (default gemini-2.5-flash),
- *           default_image_model (default gemini-3.1-flash-image — "Nano Banana 2").
+ * Settings: api_key (required), default_model (default gemini-flash-latest — an alias that
+ *           tracks Google's newest flash; pinned old models get retired, e.g. 2.x is 404
+ *           for new keys as of 2026-07), default_image_model (default gemini-3.1-flash-image
+ *           — "Nano Banana 2").
  */
 const BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const CHARACTER_LIMIT = 25000;
@@ -15,12 +17,28 @@ function needKey(settings) {
 }
 
 function extractText(data) {
-  const cand = data?.candidates?.[0];
-  const text = (cand?.content?.parts || []).map((p) => p.text || '').join('');
-  if (!text && cand?.finishReason && cand.finishReason !== 'STOP') {
-    return `[No text returned — finishReason: ${cand.finishReason}${cand.finishReason === 'SAFETY' ? ' (blocked by safety filters)' : ''}]`;
+  // Thinking models (Gemini 3.x / 3.5) may include thought parts (`thought: true`) before the
+  // answer — never surface those. Scan every candidate for real text.
+  for (const cand of data?.candidates || []) {
+    const text = (cand?.content?.parts || [])
+      .filter((p) => !p.thought && typeof p.text === 'string')
+      .map((p) => p.text)
+      .join('');
+    if (text) return text;
   }
-  return text || '[Empty response]';
+  const cand = data?.candidates?.[0];
+  if (cand?.finishReason && cand.finishReason !== 'STOP') {
+    const hint = cand.finishReason === 'SAFETY' ? ' (blocked by safety filters)'
+      : cand.finishReason === 'MAX_TOKENS' ? ' (raise max_output_tokens — thinking models spend tokens before answering)' : '';
+    return `[No text returned — finishReason: ${cand.finishReason}${hint}]`;
+  }
+  if (data?.promptFeedback?.blockReason) {
+    return `[Blocked — promptFeedback.blockReason: ${data.promptFeedback.blockReason}]`;
+  }
+  // Self-diagnosing fallback: report the part shapes we DID get, so an API shape change
+  // explains itself in the tool output instead of looking like an empty reply.
+  const shapes = (cand?.content?.parts || []).map((p) => Object.keys(p).join('+')).join(' | ');
+  return `[No text in response — candidates: ${(data?.candidates || []).length}, parts: ${shapes || 'none'}]`;
 }
 
 function truncate(text) {
@@ -31,7 +49,7 @@ function truncate(text) {
 export function register({ server, z, getSettings, log, fetchJson }) {
   const generate = async ({ model, contents, system, temperature, max_output_tokens }) => {
     const { api_key, default_model } = getSettings();
-    const m = model || default_model || 'gemini-2.5-flash';
+    const m = model || default_model || 'gemini-flash-latest';
     const body = {
       contents,
       ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
@@ -85,7 +103,7 @@ export function register({ server, z, getSettings, log, fetchJson }) {
 
 Args:
   - prompt (string, required)
-  - model (string, optional): defaults to the default_model setting (gemini-2.5-flash). Use gemini_list_models to see options.
+  - model (string, optional): defaults to the default_model setting (gemini-flash-latest). Use gemini_list_models to see options — Google retires pinned older models (2.x is 404 for new keys), so prefer the -latest aliases.
   - system (string, optional): system instruction.
   - temperature (0-2, optional)
   - max_output_tokens (1-65536, optional)
@@ -93,7 +111,7 @@ Returns: the generated text (+ usage metadata in structured content).
 Errors: "Error: api_key is not configured…" | "Error: HTTP 400/403 …" (bad key or model name).`,
       inputSchema: {
         prompt: z.string().min(1).describe('The prompt to send'),
-        model: z.string().optional().describe('Model id, e.g. gemini-2.5-pro; omit for default'),
+        model: z.string().optional().describe('Model id, e.g. gemini-pro-latest or gemini-3.5-flash; omit for default'),
         system: z.string().optional().describe('Optional system instruction'),
         temperature: z.number().min(0).max(2).optional().describe('Sampling temperature'),
         max_output_tokens: z.number().int().min(1).max(65536).optional().describe('Output token cap')
@@ -199,11 +217,11 @@ Returns: model names (use the part after 'models/' as the model arg elsewhere), 
 
 Args:
   - text (string, required, ≤ 10000 chars)
-  - model (string, default 'text-embedding-004')
+  - model (string, default 'gemini-embedding-2', 3072 dims; the old text-embedding-004 was retired by Google and now 404s)
 Returns: vector dimensionality + the values (structured content carries the full vector).`,
       inputSchema: {
         text: z.string().min(1).max(10000).describe('Text to embed'),
-        model: z.string().default('text-embedding-004').describe('Embedding model id')
+        model: z.string().default('gemini-embedding-2').describe('Embedding model id (text-embedding-004 is retired)')
       },
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true }
     },
@@ -269,28 +287,4 @@ Returns: the image as MCP image content (base64). Errors: "Error: api_key is not
       inputSchema: IMAGE_ARGS,
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: true }
     },
-    async ({ prompt, aspect_ratio, model }) => {
-      const missing = needKey(getSettings());
-      if (missing) return { content: [{ type: 'text', text: missing }] };
-      try {
-        const img = await generateImageApiCall({ prompt, model, aspect_ratio });
-        if (!img.data) return { content: [{ type: 'text', text: `No image was generated (${img.reason}).` }] };
-        const dataUri = `data:${img.mimeType};base64,${img.data}`;
-        return {
-          content: [{ type: 'text', text: `Image generated with ${img.model}.\n\nMarkdown:\n![Generated image](${dataUri})\n\nData URI:\n${dataUri}` }],
-          structuredContent: { model: img.model, mimeType: img.mimeType, base64: img.data, dataUri }
-        };
-      } catch (e) {
-        return { content: [{ type: 'text', text: `Error: ${e.message}` }] };
-      }
-    }
-  );
-}
-
-export async function test(settings, { fetchJson }) {
-  if (!settings.api_key) return { ok: false, message: 'api_key not set — get one at aistudio.google.com/apikey.' };
-  const data = await fetchJson(`${BASE}/models?pageSize=1&key=${settings.api_key}`);
-  const n = (data.models || []).length;
-  return { ok: true, message: `API key valid — models endpoint reachable (${n ? 'models listed' : 'no models visible'}). Default model: ${settings.default_model || 'gemini-2.5-flash'}.` };
-}
-
+    async ({ pr
