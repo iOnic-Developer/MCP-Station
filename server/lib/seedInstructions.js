@@ -66,7 +66,8 @@ export async function test(settings, { fetchJson }) {
 }
 \`\`\`
 
-## Optional files in a module folder
+## Other files in a module folder
+- **\`about.md\`** — **always write one.** Human docs for the module: what it is, what it's for, every tool and how to use it (args, a realistic example, what comes back), which settings to fill and where to get them, gotchas and limits. The station turns about.md + live tool introspection into the downloadable **📄 Skill** (SKILL.md) on the module's card, so a vague about.md makes a useless skill. It's editable as a tab in the code editor.
 - **\`instructions.md\`** — passed to every MCP client as the server's \`instructions\` at initialize(). The client injects it into the model's context automatically, on every surface, without anyone restating it. The right home for house style / conventions / hard rules (see \`mcps/siyuan/instructions.md\`).
 - **\`.config.json\`** — written by the station (enabled flag + encrypted settings) so a module folder carries its own config: delete the folder, put it back, and the station re-adopts it. Never hand-edit it, never put it in an answer.
 
@@ -86,7 +87,7 @@ export async function test(settings, { fetchJson }) {
 
 ## Workflow when David asks for a new MCP
 1. Don't interrogate him — you know most public APIs well enough to build from the name alone ("make one for Gmail" is a complete request). The optional API host/docs he may attach are hints, not requirements. Guess sensibly and note assumptions.
-2. **CREATE the module with your \`create_module\` tool** — complete manifest.json + index.js (+ instructions.md when house rules matter). The tool writes the folder and hot-reloads it live; never make him paste code unless he explicitly asks to see it.
+2. **CREATE the module with your \`create_module\` tool** — complete manifest.json + index.js + about.md (+ instructions.md when house rules matter). The tool writes the folder and hot-reloads it live; never make him paste code unless he explicitly asks to see it.
 3. If the tool reports a load error, fix the file and call it again with the same id until it loads.
 4. Then tell him: the connector URL \`PUBLIC_URL/<slug>/mcp\`, which **Settings** to fill on the card, and to hit **Test**.
 5. For debugging: check the Logs panel and the module's load error on its card; \`reload_modules\` re-scans everything.

@@ -14,7 +14,7 @@ export const ASSISTANT_TOOLS = [
     name: 'create_module',
     description:
       'Create or update an MCP module ON THIS STATION and hot-reload it, making it live immediately. ' +
-      'Writes mcps/<id>/manifest.json and index.js (and instructions.md if given). Use this instead of ' +
+      'Writes mcps/<id>/manifest.json, index.js and about.md (and instructions.md if given). Use this instead of ' +
       'pasting code into the chat whenever the user asks you to build/fix a module. If the result reports ' +
       'a load error, fix the code and call again with the SAME id. Files must be COMPLETE contents.',
     input_schema: {
@@ -23,9 +23,10 @@ export const ASSISTANT_TOOLS = [
         id: { type: 'string', description: 'Folder name, lowercase [a-z0-9_-], usually equal to the manifest slug (e.g. "gmail")' },
         manifest_json: { type: 'string', description: 'Complete manifest.json: { id, slug, name, description, icon, version, settings[] }' },
         index_js: { type: 'string', description: 'Complete index.js: export function register({ server, z, getSettings, log, fetchJson })' },
+        about_md: { type: 'string', description: 'Complete about.md — human docs for this module: what it is, what it is for, each tool and how to use it, settings to fill, gotchas. Always write this; it is the source for the downloadable Claude skill.' },
         instructions_md: { type: 'string', description: 'Optional instructions.md served to MCP clients at initialize' }
       },
-      required: ['id', 'manifest_json', 'index_js']
+      required: ['id', 'manifest_json', 'index_js', 'about_md']
     }
   },
   {
@@ -67,6 +68,7 @@ export async function execAssistantTool(name, args = {}) {
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify(manifest, null, 2));
       fs.writeFileSync(path.join(dir, 'index.js'), String(args.index_js));
+      if (args.about_md != null) fs.writeFileSync(path.join(dir, 'about.md'), String(args.about_md));
       if (args.instructions_md != null) fs.writeFileSync(path.join(dir, 'instructions.md'), String(args.instructions_md));
 
       await loadModules();

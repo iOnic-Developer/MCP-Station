@@ -115,10 +115,20 @@ Straight from the MCP builder guide, enforced by the seed instructions:
 | 9 | Trackers closed: SiYuan project set (hub + ⚙️ Setup & Operations + 🧱 Build Log, wired to 🗂 Projects — Index, orphan-check clean), Todoist build tasks completed + deploy task added (due 12 Jul). `git push` blocked in sandbox (no GitHub auth) — David pushes from his machine | — |
 | 10 | **Verification: `scripts/smoke.sh` — 34/34 green.** Auth + rate limit + CSRF, secrets AES-GCM at rest + masked in API, MCP initialize/tools-list/tools-call on both auth lanes, 401 → resource-metadata discovery, DCR, approval → code → PKCE token exchange (bad verifier rejected), refresh rotation (old token consumed), created-module round trip (create → placeholders filled → reload → tools/call works), export secrets/masked, import, backup create/list, 404 fallthrough. Syntax sweep on every JS file clean | `16eae2a` |
 | 11 | Sonarr promoted to bundled default module 📺 (sonarr v1.1.0, slug `sonarr_mcp`, station v1.4.23): rewrite of the live hand-built module against the current Sonarr v4 API — `log()` crash fixed (`log.error` on a plain function), queue with `includeSeries`/`includeEpisode` + tracked-state/warnings, `addOptions.monitor`, `addImportListExclusion`, deprecated `/languageprofile` stub skipped, already-added guard, `deleteFiles` default now false (API default), pagination + ~24k truncation. Smoke-tested through a sandbox station against a mock Sonarr v4: 15/15 MCP checks + 3 ▶ Test paths | — |
+| 12 | Radarr joins as a bundled default module 🎬 (radarr v1.0.0, slug `radarr_mcp`, station v1.4.25): 9 tools mirroring the sonarr pattern, verified against current Radarr v5 source — `minimumAvailability` (default `released`) + `addOptions.monitor` (movieOnly/movieAndCollection/none) + `searchForMovie` on add; delete uses Radarr's `addImportExclusion` (≠ Sonarr's `addImportListExclusion`); queue with `includeMovie`; lookup accepts name / `tmdb:<id>` / `imdb:<ttid>`; `missing` filter on list. Sandbox station vs mock Radarr v5: 18/18 MCP checks + 3 ▶ Test paths | — |
 
 ## 7. Deliberate trade-offs
 
 - **No per-MCP OAuth scoping** — any valid token reaches every enabled MCP. Fine for a single-operator homelab; revisit if the station ever serves multiple users.
 - **Open dynamic registration** — anyone can register a client, but tokens only issue after the password-gated approval, same as the Companion. The rate limiter covers brute force.
 - **Editor is a textarea, not Monaco** — zero dependencies beats syntax highlighting; the Claude popup writes the code anyway.
-- **Restore replaces module folders present in the archive** but doesn't delete extras — 
+- **Restore replaces module folders present in the archive** but doesn't delete extras — safer default; delete manually if truly gone.
+- **Port 8788** (Companion uses 8787) so both can run on the same box.
+
+## 8. Status / next
+
+- [x] Backend, frontend, popup, Docker, docs — complete
+- [x] End-to-end verified: **34/34 smoke checks** (`bash scripts/smoke.sh`)
+- [x] SiYuan project doc, Todoist closure
+- [ ] David: `docker compose up -d --build`, set `APP_PASSWORD`/`PUBLIC_URL`/`SESSION_SECRET`/`MCP_TOKEN`, point the dbzocchi.app reverse proxy at :8788, add connectors in claude.ai
+- [ ] Later ideas: per-MCP OAuth scopes, scheduled backups, Monaco editor, module marketplace/import-from-zip

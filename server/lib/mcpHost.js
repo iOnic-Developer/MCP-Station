@@ -257,6 +257,50 @@ export async function describeModule(id) {
   }
 }
 
+/** A Claude Code SKILL.md for this module: its about.md plus live tool introspection. */
+export async function buildSkillMd(id) {
+  const mod = getModuleById(id);
+  const cap = await describeModule(id); // throws on unknown/broken module
+  const { slug, name, description } = mod.manifest;
+  const skillName = slug.replace(/_/g, '-'); // skill names are kebab-case
+  const url = `${cfg.publicUrl || 'http://localhost:' + cfg.port}/${slug}/mcp`;
+  let about = '';
+  try { about = fs.readFileSync(path.join(mod.dir, 'about.md'), 'utf8').trim(); } catch { /* optional */ }
+
+  const tools = cap.tools.map((t) => {
+    const props = t.inputSchema?.properties || {};
+    const required = new Set(t.inputSchema?.required || []);
+    const args = Object.entries(props).map(([k, v]) =>
+      `- \`${k}\` (${v.type || 'any'}${required.has(k) ? ', required' : ''})${v.description ? ` — ${v.description}` : ''}`
+    ).join('\n') || '- _no arguments_';
+    return `### ${t.name}\n\n${t.description || ''}\n\n${args}`;
+  }).join('\n\n');
+
+  const content = [
+    '---',
+    `name: ${skillName}`,
+    `description: ${(description || name).replace(/\s+/g, ' ')} Use when working with ${name} over MCP.`,
+    '---',
+    '',
+    `# ${name}`,
+    '',
+    about || description,
+    '',
+    '## Connecting',
+    '',
+    `This MCP is served by MCP Station at \`${url}\`.`,
+    '',
+    '```bash',
+    `claude mcp add --transport http ${slug} ${url} --header "Authorization: Bearer $MCP_TOKEN"`,
+    '```',
+    '',
+    `## Tools\n\n${tools || '_This module registers no tools._'}`,
+    cap.instructions ? `\n## House rules (served to every client)\n\n${cap.instructions}` : ''
+  ].join('\n');
+
+  return { name: skillName, content };
+}
+
 export async function handleMcpRequest(req, res) {
   const slug = req.params.slug;
   const mod = getModuleBySlug(slug);

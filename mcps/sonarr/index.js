@@ -463,4 +463,10 @@ export async function test(settings, { fetchJson }) {
   const cleanUrl = settings.sonarr_url.replace(/\/+$/, '');
   try {
     const data = await fetchJson(`${cleanUrl}/api/v3/system/status`, {
-      headers: { 'X
+      headers: { 'X-Api-Key': settings.api_key, 'Accept': 'application/json' }
+    });
+    return { ok: true, message: `Connected to Sonarr v${data.version} (${data.instanceName || 'Default'})` };
+  } catch (e) {
+    return { ok: false, message: `Connection failed: ${e.message}` };
+  }
+}

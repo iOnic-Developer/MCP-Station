@@ -27,4 +27,7 @@
       "type": "text",
       "required": false,
       "default": "gemini-3.1-flash-image",
-      "help": "Native Gemini image model. gemini-3.1-flash-image = 
+      "help": "Native Gemini image model. gemini-3.1-flash-image = Nano Banana 2 (latest); gemini-3-pro-image = Nano Banana Pro (higher fidelity)."
+    }
+  ]
+}

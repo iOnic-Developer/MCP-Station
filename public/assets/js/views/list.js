@@ -1,4 +1,4 @@
-import { api } from '../api.js';
+import { api, download } from '../api.js';
 import { esc, toast, confirmModal } from '../ui.js';
 import { openSettings } from './settings.js';
 import { openEditor } from './editor.js';
@@ -51,6 +51,8 @@ export function renderList(root, ctx) {
         <button class="btn sm" data-access ${m.manifest ? '' : 'disabled'} title="Token + connected clients">🔑 Access${m.tokenSet ? ' ✓' : ''}</button>
         <button class="btn sm" data-code>‹/› Code</button>
         <button class="btn sm" data-test ${m.manifest ? '' : 'disabled'}>▶ Test</button>
+        <button class="btn sm" data-skill ${m.manifest && !m.error ? '' : 'disabled'} title="Download a Claude skill (.zip) — upload it in claude.ai → Settings → Capabilities → Skills">📄 Skill</button>
+        <button class="btn sm" data-skill-link ${m.manifest && !m.error ? '' : 'disabled'} title="Copy a public link to this skill's SKILL.md (expires in 7 days)">🔗</button>
         <div class="spacer"></div>
         <button class="btn sm danger" data-del title="Delete module">🗑</button>
       </div>
@@ -91,6 +93,29 @@ export function renderList(root, ctx) {
         toast(r.message, r.ok ? 'ok' : 'err', 5200);
       } catch (ex) { toast(ex.message, 'err'); }
       btn.disabled = false; btn.textContent = '▶ Test';
+    });
+
+    const skillName = (m.manifest?.slug || id).replace(/_/g, '-');
+
+    card.querySelector('[data-skill]')?.addEventListener('click', async (e) => {
+      const btn = e.target;
+      btn.disabled = true;
+      try {
+        await download(`/mcps/${id}/skill`, `${skillName}-skill.zip`);
+        toast('Skill .zip downloaded — claude.ai → Settings → Capabilities → Skills → Upload', 'ok', 6000);
+      } catch (ex) { toast(ex.message, 'err'); }
+      btn.disabled = false;
+    });
+
+    card.querySelector('[data-skill-link]')?.addEventListener('click', async (e) => {
+      const btn = e.target;
+      btn.disabled = true;
+      try {
+        const { url } = await api(`/mcps/${id}/skill/share`, { method: 'POST', body: {} });
+        await navigator.clipboard.writeText(url);
+        toast(`Public link copied (7 days) — tell Claude to fetch it: ${url}`, 'ok', 7000);
+      } catch (ex) { toast(ex.message, 'err'); }
+      btn.disabled = false;
     });
 
     card.querySelector('[data-del]').onclick = async () => {

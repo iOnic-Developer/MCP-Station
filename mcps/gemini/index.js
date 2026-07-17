@@ -287,4 +287,28 @@ Returns: the image as MCP image content (base64). Errors: "Error: api_key is not
       inputSchema: IMAGE_ARGS,
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: true }
     },
-    async ({ pr
+    async ({ prompt, aspect_ratio, model }) => {
+      const missing = needKey(getSettings());
+      if (missing) return { content: [{ type: 'text', text: missing }] };
+      try {
+        const img = await generateImageApiCall({ prompt, model, aspect_ratio });
+        if (!img.data) return { content: [{ type: 'text', text: `No image was generated (${img.reason}).` }] };
+        const dataUri = `data:${img.mimeType};base64,${img.data}`;
+        return {
+          content: [{ type: 'text', text: `Image generated with ${img.model}.\n\nMarkdown:\n![Generated image](${dataUri})\n\nData URI:\n${dataUri}` }],
+          structuredContent: { model: img.model, mimeType: img.mimeType, base64: img.data, dataUri }
+        };
+      } catch (e) {
+        return { content: [{ type: 'text', text: `Error: ${e.message}` }] };
+      }
+    }
+  );
+}
+
+export async function test(settings, { fetchJson }) {
+  if (!settings.api_key) return { ok: false, message: 'api_key not set — get one at aistudio.google.com/apikey.' };
+  const data = await fetchJson(`${BASE}/models?pageSize=1&key=${settings.api_key}`);
+  const n = (data.models || []).length;
+  return { ok: true, message: `API key valid — models endpoint reachable (${n ? 'models listed' : 'no models visible'}). Default model: ${settings.default_model || 'gemini-flash-latest'}.` };
+}
+

@@ -28,7 +28,7 @@ One Docker container (Node 22 + Express + `@modelcontextprotocol/sdk`, plain ESM
 ```
 server/index.js        all route wiring — read this first
 server/lib/*.js        env, log, crypto, state, auth, oauth, mcpHost, assistant, seedInstructions, backup
-mcps/{_template,telegram,gemini,siyuan,files,sonarr}/   modules (telegram ✈️ 5, gemini ✨ 6, siyuan 📓 19, files 📁 10, sonarr 📺 9 tools)
+mcps/{_template,telegram,gemini,siyuan,files,sonarr,radarr}/   modules (telegram ✈️ 5, gemini ✨ 6, siyuan 📓 19, files 📁 10, sonarr 📺 9, radarr 🎬 9 tools)
 public/assets/js/      api.js, ui.js, app.js + views/{login,list,settings,editor,addNew,backup,station,assistant}.js
 docs/                  BUILD_JOURNAL (design log), BUILDING_MCPS (module contract), OAUTH (flows)
 ```
@@ -46,4 +46,4 @@ docs/                  BUILD_JOURNAL (design log), BUILDING_MCPS (module contrac
 - ~~No per-MCP OAuth scoping~~ — **done in v1.3.0**. Tokens carry a `slug`; `requireBearer` enforces it (403 cross-MCP). Three auth lanes: station `MCP_TOKEN` (master, opens everything) → the module's own token (`st.mcps[id].token`, opens only it) → OAuth token (opens the slug it was granted for; `slug: ''` = station-wide, only ever set by an explicit choice on the approval page).
 - Editor is a plain textarea; no lint-before-save beyond manifest zod validation.
 - No scheduled backups (manual button only) — n8n could hit `POST /api/backup` on cron with the session… better: add a token-authed backup endpoint if David asks.
-- Restore doesn't restart the process; if `SESSION_SECRET` differs from the archive's `secret.key` prove
+- Restore doesn't restart the process; if `SESSION_SECRET` differs from the archive's `secret.key` provenance, stored secrets won't decrypt (documented in README).

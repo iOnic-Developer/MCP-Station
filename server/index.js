@@ -13,6 +13,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { cfg, ROOT } from './lib/env.js';
 import * as fileShares from './lib/fileShares.js';
+import { zipFiles } from './lib/zip.js';
 import { initKey, encrypt, decrypt, randomToken } from './lib/crypto.js';
 import { loadState, getState, save, persist, gc } from './lib/state.js';
 import { log, getLogs } from './lib/log.js';
@@ -188,6 +189,35 @@ api.put('/mcps/:id/file', (req, res) => {
   try {
     host.writeModuleFile(req.params.id, String(req.body?.path || ''), String(req.body?.content ?? ''));
     res.json({ ok: true, note: 'Saved — hit Reload modules to apply.' });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+/* Claude skill (about.md + live tool introspection), two ways to install it:
+ * a .zip claude.ai's Skills uploader accepts, or a public /f/<token> link to the raw SKILL.md. */
+api.get('/mcps/:id/skill', async (req, res) => {
+  try {
+    const { name, content } = await host.buildSkillMd(req.params.id);
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${name}-skill.zip"`);
+    res.send(zipFiles([{ name: `${name}/SKILL.md`, data: content }]));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Regenerating overwrites the same path, so a link handed out earlier keeps serving the current skill.
+api.post('/mcps/:id/skill/share', async (req, res) => {
+  try {
+    const { name, content } = await host.buildSkillMd(req.params.id);
+    const root = path.join(cfg.dataDir, 'skills');
+    const abs = path.join(root, `${name}-SKILL.md`);
+    fs.mkdirSync(root, { recursive: true });
+    fs.writeFileSync(abs, content);
+    const share = fileShares.createShare({ rootDir: root, absPath: abs, ttlMs: fileShares.parseTtl(req.body?.expires_in ?? '7d') });
+    log('mcp', `Shared skill for '${req.params.id}' at /f/${share.token.slice(0, 8)}…`);
+    res.json(share);
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
