@@ -5,7 +5,7 @@ export function renderLogin(root, { me, onAuthed }) {
   root.innerHTML = `
     <div class="login-wrap">
       <form class="login" id="loginForm">
-        <div class="logo" style="margin-bottom:14px">⛽ MCP <span>Station</span></div>
+        <div class="logo" style="margin-bottom:14px"><img src="/assets/mcp_station_logo.svg" alt="MCP Station" style="width:230px;max-width:100%;display:block;margin:0 auto"></div>
         <h1>Sign in</h1>
         <p>Your self-hosted MCP hub${me.publicUrl ? ` · <span class="mono">${esc(me.publicUrl)}</span>` : ''}</p>
         ${me.passwordSet ? '' : `<div class="banner">APP_PASSWORD is not set on the server — set it in the container environment and restart before you can sign in.</div>`}

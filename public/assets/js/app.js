@@ -45,7 +45,7 @@ async function boot(authedHint) {
 function renderDashboard() {
   root.innerHTML = `
     <div class="topbar">
-      <div class="logo">⛽ MCP <span>Station</span><small>${esc(ctx.me.publicUrl || `v${ctx.me.version}`)}</small></div>
+      <div class="logo"><img src="/assets/mcp_station_logo.svg" alt="MCP Station" style="height:30px;display:block"></div>
       <button class="btn primary" id="bAdd">➕ Add MCP</button>
       <button class="btn" id="bReload" title="Re-scan the mcps/ folder and remount endpoints">⟳ Reload modules</button>
       <button class="btn" id="bBackup">🗄 Backup</button>

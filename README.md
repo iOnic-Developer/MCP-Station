@@ -1,4 +1,4 @@
-<p align="center"><img src="public/assets/logo.png" width="340" alt="MCP Station — one hub, many docked MCP modules"></p>
+<p align="center"><img src="public/assets/mcp_station_logo.svg" width="340" alt="MCP Station — one hub, many docked MCP modules"></p>
 
 <h1 align="center">MCP Station</h1>
 
