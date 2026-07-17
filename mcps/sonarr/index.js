@@ -140,7 +140,7 @@ Errors: "sonarr_url or api_key is not configured…" — set them in Settings.`,
 
 Args:
   - tvdbId (required): from sonarr_lookup_series.
-  - monitor: which episodes to monitor — all | future | missing | existing | firstSeason | lastSeason | pilot | recent | none (default all).
+  - monitor: which episodes to monitor — all | future | missing | existing | firstSeason | lastSeason | pilot | recent | none (default all). 'pilot' monitors + grabs just the first episode — the try-a-show-before-committing pattern.
   - searchMissing: start an indexer search for monitored missing episodes right after adding (default true).
   - searchCutoffUnmet: also search for upgrades of episodes below quality cutoff (default false).
 Returns: confirmation with the new internal ID and path, or a notice if the show is already in the library.`,
@@ -333,7 +333,7 @@ Returns: confirmation with the new internal ID and path, or a notice if the show
     'sonarr_get_episodes',
     {
       title: 'Get Episodes',
-      description: `List a series' episodes grouped by season — downloaded/missing, monitored, air date. Filter to one season with seasonNumber for long shows.`,
+      description: `List a series' episodes grouped by season — internal id, downloaded/missing, monitored, air date. The episode \`id\`s are what sonarr_trigger_command's EpisodeSearch expects. Filter to one season with seasonNumber for long shows.`,
       inputSchema: {
         seriesId: z.number().int().describe('Internal Sonarr series ID (from sonarr_list_series)'),
         seasonNumber: z.number().int().min(0).optional().describe('Only this season (0 = specials)')
@@ -354,7 +354,7 @@ Returns: confirmation with the new internal ID and path, or a notice if the show
         for (const e of eps) (seasons[e.seasonNumber] ??= []).push(e);
 
         const have = eps.filter(e => e.hasFile).length;
-        let markdown = `### Episodes — series ID ${seriesId}${seasonNumber !== undefined ? `, season ${seasonNumber}` : ''} (${have}/${eps.length} downloaded)\n\n`;
+        let markdown = `### Episodes — series ID ${seriesId}${seasonNumber !== undefined ? `, season ${seasonNumber}` : ''} (${have}/${eps.length} downloaded)\n\n_Episode ids feed \`sonarr_trigger_command\` → EpisodeSearch._\n\n`;
         for (const sNum of Object.keys(seasons).sort((a, b) => Number(a) - Number(b))) {
           markdown += `#### Season ${sNum}\n`;
           const rows = seasons[sNum]
@@ -362,7 +362,7 @@ Returns: confirmation with the new internal ID and path, or a notice if the show
             .map(e => {
               const file = e.hasFile ? '💾' : '❌';
               const mon = e.monitored ? '👁️' : '🚫';
-              return `* **E${pad2(e.episodeNumber)}** — *"${e.title || 'TBA'}"* [${file} ${mon}] (air: ${e.airDate || 'TBA'})`;
+              return `* **E${pad2(e.episodeNumber)}** (id: \`${e.id}\`) — *"${e.title || 'TBA'}"* [${file} ${mon}] (air: ${e.airDate || 'TBA'})`;
             });
           markdown += rows.join('\n') + '\n\n';
         }
@@ -463,10 +463,4 @@ export async function test(settings, { fetchJson }) {
   const cleanUrl = settings.sonarr_url.replace(/\/+$/, '');
   try {
     const data = await fetchJson(`${cleanUrl}/api/v3/system/status`, {
-      headers: { 'X-Api-Key': settings.api_key, 'Accept': 'application/json' }
-    });
-    return { ok: true, message: `Connected to Sonarr v${data.version} (${data.instanceName || 'Default'})` };
-  } catch (e) {
-    return { ok: false, message: `Connection failed: ${e.message}` };
-  }
-}
+      headers: { 'X
