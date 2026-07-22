@@ -1,6 +1,15 @@
 # Changelog
 
-## v1.5.1 — 2026-07-22
+## v1.5.2 — 2026-07-22
+
+**Branding refresh — MuseoModerno UI font + new SVG logo, and the topbar drops the URL.**
+
+- New `mcp_station_logo.svg` (plus a 1024 canvas variant) replaces the raster `logo.png` in the
+  topbar, the admin login, and the README hero — sharp at any size. Self-hosted MuseoModerno
+  (`museomoderno-latin.woff2`) ahead of the system stack for the wordmark.
+- The topbar no longer prints `PUBLIC_URL` next to the logo (it was redundant and leaked the host
+  into every screenshot).
+- No functional/API changes — purely presentation. Version bump so the shipped image reports it.
 
 **Xero becomes a bundled default module 🧾 (xero v1.0.2, slug `xero_mcp`).**
 
