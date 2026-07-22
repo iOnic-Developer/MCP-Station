@@ -109,24 +109,43 @@ tooling. **If it speaks HTTP, it can be an MCP.**
 
 ## Features
 
-- **Modules are folders** — `manifest.json` + `index.js` (+ optional `instructions.md`). Hot reload,
-  no restarts. A `_template` module is included, and the ✦ assistant writes new modules for you in
-  the browser.
-- **📦 Share a module** — every module card has an **Export** button that packs the module into a
-  `.zip` (code + docs, **secrets and chat history stripped out**). Unzip it into anyone else's
-  station `mcps/` folder, hit Reload, and it runs. Build an MCP once, hand it to the whole community.
-- **OAuth 2.1 authorization server built in** — discovery metadata, dynamic client registration,
-  PKCE S256, rotating refresh tokens, all served by the official MCP SDK's own auth router. A single
-  station password gates the consent page (with an explicit **Deny**). This is what lets claude.ai
-  connect by URL alone.
-- **Three ways to authenticate**: claude.ai OAuth (per-MCP scoped tokens), a station-wide
-  `MCP_TOKEN` (master key for Claude Code / scripts), and per-module tokens (hand one endpoint to a
-  script without the keys to the station).
-- **Admin SPA** — module cards with toggle / test / copy-URL, in-browser code editor, per-module
-  settings with encrypted secrets (AES-256-GCM at rest, never echoed back), live logs of every OAuth
-  and MCP request, capabilities inspector (see exactly what tools a module exposes before trusting
-  it), one-click Claude **skill** export, module `.zip` export, and import/export + tar.gz
-  backup/restore.
+- **Turn any API into an MCP** — if it speaks HTTP, it becomes a tool Claude can call.
+- **AI-assisted module builder** — paste API docs, an OpenAPI spec, or a few `curl` calls and the
+  built-in ✦ assistant writes the whole module into the browser editor.
+- **Modules are just folders** — `manifest.json` + `index.js`, hot-reloaded, no rebuilds or restarts.
+  Copy `_template`, or let the assistant write one.
+- **OAuth 2.1 built in** — claude.ai (web, mobile, desktop) connects by URL alone: discovery, dynamic
+  client registration, PKCE S256, rotating refresh tokens, and a password-gated consent page with an
+  explicit **Deny**.
+- **Three auth lanes** — a station-wide `MCP_TOKEN` (master), per-module tokens (hand out one
+  endpoint), and per-MCP-scoped OAuth (a token for `/siyuan` is refused at `/gemini_mcp`).
+- **Encrypted secrets** — module settings are AES-256-GCM at rest, masked in the UI, never echoed back.
+- **In-browser code editor** — edit a module and hot-reload it without touching the server.
+- **Live capabilities inspector** — see exactly what tools a module exposes before you trust it.
+- **📦 Module sharing** — export any module as a `.zip` (secrets stripped); drop it into anyone else's
+  station and it runs.
+- **One-click Claude skill export** — download a ready-made skill for any module.
+- **Backups & logs** — JSON import/export, one-click tar.gz snapshots, and a live log of every OAuth
+  and MCP request.
+- **Self-hosted, one container** — Docker / Unraid / TrueNAS; no build step, three runtime deps, no
+  cloud dependency.
+
+## What you can do with it
+
+- **Give Claude access to things with no official connector** — Radarr, Sonarr, your NAS, a POS, an
+  RSS feed, a smart-home hub, a database, an internal API.
+- **Build a connector shaped to your workflow** — e.g. a Xero module with 31 read+write tools vs the
+  official connector's 7 read-only ones.
+- **Run your media library by voice** — *"get spider man 2"* → added to Radarr, searching, with your
+  quality rules (size, x265) baked into the skill.
+- **Let Claude read and write your knowledge base** — search, file, tag and link notes (SiYuan).
+- **Run business tasks from chat** — raise invoices, take payments, book staff leave, run payroll,
+  pull a P&L.
+- **Give Claude a place to work** — read/write files in a jailed folder, save images, mint share links.
+- **Get notified** — have Claude send Telegram messages, or wire it into a workflow.
+- **Connect from anywhere** — claude.ai web / mobile / desktop, Claude Code, or any MCP client.
+- **Hand out narrow access** — give a script one module's endpoint without the keys to everything.
+- **Share what you build** — pass a module to a mate or the community as a single `.zip`.
 
 ## 📦 Bundled modules
 
