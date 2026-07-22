@@ -24,7 +24,7 @@ services:
 
 ```bash
 docker compose up -d
-curl http://localhost:8788/healthz    # → {"ok":true,"version":"…","modules":7,"oauth":true}
+curl http://localhost:8788/healthz    # → {"ok":true,"version":"…","modules":8,"oauth":true}
 ```
 
 Not exposing it yet? Leave `PUBLIC_URL` unset to run local-only (OAuth off; the `MCP_TOKEN` bearer

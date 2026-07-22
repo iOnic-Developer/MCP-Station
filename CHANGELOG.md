@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.5.1 — 2026-07-22
+
+**Xero becomes a bundled default module 🧾 (xero v1.0.2, slug `xero_mcp`).**
+
+- `mcps/xero` now ships with the station: **31 tools** — 21 read (organisation, accounts, tax rates,
+  tracking categories, contacts, invoices, quotes, credit notes, payments, bank transactions, items,
+  `xero_report`, employees, leave balances/records/types, timesheets, **pay runs**) and 10 write
+  (create/update contacts, create/update invoices, create quotes, credit notes, payments, bank
+  transactions, `xero_upsert_item`, book employee leave). Auth is a Xero **Custom Connection**
+  (client-credentials): token cached in module scope (~30 min), tenant auto-detected from
+  `/connections`, scope vintage auto-negotiated. Money-touching tools create as DRAFT by default.
+- Verified live (org, reports, full read surface) and loaded clean in a fresh station: 31 tools,
+  0 load errors, `healthz` now reports `modules: 8`. No secrets in the module — `client_id` /
+  `client_secret` are UI settings only.
+- For contrast, the official "Xero, by Xero Limited" connector in Claude's directory is 7 read-only
+  tools; this one is read **and** write.
+
 ## v1.5.0 — 2026-07-22
 
 **Module sharing 📦, a Deny button on the consent page, hardened error handling, and a full

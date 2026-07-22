@@ -39,16 +39,28 @@ to Claude.** Your keys and data never leave your box.
   smart-home hub, a database, an internal microservice — none of these ship a connector. With MCP
   Station they become one in minutes.
 - **An official MCP that doesn't fit? Roll your own.** Even for services that *do* have a connector,
-  a module you build is shaped to *your* workflow. A hand-built Xero module is a real example: ~31
-  tools covering the exact accounting and payroll operations a small business actually runs
-  (invoices, quotes, payments, employee leave, **pay runs**, tracking categories, live reports),
-  built straight from Xero's API docs, self-hosted, using your own keys.
+  a module you build is shaped to *your* workflow. Concrete example — the official **Xero** connector
+  in Claude's directory gives you **7 tools, read-only**: cash position, P&L, receivables, top
+  customers. Great for *"what's my financial position?"*, but it's a viewer. The **bundled** Xero
+  module runs **31 tools, read *and* write** — 21 to list/report across accounts, invoices, payments,
+  employees, timesheets, **pay runs** and tracking categories, plus 10 to actually *do* things:
+  create invoices, take payments, raise credit notes, book employee leave, update contacts. Built
+  from Xero's API docs in an afternoon, self-hosted, using your own keys.
+
+  | | Official Xero connector | Bundled module |
+  |---|---|---|
+  | Tools | 7 | **31** |
+  | Access | read-only | read **+ write** |
+  | Can it raise an invoice / take a payment / run payroll? | no | **yes** |
+  | Runs on | vendor's cloud | **your box, your keys** |
+
 - **Give yourself more access, safely.** Per-MCP tokens, per-MCP OAuth scoping, and encrypted
   settings mean you decide exactly which module a given client can reach.
 
-> The point isn't that a hand-built module always has *more* tools than a vendor's. It's that you're
-> never blocked waiting for one, you're never limited to what someone else shipped, and the whole
-> thing runs on hardware you control.
+> More tools isn't automatically better — the official connector is read-only *by design*, which is
+> the safe default. The point is you're never limited to what someone else shipped: when the shop
+> needs Claude to actually raise the invoice, you build the module that does it, and it runs on
+> hardware you control.
 
 ---
 
@@ -97,24 +109,43 @@ tooling. **If it speaks HTTP, it can be an MCP.**
 
 ## Features
 
-- **Modules are folders** — `manifest.json` + `index.js` (+ optional `instructions.md`). Hot reload,
-  no restarts. A `_template` module is included, and the ✦ assistant writes new modules for you in
-  the browser.
-- **📦 Share a module** — every module card has an **Export** button that packs the module into a
-  `.zip` (code + docs, **secrets and chat history stripped out**). Unzip it into anyone else's
-  station `mcps/` folder, hit Reload, and it runs. Build an MCP once, hand it to the whole community.
-- **OAuth 2.1 authorization server built in** — discovery metadata, dynamic client registration,
-  PKCE S256, rotating refresh tokens, all served by the official MCP SDK's own auth router. A single
-  station password gates the consent page (with an explicit **Deny**). This is what lets claude.ai
-  connect by URL alone.
-- **Three ways to authenticate**: claude.ai OAuth (per-MCP scoped tokens), a station-wide
-  `MCP_TOKEN` (master key for Claude Code / scripts), and per-module tokens (hand one endpoint to a
-  script without the keys to the station).
-- **Admin SPA** — module cards with toggle / test / copy-URL, in-browser code editor, per-module
-  settings with encrypted secrets (AES-256-GCM at rest, never echoed back), live logs of every OAuth
-  and MCP request, capabilities inspector (see exactly what tools a module exposes before trusting
-  it), one-click Claude **skill** export, module `.zip` export, and import/export + tar.gz
-  backup/restore.
+- **Turn any API into an MCP** — if it speaks HTTP, it becomes a tool Claude can call.
+- **AI-assisted module builder** — paste API docs, an OpenAPI spec, or a few `curl` calls and the
+  built-in ✦ assistant writes the whole module into the browser editor.
+- **Modules are just folders** — `manifest.json` + `index.js`, hot-reloaded, no rebuilds or restarts.
+  Copy `_template`, or let the assistant write one.
+- **OAuth 2.1 built in** — claude.ai (web, mobile, desktop) connects by URL alone: discovery, dynamic
+  client registration, PKCE S256, rotating refresh tokens, and a password-gated consent page with an
+  explicit **Deny**.
+- **Three auth lanes** — a station-wide `MCP_TOKEN` (master), per-module tokens (hand out one
+  endpoint), and per-MCP-scoped OAuth (a token for `/siyuan` is refused at `/gemini_mcp`).
+- **Encrypted secrets** — module settings are AES-256-GCM at rest, masked in the UI, never echoed back.
+- **In-browser code editor** — edit a module and hot-reload it without touching the server.
+- **Live capabilities inspector** — see exactly what tools a module exposes before you trust it.
+- **📦 Module sharing** — export any module as a `.zip` (secrets stripped); drop it into anyone else's
+  station and it runs.
+- **One-click Claude skill export** — download a ready-made skill for any module.
+- **Backups & logs** — JSON import/export, one-click tar.gz snapshots, and a live log of every OAuth
+  and MCP request.
+- **Self-hosted, one container** — Docker / Unraid / TrueNAS; no build step, three runtime deps, no
+  cloud dependency.
+
+## What you can do with it
+
+- **Give Claude access to things with no official connector** — Radarr, Sonarr, your NAS, a POS, an
+  RSS feed, a smart-home hub, a database, an internal API.
+- **Build a connector shaped to your workflow** — e.g. the bundled Xero module's 31 read+write tools
+  vs the official connector's 7 read-only ones.
+- **Run your media library by voice** — *"get spider man 2"* → added to Radarr, searching, with your
+  quality rules (size, x265) baked into the skill.
+- **Let Claude read and write your knowledge base** — search, file, tag and link notes (SiYuan).
+- **Run business tasks from chat** — raise invoices, take payments, book staff leave, run payroll,
+  pull a P&L.
+- **Give Claude a place to work** — read/write files in a jailed folder, save images, mint share links.
+- **Get notified** — have Claude send Telegram messages, or wire it into a workflow.
+- **Connect from anywhere** — claude.ai web / mobile / desktop, Claude Code, or any MCP client.
+- **Hand out narrow access** — give a script one module's endpoint without the keys to everything.
+- **Share what you build** — pass a module to a mate or the community as a single `.zip`.
 
 ## 📦 Bundled modules
 
@@ -130,6 +161,7 @@ want and build what's missing:
 | 📓 SiYuan | `siyuan` | 19 | SiYuan knowledge base — read, search, create, edit, move and audit docs |
 | 📺 Sonarr | `sonarr_mcp` | 9 | TV library — search & add shows, episodes, queue with warnings, disk space, command triggers |
 | ✈️ Telegram | `telegram_mcp` | 5 | Send and read Telegram messages through a bot |
+| 🧾 Xero | `xero_mcp` | 31 | Accounting + payroll — invoices, quotes, payments, credit notes, bank transactions, items, live reports, employees, leave, timesheets, pay runs (Xero Custom Connection) |
 
 (`_template` is the scaffold ➕ Add MCP copies — it isn't served as an endpoint.)
 
@@ -166,7 +198,7 @@ services:
 
 ```bash
 docker compose up -d
-curl http://localhost:8788/healthz   # → {"ok":true,"version":"…","modules":7,"oauth":true}
+curl http://localhost:8788/healthz   # → {"ok":true,"version":"…","modules":8,"oauth":true}
 ```
 
 Open `http://host:8788`, log in with `APP_PASSWORD`, configure each module's settings (e.g. the
