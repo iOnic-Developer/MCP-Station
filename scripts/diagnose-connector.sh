@@ -40,7 +40,7 @@ C=$(curl -s -m 10 -o /dev/null -w '%{http_code}' -X OPTIONS -H 'Origin: https://
 
 echo "── 5. dynamic client registration ──"
 CID=$(curl -s -m 10 -X POST "$BASE/register" -H 'content-type: application/json' \
-  -d '{"client_name":"connector diagnosis","redirect_uris":["https://claude.ai/api/mcp/auth_callback"]}' | J ".client_id")
+  -d '{"client_name":"connector diagnosis","redirect_uris":["https://claude.ai/api/mcp/auth_callback"],"token_endpoint_auth_method":"none","grant_types":["authorization_code","refresh_token"],"response_types":["code"]}' | J ".client_id")
 [ -n "$CID" ] && ok "registered client $CID" || { bad "registration failed — cannot continue"; exit 1; }
 
 if [ -z "$PW" ]; then echo; echo "Set APP_PASSWORD=… to also test approval + token exchange + a real tool call."; exit ${RED:+1}; fi

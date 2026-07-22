@@ -301,6 +301,33 @@ export async function buildSkillMd(id) {
   return { name: skillName, content };
 }
 
+/**
+ * A shareable .zip of a module — everything a *different* station needs to run it, and nothing
+ * private. Drop the extracted folder into any station's mcps/ and it appears as a NEEDS SETTINGS
+ * module. Deliberately excludes the dot-files: .config.json (station-encrypted secrets — useless
+ * and unsafe to ship) and .chat.json (the assistant conversation). node_modules is never present
+ * (modules take no deps by contract) but is skipped defensively.
+ */
+export function exportModuleZip(id) {
+  const mod = getModuleById(id);
+  if (!mod) throw new Error(`Unknown MCP '${id}'`);
+  const root = path.resolve(mod.dir);
+  const entries = [];
+  const walk = (dir, prefix) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (e.name.startsWith('.') || e.name === 'node_modules') continue; // no secrets, chat, or deps
+      const rel = prefix ? `${prefix}/${e.name}` : e.name;
+      const abs = path.join(dir, e.name);
+      if (e.isDirectory()) { walk(abs, rel); continue; }
+      if (fs.statSync(abs).size > MAX_FILE) continue; // skip anything oversized for the editor
+      entries.push({ name: `${id}/${rel}`, data: fs.readFileSync(abs) });
+    }
+  };
+  walk(root, '');
+  if (!entries.length) throw new Error('Module folder is empty');
+  return { name: id, entries };
+}
+
 export async function handleMcpRequest(req, res) {
   const slug = req.params.slug;
   const mod = getModuleBySlug(slug);

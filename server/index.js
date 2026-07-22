@@ -223,6 +223,19 @@ api.post('/mcps/:id/skill/share', async (req, res) => {
   }
 });
 
+/* A shareable .zip of the module (manifest + code + docs; no secrets, no chat). Drop the
+ * extracted folder into any other station's mcps/ and it runs. This is how modules travel. */
+api.get('/mcps/:id/export-module', (req, res) => {
+  try {
+    const { name, entries } = host.exportModuleZip(req.params.id);
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${name}-module.zip"`);
+    res.send(zipFiles(entries));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 /* What this MCP can do — introspected by running it, not by reading its source */
 api.get('/mcps/:id/capabilities', async (req, res) => {
   try { res.json(await host.describeModule(req.params.id)); }
@@ -384,6 +397,10 @@ app.use(express.static(path.join(ROOT, 'public'), {
 // Claude Code CLI configs and old connector URLs keep working.
 app.all(['/:slug/mcp', '/:slug'], (req, res, next) => {
   if (!host.getModuleBySlug(req.params.slug)) return next();
+  // A CORS preflight carries no Authorization header by definition — gating it behind the bearer
+  // check answers a browser's OPTIONS with 401 and the real request never fires. Answer preflight
+  // directly (no CORS headers = still same-origin only, matching the rest of the MCP surface).
+  if (req.method === 'OPTIONS') return res.status(204).end();
   // Log EVERY MCP request and its outcome. A successful call used to log nothing, which left a
   // blind spot exactly where connectors were failing: we could see a token issued and then silence,
   // with no way to tell "the client never called" from "the call arrived and something ate it".
@@ -404,6 +421,26 @@ app.use((req, res) => {
   const ua = String(req.headers['user-agent'] || '-').slice(0, 60);
   log('mcp', `${req.method} ${req.path} → 404 no such path (auth=${auth}, ua=${ua})`);
   res.status(404).json({ error: `Nothing here. Hosted MCPs: ${[...host.getModules().keys()].map((s) => `/${s}/mcp`).join(', ') || '(none)'}` });
+});
+
+/* ── Error handler (must be last; 4 args) ────────────────────────────────
+ * Every surface on this station answers JSON. Without this, a malformed request body makes
+ * express.json()/urlencoded() throw and Express's DEFAULT handler answers with an HTML page —
+ * one that leaks a full stack trace with absolute server paths whenever NODE_ENV isn't
+ * 'production' (e.g. the README's `node server/index.js` quick-start). This normalises every
+ * thrown error to a clean `{ error }` JSON body, maps the common body-parser failures to the
+ * right status, and never exposes a stack. */
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  const type = err?.type;
+  let status = err?.status || err?.statusCode || 500;
+  let message = 'Internal server error';
+  if (type === 'entity.parse.failed') { status = 400; message = 'Malformed JSON in request body'; }
+  else if (type === 'entity.too.large') { status = 413; message = 'Request body too large'; }
+  else if (type === 'charset.unsupported' || type === 'encoding.unsupported') { status = 415; message = 'Unsupported request encoding'; }
+  else if (status >= 400 && status < 500) { message = err.message || 'Bad request'; }
+  log('http', `${req.method} ${req.path} → ${status} ${type || err?.name || 'error'}: ${String(err?.message || '').slice(0, 200)}`);
+  res.status(status).json({ error: message });
 });
 
 /* ── Boot ────────────────────────────────────────────────────────────── */

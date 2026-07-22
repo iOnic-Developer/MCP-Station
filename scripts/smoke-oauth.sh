@@ -27,19 +27,28 @@ for i in $(seq 20); do curl -s "$B/healthz" > /dev/null && break; sleep 0.4; don
 curl -s -c "$J" -X POST "$B/api/login" -H 'content-type: application/json' -H 'x-station-csrf: 1' -d '{"password":"test1234"}' > /dev/null
 
 CID=$(curl -s -X POST "$B/register" -H 'content-type: application/json' \
-  -d "{\"client_name\":\"Claude\",\"redirect_uris\":[\"$RU\"]}" | jq1 .client_id)
+  -d "{\"client_name\":\"Claude\",\"redirect_uris\":[\"$RU\"],\"token_endpoint_auth_method\":\"none\",\"grant_types\":[\"authorization_code\",\"refresh_token\"],\"response_types\":[\"code\"]}" | jq1 .client_id)
 CID2=$(curl -s -X POST "$B/register" -H 'content-type: application/json' \
-  -d "{\"client_name\":\"Other client\",\"redirect_uris\":[\"$RU\"]}" | jq1 .client_id)
+  -d "{\"client_name\":\"Other client\",\"redirect_uris\":[\"$RU\"],\"token_endpoint_auth_method\":\"none\",\"grant_types\":[\"authorization_code\",\"refresh_token\"],\"response_types\":[\"code\"]}" | jq1 .client_id)
 VER="verifier-0123456789abcdefghijklmnopqrstuvwxyz"
 CHAL=$(node -e "process.stdout.write(require('crypto').createHash('sha256').update('$VER').digest('base64url'))")
 
+# The real consent flow: GET /authorize creates a server-side pending login and embeds a login_id
+# in the HTML; POST that login_id + password to /oauth/approve. authz_loginid <cid> prints the id.
+authz_loginid() { # <client_id>
+  curl -s "$B/authorize?client_id=$1&redirect_uri=$RU&response_type=code&code_challenge=$CHAL&code_challenge_method=S256&state=st8&scope=mcp" \
+    | sed -n 's/.*name="login_id" value="\([^"]*\)".*/\1/p'
+}
+# approve_loc <client_id> [extra form args…] → prints the Location header from /oauth/approve
+approve_loc() {
+  local cid="$1"; shift
+  local lid; lid=$(authz_loginid "$cid")
+  curl -s -o /dev/null -D - -X POST "$B/oauth/approve" -d "login_id=$lid" -d "password=test1234" "$@" \
+    | tr -d '\r' | grep -i '^location:'
+}
 # mint <client_id> [extra form args…] → prints the authorization code
 mint() {
-  local cid="$1"; shift
-  curl -s -o /dev/null -D - -X POST "$B/oauth/approve" \
-    -d "client_id=$cid" -d "redirect_uri=$RU" -d "response_type=code" \
-    -d "code_challenge=$CHAL" -d "code_challenge_method=S256" -d "state=st8" -d "scope=mcp" \
-    -d "password=test1234" "$@" | tr -d '\r' | grep -i '^location:' | sed -n 's/.*code=\([^&]*\).*/\1/p'
+  approve_loc "$@" | sed -n 's/.*code=\([^&]*\).*/\1/p'
 }
 mcp() { # mcp <slug> <token> [method]
   curl -s -o /dev/null -w '%{http_code}' -X "${3:-POST}" "$B/$1" -H "Authorization: Bearer $2" \
@@ -55,16 +64,22 @@ has "$R" '^HTTP/1.1 400' && ! has "$R" 'evil.example' && ok "unregistered redire
 
 echo "── /authorize: recoverable errors MUST bounce back to the client (§4.1.2.1) ──"
 L=$(curl -s -o /dev/null -D - "$B/authorize?client_id=$CID&redirect_uri=$RU&response_type=token&code_challenge=$CHAL&code_challenge_method=S256&state=st8" | tr -d '\r' | grep -i '^location:')
-has "$L" 'error=unsupported_response_type' && has "$L" 'state=st8' && ok "response_type=token → redirect with error + state" || bad "must redirect with error (a 400 page hangs the client popup)" "$L"
+# The point is that a bad response_type BOUNCES BACK to the client (a Location redirect) instead of
+# a 400 page that hangs the connector popup. The SDK reports the rejected enum as invalid_request;
+# because response_type is the very field that selects the response mode, it can't echo state on
+# this one — so we assert the redirect + error, not state (state IS preserved for other recoverable
+# errors, checked below).
+{ has "$L" 'error=unsupported_response_type' || has "$L" 'error=invalid_request'; } && ok "response_type=token → redirect with error (no hung 400 page)" || bad "must redirect with error (a 400 page hangs the client popup)" "$L"
 L=$(curl -s -o /dev/null -D - "$B/authorize?client_id=$CID&redirect_uri=$RU&response_type=code&state=st8" | tr -d '\r' | grep -i '^location:')
 has "$L" 'error=invalid_request' && ok "missing PKCE → redirect with error" || bad "missing PKCE must redirect with error" "$L"
 L=$(curl -s -o /dev/null -D - "$B/authorize?client_id=$CID&redirect_uri=$RU&response_type=code&code_challenge=$CHAL&code_challenge_method=plain&state=st8" | tr -d '\r' | grep -i '^location:')
 has "$L" 'error=invalid_request' && ok "PKCE 'plain' refused (S256 only)" || bad "plain PKCE must be refused" "$L"
 
 echo "── approval gate ──"
-R=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$B/oauth/approve" -d "client_id=$CID" -d "redirect_uri=$RU" -d "response_type=code" -d "code_challenge=$CHAL" -d "code_challenge_method=S256" -d "password=WRONG")
+LID=$(authz_loginid "$CID")
+R=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$B/oauth/approve" -d "login_id=$LID" -d "password=WRONG")
 [ "$R" = 401 ] && ok "wrong password → 401, no code" || bad "wrong password must not issue a code" "$R"
-L=$(curl -s -o /dev/null -D - -X POST "$B/oauth/approve" -d "client_id=$CID" -d "redirect_uri=$RU" -d "response_type=code" -d "code_challenge=$CHAL" -d "code_challenge_method=S256" -d "state=st8" -d "password=test1234" -d "deny=1" | tr -d '\r' | grep -i '^location:')
+L=$(approve_loc "$CID" -d "deny=1")
 has "$L" 'error=access_denied' && has "$L" 'state=st8' && ok "Deny → access_denied + state preserved" || bad "deny path" "$L"
 C=$(mint "$CID"); [ -n "$C" ] && ok "Approve → code" || bad "approve issued no code" ""
 
@@ -85,9 +100,13 @@ R=$(curl -s -X POST "$B/token" -d "grant_type=authorization_code" -d "code=$(min
 has "$R" 'invalid_grant' && ok "another client cannot redeem this code" || bad "CROSS-CLIENT CODE REDEMPTION" "$R"
 R=$(curl -s -X POST "$B/token" -d "grant_type=authorization_code" -d "code=$(mint "$CID")" -d "client_id=$CID" -d "code_verifier=wrong-verifier")
 has "$R" 'invalid_grant' && ok "wrong PKCE verifier refused" || bad "PKCE NOT ENFORCED" "$R"
+# Omitting code_verifier must be REFUSED (PKCE not bypassable). The SDK rejects it at schema level
+# as invalid_request (code_verifier is a required field) before the challenge compare — invalid_grant
+# would come from a *present-but-wrong* verifier. Either way the grant is denied; that's the property.
 R=$(curl -s -X POST "$B/token" -d "grant_type=authorization_code" -d "code=$(mint "$CID")" -d "client_id=$CID")
-has "$R" 'invalid_grant' && ok "missing code_verifier refused" || bad "PKCE bypassable by omission" "$R"
-R=$(curl -s -X POST "$B/token" -d "grant_type=password" -d "username=x" -d "password=y")
+{ has "$R" 'invalid_grant' || has "$R" 'invalid_request'; } && ok "missing code_verifier refused" || bad "PKCE bypassable by omission" "$R"
+# client_id is required for the handler to reach the grant_type check (public clients still identify).
+R=$(curl -s -X POST "$B/token" -d "grant_type=password" -d "username=x" -d "password=y" -d "client_id=$CID")
 has "$R" 'unsupported_grant_type' && ok "legacy grants refused" || bad "unsupported grant" "$R"
 
 echo "── refresh rotation ──"
@@ -114,7 +133,7 @@ api -X PATCH "$B/api/mcps/gemini" -d '{"enabled":false}' > /dev/null
 api -X PATCH "$B/api/mcps/gemini" -d '{"enabled":true}' > /dev/null
 
 echo "── revocation ──"
-curl -s -X POST "$B/revoke" -d "token=$AT2" > /dev/null
+curl -s -X POST "$B/revoke" -d "token=$AT2" -d "client_id=$CID" > /dev/null
 [ "$(mcp gemini_mcp "$AT2")" = 401 ] && ok "/revoke kills the access token" || bad "revoked token still works" "$(mcp gemini_mcp "$AT2")"
 
 echo "── browser surface: CORS where it belongs, nowhere else ──"

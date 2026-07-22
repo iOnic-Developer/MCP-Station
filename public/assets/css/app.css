@@ -15,22 +15,12 @@
   --radius: 12px;
   --shadow: 0 16px 48px rgba(0, 0, 0, .45);
 }
-/* Self-hosted so the admin UI still makes zero external requests (and works offline).
-   Variable font: one file covers weights 100-900. Latin subset only. */
-@font-face {
-  font-family: 'MuseoModerno';
-  font-style: normal;
-  font-weight: 100 900;
-  font-display: swap;
-  src: url('/assets/fonts/museomoderno-latin.woff2') format('woff2');
-}
-
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
 body {
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.55 'MuseoModerno', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font: 14px/1.55 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 button { font: inherit; cursor: pointer; }
 input, textarea, select { font: inherit; color: var(--text); }

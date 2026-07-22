@@ -41,9 +41,11 @@ docs/                  BUILD_JOURNAL (design log), BUILDING_MCPS (module contrac
 - Update `docs/BUILD_JOURNAL.md` work-log table when you ship something meaningful, and bump `cfg.version` (`server/lib/env.js`) + `CHANGELOG.md` on releases.
 - The ✦ popup's seed instructions must stay truthful about the module contract — if you touch `mcpHost.js` context injection or the manifest schema, update `seedInstructions.js` and `docs/BUILDING_MCPS.md` in the same commit.
 
-## Known gaps / next ideas (as of v1.0.0)
+## Known gaps / next ideas (as of v1.5.0)
 
-- ~~No per-MCP OAuth scoping~~ — **done in v1.3.0**. Tokens carry a `slug`; `requireBearer` enforces it (403 cross-MCP). Three auth lanes: station `MCP_TOKEN` (master, opens everything) → the module's own token (`st.mcps[id].token`, opens only it) → OAuth token (opens the slug it was granted for; `slug: ''` = station-wide, only ever set by an explicit choice on the approval page).
+- ~~No per-MCP OAuth scoping~~ — **done in v1.3.0**. Tokens carry a `slug`; `requireBearer` enforces it (403 cross-MCP). Three auth lanes: station `MCP_TOKEN` (master, opens everything) → the module's own token (`st.mcps[id].token`, opens only it) → OAuth token (opens the slug it was granted for). The slug is derived purely from the RFC 8707 `resource` claude.ai sends to `/authorize` (`slugFromResource` in `oauth.js`); **`slug: ''` = station-wide, and happens when no resource is sent** — there is no per-approval MCP picker on the consent page (an earlier idea that never shipped).
+- **OAuth provider must throw the SDK's typed `OAuthError`s** (`InvalidGrantError`/`InvalidTokenError` from `@modelcontextprotocol/sdk/server/auth/errors.js`), never plain `Error` — the SDK (≥1.29) maps a plain throw to `500 server_error` and only typed errors to the RFC 4xx codes. (Fixed in v1.5.0; `scripts/smoke-oauth.sh` guards it.)
+- **DCR default changed in SDK 1.29**: a client is *confidential* (gets a `client_secret`) unless it registers `token_endpoint_auth_method: "none"`. claude.ai registers as a public client, so it's unaffected; any test/tooling doing raw DCR must send `"none"` or it'll be asked for a secret at `/token`.
 - Editor is a plain textarea; no lint-before-save beyond manifest zod validation.
 - No scheduled backups (manual button only) — n8n could hit `POST /api/backup` on cron with the session… better: add a token-authed backup endpoint if David asks.
 - Restore doesn't restart the process; if `SESSION_SECRET` differs from the archive's `secret.key` provenance, stored secrets won't decrypt (documented in README).
