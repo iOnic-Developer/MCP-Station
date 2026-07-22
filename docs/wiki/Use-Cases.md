@@ -27,17 +27,20 @@ instructions so new notes land tagged and linked correctly.
 
 ## 💷 Your accounting, your tools
 
-The `xero` module is the poster child for *build-your-own*: ~31 tools covering the exact operations a
-small business runs — invoices, quotes, payments, employee leave, **pay runs**, tracking categories,
-live P&L / balance-sheet reports — built straight from Xero's API docs, self-hosted with your own
-keys.
+A Xero module is the poster child for *build-your-own*. The official Xero connector in Claude's
+directory is **7 tools, read-only** — cash position, P&L, receivables, top customers. A hand-built
+module runs **31 tools, read *and* write**: 21 to list and report (accounts, invoices, payments,
+employees, timesheets, **pay runs**, tracking categories) and 10 to actually act (create invoices,
+take payments, raise credit notes, book employee leave, update contacts) — built straight from Xero's
+API docs, self-hosted with your own keys.
 
 > "Draft an invoice to the Thursday supplier for £240, net 14 days." · "How much holiday does Sam
-> have left?" · "Show me this month's P&L."
+> have left?" · "Show me this month's P&L." · "Book Jamie next Friday off."
 
-The point isn't that a hand-built module beats the vendor's on tool count — it's that it's shaped to
-*your* workflow, runs on *your* hardware, and you built it in an afternoon instead of waiting for
-anyone.
+The vendor's connector is read-only *by design* — the safe default, and fine if you only want to
+*look*. The point of building your own is that when the shop needs Claude to actually raise the
+invoice or run payroll, you're not waiting for anyone: you build the module that does it, in an
+afternoon, on your own hardware.
 
 ## 📁 Give Claude a place to put things
 

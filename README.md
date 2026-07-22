@@ -39,16 +39,28 @@ to Claude.** Your keys and data never leave your box.
   smart-home hub, a database, an internal microservice — none of these ship a connector. With MCP
   Station they become one in minutes.
 - **An official MCP that doesn't fit? Roll your own.** Even for services that *do* have a connector,
-  a module you build is shaped to *your* workflow. A hand-built Xero module is a real example: ~31
-  tools covering the exact accounting and payroll operations a small business actually runs
-  (invoices, quotes, payments, employee leave, **pay runs**, tracking categories, live reports),
-  built straight from Xero's API docs, self-hosted, using your own keys.
+  a module you build is shaped to *your* workflow. Concrete example — the official **Xero** connector
+  in Claude's directory gives you **7 tools, read-only**: cash position, P&L, receivables, top
+  customers. Great for *"what's my financial position?"*, but it's a viewer. A hand-built Xero module
+  runs **31 tools, read *and* write** — 21 to list/report across accounts, invoices, payments,
+  employees, timesheets, **pay runs** and tracking categories, plus 10 to actually *do* things:
+  create invoices, take payments, raise credit notes, book employee leave, update contacts. Built
+  from Xero's API docs in an afternoon, self-hosted, using your own keys.
+
+  | | Official Xero connector | Hand-built module |
+  |---|---|---|
+  | Tools | 7 | **31** |
+  | Access | read-only | read **+ write** |
+  | Can it raise an invoice / take a payment / run payroll? | no | **yes** |
+  | Runs on | vendor's cloud | **your box, your keys** |
+
 - **Give yourself more access, safely.** Per-MCP tokens, per-MCP OAuth scoping, and encrypted
   settings mean you decide exactly which module a given client can reach.
 
-> The point isn't that a hand-built module always has *more* tools than a vendor's. It's that you're
-> never blocked waiting for one, you're never limited to what someone else shipped, and the whole
-> thing runs on hardware you control.
+> More tools isn't automatically better — the official connector is read-only *by design*, which is
+> the safe default. The point is you're never limited to what someone else shipped: when the shop
+> needs Claude to actually raise the invoice, you build the module that does it, and it runs on
+> hardware you control.
 
 ---
 
