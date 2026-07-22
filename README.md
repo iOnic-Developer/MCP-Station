@@ -88,6 +88,19 @@ the end of it.
 
 ---
 
+## See it in action
+
+Ask in plain English; the modules do the work. A real request from a phone:
+
+<p align="center"><img src="docs/assets/screenshots/media-demo-phone.png" width="330" alt="Phone screenshot: 'Get Spiderman 3 and the last episode of the first season of house' — Spider-Man 3 (2007) added to Radarr, House S01E22 added to Sonarr with monitoring off, then a search triggered for just that episode"></p>
+
+One message — *"Get Spiderman 3 and the last episode of the first season of house"* — and the Radarr and
+Sonarr modules add the right film, resolve the season-1 finale, add the show with monitoring off so nothing
+else grabs, and trigger a search for just that episode. It even flags, honestly, that the x265 size rule
+isn't set up in Sonarr yet.
+
+---
+
 ## 🪄 AI-generated MCPs — the assistant writes the module for you
 
 You don't have to write modules by hand. The built-in **✦ assistant** (Claude or Gemini) lives in
