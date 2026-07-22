@@ -70,7 +70,7 @@ R=$(curl -s -X POST "$B/gemini_mcp" -H 'content-type: application/json' -H "$ACC
 has "$R" 'gemini-mcp-server' && ok "initialize (MCP_TOKEN)" || bad "initialize (MCP_TOKEN)" "$R"
 
 R=$(curl -s -X POST "$B/gemini_mcp" -H 'content-type: application/json' -H "$ACC" -H 'authorization: Bearer sekret-token' -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}')
-has "$R" 'gemini_generate_text' && has "$R" 'gemini_embed_text' && ok "tools/list gemini (4 tools)" || bad "tools/list gemini" "$(echo "$R" | head -c 300)"
+has "$R" 'gemini_generate_text' && has "$R" 'gemini_embed_text' && ok "tools/list gemini (6 tools)" || bad "tools/list gemini" "$(echo "$R" | head -c 300)"
 
 R=$(curl -s -X POST "$B/telegram_mcp" -H 'content-type: application/json' -H "$ACC" -H 'authorization: Bearer sekret-token' -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"telegram_send_message","arguments":{"text":"hi"}}}')
 has "$R" 'bot_token is not configured' && ok "tool returns actionable config error" || bad "actionable config error" "$(echo "$R" | head -c 300)"

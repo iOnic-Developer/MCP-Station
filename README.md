@@ -39,9 +39,9 @@ to Claude.** Your keys and data never leave your box.
   smart-home hub, a database, an internal microservice — none of these ship a connector. With MCP
   Station they become one in minutes.
 - **An official MCP that doesn't fit? Roll your own.** Even for services that *do* have a connector,
-  a module you build is shaped to *your* workflow. The bundled `xero` module here is a real example:
-  ~31 tools covering the exact accounting and payroll operations a small business actually runs
-  (invoices, quotes, payments, employee leave, **pay runs**, tracking categories, live reports) —
+  a module you build is shaped to *your* workflow. A hand-built Xero module is a real example: ~31
+  tools covering the exact accounting and payroll operations a small business actually runs
+  (invoices, quotes, payments, employee leave, **pay runs**, tracking categories, live reports),
   built straight from Xero's API docs, self-hosted, using your own keys.
 - **Give yourself more access, safely.** Per-MCP tokens, per-MCP OAuth scoping, and encrypted
   settings mean you decide exactly which module a given client can reach.
