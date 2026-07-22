@@ -1,5 +1,53 @@
 # Changelog
 
+## v1.5.0 — 2026-07-22
+
+**Module sharing 📦, a Deny button on the consent page, hardened error handling, and a full
+OAuth-error-path fix for the current MCP SDK (1.29). All five test suites green + the claude.ai
+flow simulator end-to-end.**
+
+New:
+
+- **Share a module as a `.zip`** — every module card gets a **📦 Export** button (and
+  `GET /api/mcps/:id/export-module`). It packs the module's `manifest.json` + `index.js` +
+  docs and deliberately **excludes** the dot-files that hold private data (`.config.json`
+  encrypted secrets, `.chat.json` assistant history). Unzip the folder into any other station's
+  `mcps/`, hit Reload, and it runs as a NEEDS SETTINGS module. This is how modules travel between
+  stations and get shared with other people — build an MCP once, hand it to anyone.
+- **Deny button on the OAuth consent page** — declining now bounces back to the client with
+  `error=access_denied` + `state` (RFC 6749 §4.1.2.1) instead of leaving the connector popup
+  hanging. No password required to decline.
+
+Fixed / hardened:
+
+- **OAuth error paths return the right status again.** The MCP SDK's token and bearer handlers
+  turn any *plain* `Error` thrown by the provider into a `500 server_error`; only its *typed*
+  `OAuthError`s map to the RFC codes. The provider now throws `InvalidGrantError` /
+  `InvalidTokenError`, so a replayed code, a cross-client redemption, a wrong `redirect_uri`, and
+  an expired/garbage bearer all answer `400 invalid_grant` / `401 invalid_token` again instead of
+  500. (The requests were always *refused* — this restores the correct, RFC-compliant surface.)
+- **Global JSON error handler.** A malformed request body used to hit Express's default handler
+  and return an HTML page — with a full stack trace and absolute server paths whenever
+  `NODE_ENV` isn't `production` (e.g. the README's `node server/index.js` quick-start). Every
+  surface now answers `{ "error": … }` JSON, mapped to the right status (400 malformed / 413 too
+  large / 415 bad encoding), never a stack.
+- **CORS preflight on MCP endpoints → 204** instead of 401. A browser preflight carries no
+  Authorization header by definition; gating it behind the bearer check answered `OPTIONS` with
+  401 and the real request never fired.
+
+Housekeeping:
+
+- Dependencies now declare what's actually tested and shipped: `@modelcontextprotocol/sdk`
+  `^1.29.0` (was `^1.12.1`), `zod` `^3.25.0`. `package.json` version corrected `1.4.2 → 1.5.0`
+  to match `cfg.version`. Added `npm test` / `test:oauth` / `test:scoping` / `test:selfcontained`.
+- **Test harness modernised for SDK 1.29.** Its DCR now defaults to *confidential* clients (a
+  `client_secret` is issued unless the client registers `token_endpoint_auth_method: "none"`),
+  and it validates the token/refresh/revoke bodies more strictly. The smoke scripts now register
+  public clients exactly as claude.ai does and drive the real `/authorize` → `login_id` →
+  `/oauth/approve` consent flow, so `scripts/smoke*.sh` are green again against the current SDK.
+- Removed stray junk files accidentally committed to the repo root (`({`, `{,+`, `c.role`,
+  `c.type`, `installed`, `live`, `login`) and added a `LICENSE` file (MIT, as declared).
+
 ## v1.4.27 — 2026-07-17
 
 **OpenProject becomes a bundled default module ⚙️ (openproject v1.0.0, slug `openproject_mcp`) + README refresh.**

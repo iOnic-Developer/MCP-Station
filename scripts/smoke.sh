@@ -61,7 +61,7 @@ ACC='accept: application/json, text/event-stream'
 INIT='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"smoke","version":"1.0"}}}'
 
 R=$(curl -s -X POST "$B/gemini_mcp" -H 'content-type: application/json' -H "$ACC" -d "$INIT")
-has "$R" 'Unauthorized' && ok "mcp rejects no token" || bad "mcp rejects no token" "$R"
+{ has "$R" 'Unauthorized' || has "$R" 'invalid_token' || has "$R" 'Missing Authorization'; } && ok "mcp rejects no token" || bad "mcp rejects no token" "$R"
 
 H=$(curl -s -o /dev/null -D - -X POST "$B/gemini_mcp" -H 'content-type: application/json' -H "$ACC" -d "$INIT")
 has "$H" 'resource_metadata=' && ok "401 advertises resource metadata" || bad "401 advertises resource metadata" "$H"
@@ -81,31 +81,40 @@ has "$R" '"registration_endpoint"' && ok "AS metadata" || bad "AS metadata" "$R"
 R=$(curl -s "$B/.well-known/oauth-protected-resource/gemini_mcp")
 has "$R" "\"resource\":\"$B/gemini_mcp\"" && ok "resource metadata" || bad "resource metadata" "$R"
 
-REG=$(curl -s -X POST "$B/register" -H 'content-type: application/json' -d '{"client_name":"smoke client","redirect_uris":["https://claude.ai/api/mcp/auth_callback"]}')
+REG=$(curl -s -X POST "$B/register" -H 'content-type: application/json' -d '{"client_name":"smoke client","redirect_uris":["https://claude.ai/api/mcp/auth_callback"],"token_endpoint_auth_method":"none","grant_types":["authorization_code","refresh_token"],"response_types":["code"]}')
 CID=$(echo "$REG" | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>process.stdout.write(JSON.parse(d).client_id||''))")
 [ -n "$CID" ] && ok "dynamic client registration" || bad "dynamic client registration" "$REG"
 
 VER="test-verifier-$(date +%s)-0123456789abcdefghijklmn"
 CHAL=$(node -e "process.stdout.write(require('crypto').createHash('sha256').update('$VER').digest('base64url'))")
 
-R=$(curl -s "$B/authorize?client_id=$CID&redirect_uri=https%3A%2F%2Fclaude.ai%2Fapi%2Fmcp%2Fauth_callback&response_type=code&code_challenge=$CHAL&code_challenge_method=S256&state=xyz&scope=mcp")
-has "$R" 'smoke client' && ok "authorize page renders client" || bad "authorize page" "$(echo "$R" | head -c 200)"
+# The real consent flow: GET /authorize (creates a server-side pending login and embeds a
+# login_id in the returned HTML form), then POST that login_id + password to /oauth/approve.
+# This is exactly what claude.ai does — the raw-params approve of older scripts predates the
+# pending-login consent step in lib/oauth.js. `authz_code <state>` echoes the one-time code.
+authz_html() {
+  curl -s "$B/authorize?client_id=$CID&redirect_uri=https%3A%2F%2Fclaude.ai%2Fapi%2Fmcp%2Fauth_callback&response_type=code&code_challenge=$CHAL&code_challenge_method=S256&state=$1&scope=gemini_mcp"
+}
+approve_loc() { # $1 = login_id
+  curl -s -o /dev/null -D - -X POST "$B/oauth/approve" -d "login_id=$1" -d "password=test1234" | tr -d '\r' | grep -i '^location:'
+}
+authz_code() { # $1 = state → prints the code
+  local az lid; az=$(authz_html "$1")
+  lid=$(printf '%s' "$az" | sed -n 's/.*name="login_id" value="\([^"]*\)".*/\1/p')
+  approve_loc "$lid" | sed 's/.*code=\([^&]*\).*/\1/'
+}
 
-LOC=$(curl -s -o /dev/null -D - -X POST "$B/oauth/approve" \
-  -d "client_id=$CID" -d "redirect_uri=https://claude.ai/api/mcp/auth_callback" -d "response_type=code" \
-  -d "code_challenge=$CHAL" -d "code_challenge_method=S256" -d "state=xyz" -d "scope=mcp" -d "password=test1234" \
-  | tr -d '\r' | grep -i '^location:' )
+AZ=$(authz_html xyz)
+has "$AZ" 'smoke client' && ok "authorize page renders client" || bad "authorize page" "$(echo "$AZ" | head -c 200)"
+LID=$(printf '%s' "$AZ" | sed -n 's/.*name="login_id" value="\([^"]*\)".*/\1/p')
+LOC=$(approve_loc "$LID")
 CODE=$(echo "$LOC" | sed 's/.*code=\([^&]*\).*/\1/')
 has "$LOC" 'state=xyz' && [ -n "$CODE" ] && ok "approval issues code" || bad "approval issues code" "$LOC"
 
 R=$(curl -s -X POST "$B/token" -d "grant_type=authorization_code" -d "code=$CODE" -d "client_id=$CID" -d "redirect_uri=https://claude.ai/api/mcp/auth_callback" -d "code_verifier=WRONG")
 has "$R" 'invalid_grant' && ok "token rejects bad PKCE verifier" || bad "token rejects bad verifier" "$R"
 
-LOC2=$(curl -s -o /dev/null -D - -X POST "$B/oauth/approve" \
-  -d "client_id=$CID" -d "redirect_uri=https://claude.ai/api/mcp/auth_callback" -d "response_type=code" \
-  -d "code_challenge=$CHAL" -d "code_challenge_method=S256" -d "state=abc" -d "scope=mcp" -d "password=test1234" \
-  | tr -d '\r' | grep -i '^location:')
-CODE2=$(echo "$LOC2" | sed 's/.*code=\([^&]*\).*/\1/')
+CODE2=$(authz_code abc)
 TOK=$(curl -s -X POST "$B/token" -d "grant_type=authorization_code" -d "code=$CODE2" -d "client_id=$CID" -d "redirect_uri=https://claude.ai/api/mcp/auth_callback" -d "code_verifier=$VER")
 AT=$(echo "$TOK" | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>process.stdout.write(JSON.parse(d).access_token||''))")
 RT=$(echo "$TOK" | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>process.stdout.write(JSON.parse(d).refresh_token||''))")
@@ -113,25 +122,24 @@ RT=$(echo "$TOK" | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',(
 
 # claude.ai omits redirect_uri on the token call (it is optional — RFC 6749 §4.1.3). Demanding it
 # rejected every real connector with invalid_grant, while curl tests that always sent it passed.
-LOC3=$(curl -s -o /dev/null -D - -X POST "$B/oauth/approve" \
-  -d "client_id=$CID" -d "redirect_uri=https://claude.ai/api/mcp/auth_callback" -d "response_type=code" \
-  -d "code_challenge=$CHAL" -d "code_challenge_method=S256" -d "state=noru" -d "scope=mcp" -d "password=test1234" \
-  | tr -d '\r' | grep -i '^location:')
-CODE3=$(echo "$LOC3" | sed 's/.*code=\([^&]*\).*/\1/')
+CODE3=$(authz_code noru)
 R=$(curl -s -X POST "$B/token" -d "grant_type=authorization_code" -d "code=$CODE3" -d "client_id=$CID" -d "code_verifier=$VER")
 has "$R" 'access_token' && ok "token exchange without redirect_uri (claude.ai's shape)" || bad "token exchange without redirect_uri" "$R"
 
-R=$(curl -s -X POST "$B/token" -d "grant_type=authorization_code" -d "code=$CODE3" -d "client_id=$CID" -d "redirect_uri=https://evil.example/cb" -d "code_verifier=$VER")
+CODE4=$(authz_code wru)
+R=$(curl -s -X POST "$B/token" -d "grant_type=authorization_code" -d "code=$CODE4" -d "client_id=$CID" -d "redirect_uri=https://evil.example/cb" -d "code_verifier=$VER")
 has "$R" 'invalid_grant' && ok "token rejects a WRONG redirect_uri" || bad "token rejects wrong redirect_uri" "$R"
 
 R=$(curl -s -X POST "$B/gemini_mcp" -H 'content-type: application/json' -H "$ACC" -H "authorization: Bearer $AT" -d '{"jsonrpc":"2.0","id":4,"method":"tools/list","params":{}}')
 has "$R" 'gemini_generate_text' && ok "mcp accepts OAuth token" || bad "mcp accepts OAuth token" "$(echo "$R" | head -c 200)"
 
-R=$(curl -s -X POST "$B/token" -d "grant_type=refresh_token" -d "refresh_token=$RT")
+# Public clients (token_endpoint_auth_method: none) still identify themselves by client_id on the
+# token endpoint — claude.ai sends it on every refresh; omitting it is invalid_request, not a grant.
+R=$(curl -s -X POST "$B/token" -d "grant_type=refresh_token" -d "refresh_token=$RT" -d "client_id=$CID")
 AT2=$(echo "$R" | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>process.stdout.write(JSON.parse(d).access_token||''))")
 [ -n "$AT2" ] && ok "refresh token rotation" || bad "refresh token rotation" "$R"
 
-R=$(curl -s -X POST "$B/token" -d "grant_type=refresh_token" -d "refresh_token=$RT")
+R=$(curl -s -X POST "$B/token" -d "grant_type=refresh_token" -d "refresh_token=$RT" -d "client_id=$CID")
 has "$R" 'invalid_grant' && ok "old refresh token consumed" || bad "old refresh token consumed" "$R"
 
 say "── module lifecycle / backup ──"

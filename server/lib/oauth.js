@@ -13,6 +13,7 @@ import crypto from 'node:crypto';
 import express from 'express';
 import { mcpAuthRouter } from '@modelcontextprotocol/sdk/server/auth/router.js';
 import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js';
+import { InvalidGrantError, InvalidTokenError } from '@modelcontextprotocol/sdk/server/auth/errors.js';
 import { cfg } from './env.js';
 import { getState, save, persist } from './state.js';
 import { sha256b64url, timingEqual } from './crypto.js';
@@ -111,15 +112,19 @@ export function mountOAuth(app) {
 
     async challengeForAuthorizationCode(client, code) {
       const c = getState().oauth.codes[code];
-      if (!c || c.clientId !== client.client_id) throw new Error('invalid authorization code');
+      // Typed OAuth errors are REQUIRED: the SDK's token/bearer handlers map an OAuthError to its
+      // proper 4xx code and turn any *plain* Error into a 500 server_error. Throwing plain Errors
+      // here made every rejection (bad code, replayed code, wrong redirect_uri, expired/garbage
+      // token) surface as HTTP 500 instead of the RFC's invalid_grant / invalid_token.
+      if (!c || c.clientId !== client.client_id) throw new InvalidGrantError('invalid authorization code');
       return c.codeChallenge;
     },
 
     async exchangeAuthorizationCode(client, code, _verifier, redirectUri, resource) {
       const st = getState();
       const c = st.oauth.codes[code];
-      if (!c || c.clientId !== client.client_id || c.exp < Date.now()) throw new Error('invalid or expired authorization code');
-      if (redirectUri && redirectUri !== c.redirectUri) throw new Error('redirect_uri mismatch');
+      if (!c || c.clientId !== client.client_id || c.exp < Date.now()) throw new InvalidGrantError('invalid or expired authorization code');
+      if (redirectUri && redirectUri !== c.redirectUri) throw new InvalidGrantError('redirect_uri mismatch');
       delete st.oauth.codes[code]; // one-time use
       return issueTokens(client.client_id, c.scopes, c.resource || (resource && resource.href));
     },
@@ -127,15 +132,15 @@ export function mountOAuth(app) {
     async exchangeRefreshToken(client, refreshToken, scopes, resource) {
       const st = getState();
       const r = st.oauth.refresh[refreshToken];
-      if (!r || r.clientId !== client.client_id) throw new Error('invalid refresh token');
+      if (!r || r.clientId !== client.client_id) throw new InvalidGrantError('invalid refresh token');
       delete st.oauth.refresh[refreshToken]; // rotate
       return issueTokens(client.client_id, scopes && scopes.length ? scopes : r.scopes, r.resource || (resource && resource.href));
     },
 
     async verifyAccessToken(token) {
       const t = getState().oauth.tokens[token];
-      if (!t) throw new Error('invalid token');
-      if (t.expiresAt * 1000 < Date.now()) { delete getState().oauth.tokens[token]; save(); throw new Error('expired token'); }
+      if (!t) throw new InvalidTokenError('invalid token');
+      if (t.expiresAt * 1000 < Date.now()) { delete getState().oauth.tokens[token]; save(); throw new InvalidTokenError('expired token'); }
       return {
         token,
         clientId: t.clientId,
@@ -219,6 +224,18 @@ export function handleApprove(req, res) {
     // "Authorization with the MCP server failed". Now it's in the logs.
     log('oauth', 'Approve with expired/unknown login_id — stale authorize page; the client must restart the connect flow');
     return res.status(400).send(errPage('This sign-in expired or was already used. Start again from your client.'));
+  }
+
+  // Deny button: bounce back to the client with error=access_denied (RFC 6749 §4.1.2.1) — no
+  // password required to decline. Keeps a refused consent from looking like a broken connector.
+  if (req.body.deny !== undefined && p.redirectUri) {
+    pending.delete(loginId);
+    log('oauth', `Authorization DENIED by user for client ${p.clientId}`);
+    const u = new URL(p.redirectUri);
+    u.searchParams.set('error', 'access_denied');
+    u.searchParams.set('error_description', 'The user declined the authorization request.');
+    if (p.state) u.searchParams.set('state', p.state);
+    return res.redirect(302, u.href);
   }
 
   const ip = req.ip || 'unknown';
@@ -352,11 +369,13 @@ form{background:#111823;border:1px solid #1f2a37;padding:28px;border-radius:16px
 h1{font-size:17px;margin:0 0 4px}.who{color:#8b98a9;font-size:13px;margin:0 0 16px;line-height:1.5}
 input{width:100%;box-sizing:border-box;padding:11px;border-radius:10px;border:1px solid #2a3846;background:#0b1420;color:#e6edf3;font-size:15px}
 button{width:100%;margin-top:12px;padding:11px;border:0;border-radius:10px;background:#1f6feb;color:#fff;font-weight:600;font-size:15px;cursor:pointer}
+button.deny{background:transparent;color:#8b98a9;border:1px solid #2a3846;margin-top:8px}
 .err{color:#ff9ea3;font-size:13px;margin:10px 0 0}</style>
 <form method="post" action="/oauth/approve"><h1>⛽ MCP Station</h1>${who}
 <input type="hidden" name="login_id" value="${esc(loginId)}">
 <input type="password" name="password" placeholder="Station password" autofocus autocomplete="current-password">
-<button type="submit">Authorise</button>${err}</form>`;
+<button type="submit">Authorise</button>
+<button type="submit" class="deny" name="deny" value="1" formnovalidate>Deny</button>${err}</form>`;
 }
 
 function errPage(msg) {
