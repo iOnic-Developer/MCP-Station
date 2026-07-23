@@ -13,6 +13,17 @@
 
 <p align="center"><img src="docs/assets/screenshots/dashboard.png" width="900" alt="MCP Station admin dashboard — module cards with per-module URL, tools, settings and code editor"></p>
 
+Why this exists!
+It started as a way to make my self hosted stuff easier to use, and to get round the odd paywall. My staff scheduling service charges for MCP access but the plain API is free, so I wrapped the API myself and now Claude uses it for nothing.
+
+The reason it's an MCP and not a skill comes down to where things run. My services live on my LAN, Sonarr, a couple of internal APIs, and Claude can't reach any of that on its own. A skill runs inside Claude so it can't see 192.168.anything. An MCP server runs on my own network and exposes it over OAuth, so Claude can actually use it, and the keys stay encrypted on my box instead of wherever a skill would run. The get spiderman example was done from my phone, no code running on the client, just an https call to my server, which is why it also works from the mobile app, Claude Code, or anything else that speaks MCP.
+
+The skills side is just fine tuning. It's how I get Claude to follow rules for a given MCP, like telling Sonarr I don't want big files, so I don't have to ask every time.
+
+For a plain cloud API that Claude can already reach, and if you only ever use desktop, a code running skill would do a similar job. MCP earns its place when the thing lives behind your own front door, or you want it from your phone, or from more than one client.
+
+
+
 MCP Station is a self-hosted hub that hosts each folder in `mcps/` as a remote MCP endpoint at
 `https://your-host/<module>/mcp`. It connects to **claude.ai (web + mobile + desktop)** as a custom
 connector, to **Claude Code** via bearer token, and to any other MCP client that speaks streamable
