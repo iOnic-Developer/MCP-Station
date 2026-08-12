@@ -1,0 +1,39 @@
+{
+  "id": "n8n",
+  "slug": "n8n_mcp",
+  "name": "n8n",
+  "icon": "🔀",
+  "description": "n8n workflow automation — full Public API v1 coverage: workflows (versions, publish, archive), executions, credentials, tags, variables, users, projects, folders, data tables, test runs, community packages, audit, insights, source control, instance settings and package export/import.",
+  "version": "1.0.0",
+  "settings": [
+    {
+      "key": "n8n_url",
+      "label": "n8n URL",
+      "type": "text",
+      "required": true,
+      "default": "https://n8n.dbzocchi.app",
+      "help": "Base URL of the n8n instance, e.g. https://n8n.example.com — no trailing slash, /api/v1 is added automatically."
+    },
+    {
+      "key": "api_key",
+      "label": "API key",
+      "type": "secret",
+      "required": true,
+      "help": "n8n → Settings → n8n API → Create an API key."
+    },
+    {
+      "key": "cf_access_client_id",
+      "label": "CF-Access-Client-Id",
+      "type": "text",
+      "required": false,
+      "help": "Optional Cloudflare Access service token ID (ends in .access). Only needed when the instance sits behind Cloudflare Access; set both CF fields or neither."
+    },
+    {
+      "key": "cf_access_client_secret",
+      "label": "CF-Access-Client-Secret",
+      "type": "secret",
+      "required": false,
+      "help": "Optional Cloudflare Access service token secret — sent as the CF-Access-Client-Secret header on every request when set."
+    }
+  ]
+}

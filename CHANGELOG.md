@@ -1,5 +1,31 @@
 # Changelog
 
+## v1.6.0 — 2026-08-12
+
+**n8n becomes a bundled default module 🔀 (n8n v1.0.0, slug `n8n_mcp`).**
+
+- `mcps/n8n` ships with the station: **66 tools covering all 103 endpoints** of the n8n Public API
+  v1 (spec v1.1.1, read from the instance's own `/api/v1/docs`) — workflows (list/get/create/
+  merge-update/delete, activate/deactivate/publish/unpublish/archive/unarchive, transfer, version
+  history, tags), executions (list/get/delete/retry, single + bulk stop, annotation tags), tags,
+  credentials (incl. schema, test, transfer), variables, users, projects + members, folders, data
+  tables (tables, columns, row CRUD with filters/dry-run), evaluation test runs, community
+  packages, security audit, insights, `/discover`, source-control pull, instance settings
+  (security policy / OTel + test trace / SAML / log streaming), and beta `.n8np` package
+  export/import (binary gzip + multipart via Node's built-in `fetch`/`FormData`, base64 in chat).
+- Auth is the instance API key (`X-N8N-API-KEY`); optional **Cloudflare Access** service-token
+  settings send `CF-Access-Client-Id` / `CF-Access-Client-Secret` on every request for instances
+  behind CF Access. Both are UI settings — no secrets in the module.
+- Quirks encoded: n8n's `PUT /workflows/{id}` requires the full body, so the update tool does a
+  fetch-merge-PUT (change just a name without resending nodes); tag names are capped at 24 chars
+  in the schema because n8n reports longer ones as a misleading `409 Tag already exists`; arrays
+  from the API are wrapped `{result: …}` since MCP `structuredContent` must be an object.
+- Verified live against a real n8n: 33/33 harness checks (full read surface + a self-cleaning
+  write cycle — workflow/tag/data-table create→mutate→delete, archive/unarchive, version history,
+  package export) and a station boot serving 9/9 modules with all 66 tools over HTTP. License-
+  gated areas (variables, projects, security policy…) surface n8n's own message plus a hint, and
+  `n8n_discover` reports what an instance actually offers.
+
 ## v1.5.2 — 2026-07-22
 
 **Branding refresh — MuseoModerno UI font + new SVG logo, and the topbar drops the URL.**
