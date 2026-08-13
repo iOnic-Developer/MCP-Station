@@ -3,8 +3,8 @@
   "slug": "n8n_mcp",
   "name": "n8n",
   "icon": "🔀",
-  "description": "n8n workflow automation — full Public API v1 coverage: workflows (versions, publish, archive), executions, credentials, tags, variables, users, projects, folders, data tables, test runs, community packages, audit, insights, source control, instance settings and package export/import.",
-  "version": "1.0.0",
+  "description": "n8n as an extension of Claude — its execution arm for anything a chat can't do alone: build, run and iterate on workflows for schedules, webhooks, retries, cross-service glue and work that outlives the conversation, with data tables as persistent state. Full Public API v1 coverage: workflows (versions, publish, archive), executions, credentials, tags, variables, users, projects, folders, data tables, test runs, community packages, audit, insights, source control, instance settings and package export/import.",
+  "version": "1.0.1",
   "settings": [
     {
       "key": "n8n_url",

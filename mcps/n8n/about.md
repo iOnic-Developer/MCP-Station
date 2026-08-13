@@ -1,5 +1,7 @@
 # n8n module
 
+**n8n as an extension of Claude.** This module isn't just admin tooling — it's how Claude extends itself onto the infrastructure: work that needs a schedule, an event trigger, retries, cross-service glue, or a lifetime beyond the current conversation gets built as a workflow, run, inspected and iterated on; data tables act as persistent state between sessions. The `instructions.md` served at initialize carries this framing to every connected client automatically.
+
 Full [n8n Public API v1](https://docs.n8n.io/api/) coverage for a self-hosted n8n instance — all **103 endpoints** of API spec v1.1.1 (the version an instance serves at `/api/v1/docs`), mapped onto 66 tools. Auth is the instance API key (`X-N8N-API-KEY`); instances behind Cloudflare Access can additionally send a service token via the optional `CF-Access-Client-Id` / `CF-Access-Client-Secret` settings.
 
 Related endpoints are grouped where it keeps schemas clean (lifecycle states, tag get/set, column management, settings areas); everything else is one tool per endpoint. License-gated features (variables, projects, folders, insights, SAML, log streaming, source control…) surface n8n's own 402/403 messages — `n8n_discover` reports what the instance actually offers.
