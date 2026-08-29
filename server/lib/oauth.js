@@ -78,6 +78,21 @@ function issueTokens(clientId, scopes = [], resource) {
 export function mountOAuth(app) {
   const base = cfg.publicUrl;
 
+  // Remove the SDK's former 30-day DCR client-secret lifetime from clients already stored on disk.
+  // Without this migration, the router option below would protect only newly registered clients.
+  const storedClients = getState().oauth.clients || {};
+  let migratedClients = 0;
+  for (const client of Object.values(storedClients)) {
+    if (client?.client_secret_expires_at) {
+      client.client_secret_expires_at = 0; // RFC 7591: zero means the secret does not expire
+      migratedClients++;
+    }
+  }
+  if (migratedClients) {
+    persist();
+    log('oauth', `Removed client-secret expiry from ${migratedClients} existing OAuth client(s)`);
+  }
+
   provider = {
     clientsStore: {
       getClient: (id) => getState().oauth.clients[id],
@@ -208,6 +223,24 @@ export function mountOAuth(app) {
     issuerUrl: new URL(base),
     resourceServerUrl: new URL(base),
     resourceName: 'MCP Station',
+    // Two SDK 1.29 defaults quietly kill claude.ai connectors on a station this size:
+    //  - clientSecretExpirySeconds defaults to 30 days. A connector can then hold a perfectly
+    //    valid refresh token but lose the ability to redeem it when that client credential
+    //    expires, and every connector sharing the client dies at once — the "reconnect
+    //    everything every few weeks" symptom. Station connections are explicitly long-lived and
+    //    stay revocable from the UI, so registered client credentials must not acquire a hidden
+    //    lifetime. 0 emits `client_secret_expires_at: 0` (RFC 7591 "never"), which the SDK's
+    //    authenticateClient reads as falsy and skips. (Clients already on disk are migrated at
+    //    the top of mountOAuth — this option alone would only protect new registrations.)
+    //  - the /register limiter defaults to 20/hour. With no `trust proxy` (deliberate, see the
+    //    note at the top of index.js) req.ip is the reverse proxy's address, so those 20 are ONE
+    //    bucket for the WHOLE station. claude.ai runs a fresh DCR per connection, so re-adding a
+    //    station's worth of modules in one sitting hits the wall and every later add fails with
+    //    a 429 the client never surfaces.
+    clientRegistrationOptions: {
+      clientSecretExpirySeconds: 0,
+      rateLimit: { windowMs: 60 * 60 * 1000, max: 200 },
+    },
   }));
 
   return provider;

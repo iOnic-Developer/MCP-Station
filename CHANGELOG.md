@@ -1,5 +1,73 @@
 # Changelog
 
+## v1.7.0 — 2026-08-29
+
+**Connectors stop needing to be re-added, and the station can now build its own MCPs.**
+
+### OAuth: the second SDK default that was killing claude.ai connectors
+
+v1.5.3 set `clientSecretExpirySeconds: 0` and migrated the clients already on disk, ending the
+30-day client-secret expiry. That fixed connections *dying*. This release fixes not being able to
+**add them back**:
+
+- **`rateLimit: { windowMs: 1h, max: 200 }`** — the `/register` limiter defaulted to **20 per
+  hour**. With no `trust proxy` (deliberate — see the note at the top of `server/index.js`),
+  `req.ip` is the reverse proxy's address, so those 20 were **one bucket for the whole station**.
+  claude.ai runs a fresh DCR per connection, so re-adding a station's worth of modules in one
+  sitting hit the wall and every later add failed with a `429` the connector UI never surfaces —
+  it just reports a generic connection failure.
+
+Both registration options now sit together in the `mcpAuthRouter` call with the reasoning inline.
+Nothing else in the flow changed: PKCE S256, the RFC 8707 `resource` → per-slug token scoping, and
+the typed `OAuthError`s from v1.5.0 are all as they were.
+
+### New bundled module: ⛽ MCP Station (12 tools, slug `station`)
+
+The station managing itself, so an AI can build and maintain MCPs over MCP instead of through the
+admin UI. `mcpHost` now injects a `stationStore` alongside `shareStore`, exposing the same
+functions the UI drives — no HTTP hop, no session cookie.
+
+- **Learn**: `station_guide` (the module contract, sliced out of the ✦ popup's seed instructions
+  so there is exactly one copy of it), `station_list_mcps`, `station_inspect_mcp` (runs the module
+  over an in-memory transport and asks it, rather than parsing source).
+- **Read**: `station_list_files`, `station_read_file`, `station_get_settings` (secrets masked).
+- **Build**: `station_create_mcp` (scaffold from `_template`), `station_write_file` (overwrite +
+  hot-reload, and the reply reports the module's load error when the new code fails to import).
+- **Configure**: `station_configure_mcp` (secrets encrypted; `'••••••'` = unchanged, `''` = clear),
+  `station_set_enabled`, `station_delete_mcp` (needs `confirm: true`; folder goes to
+  `DATA_DIR/trash`), `station_reload`.
+- **Guard rail**: the module refuses to write to, disable or delete **itself** — bricking the
+  endpoint you are talking through is only recoverable from the admin UI.
+
+`docs/BUILDING_MCPS.md` and `server/lib/seedInstructions.js` now document `shareStore` and
+`stationStore` in the injected-context table, keeping the contract truthful.
+
+## v1.6.0 — 2026-08-12
+
+**n8n becomes a bundled default module 🔀 (n8n v1.0.0, slug `n8n_mcp`).**
+
+- `mcps/n8n` ships with the station: **66 tools covering all 103 endpoints** of the n8n Public API
+  v1 (spec v1.1.1, read from the instance's own `/api/v1/docs`) — workflows (list/get/create/
+  merge-update/delete, activate/deactivate/publish/unpublish/archive/unarchive, transfer, version
+  history, tags), executions (list/get/delete/retry, single + bulk stop, annotation tags), tags,
+  credentials (incl. schema, test, transfer), variables, users, projects + members, folders, data
+  tables (tables, columns, row CRUD with filters/dry-run), evaluation test runs, community
+  packages, security audit, insights, `/discover`, source-control pull, instance settings
+  (security policy / OTel + test trace / SAML / log streaming), and beta `.n8np` package
+  export/import (binary gzip + multipart via Node's built-in `fetch`/`FormData`, base64 in chat).
+- Auth is the instance API key (`X-N8N-API-KEY`); optional **Cloudflare Access** service-token
+  settings send `CF-Access-Client-Id` / `CF-Access-Client-Secret` on every request for instances
+  behind CF Access. Both are UI settings — no secrets in the module.
+- Quirks encoded: n8n's `PUT /workflows/{id}` requires the full body, so the update tool does a
+  fetch-merge-PUT (change just a name without resending nodes); tag names are capped at 24 chars
+  in the schema because n8n reports longer ones as a misleading `409 Tag already exists`; arrays
+  from the API are wrapped `{result: …}` since MCP `structuredContent` must be an object.
+- Verified live against a real n8n: 33/33 harness checks (full read surface + a self-cleaning
+  write cycle — workflow/tag/data-table create→mutate→delete, archive/unarchive, version history,
+  package export) and a station boot serving 9/9 modules with all 66 tools over HTTP. License-
+  gated areas (variables, projects, security policy…) surface n8n's own message plus a hint, and
+  `n8n_discover` reports what an instance actually offers.
+
 ## v1.5.2 — 2026-07-22
 
 **Branding refresh — MuseoModerno UI font + new SVG logo, and the topbar drops the URL.**

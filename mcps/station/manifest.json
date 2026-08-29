@@ -1,0 +1,9 @@
+{
+  "id": "station",
+  "slug": "station",
+  "name": "MCP Station",
+  "icon": "⛽",
+  "description": "The station managing itself — read the module contract, list and inspect hosted MCPs, then create, edit, configure, enable and reload them. Lets an AI build a new MCP end to end without touching the admin UI.",
+  "version": "1.0.0",
+  "settings": []
+}

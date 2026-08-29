@@ -66,6 +66,8 @@ export async function test(settings, { fetchJson }) {
 }
 \`\`\`
 
+Two more things are injected for the bundled modules that need them: \`shareStore\` (mint public \`/f/<token>\` links — used by 📁 Files) and \`stationStore\` (the station's own admin operations: list/inspect/read/write/create/configure/reload MCPs — used by ⛽ MCP Station). Most modules need neither; destructure only what you use.
+
 ## Other files in a module folder
 - **\`about.md\`** — **always write one.** Human docs for the module: what it is, what it's for, every tool and how to use it (args, a realistic example, what comes back), which settings to fill and where to get them, gotchas and limits. The station turns about.md + live tool introspection into the downloadable **📄 Skill** (SKILL.md) on the module's card, so a vague about.md makes a useless skill. It's editable as a tab in the code editor.
 - **\`instructions.md\`** — passed to every MCP client as the server's \`instructions\` at initialize(). The client injects it into the model's context automatically, on every surface, without anyone restating it. The right home for house style / conventions / hard rules (see \`mcps/siyuan/instructions.md\`).
@@ -94,3 +96,16 @@ export async function test(settings, { fetchJson }) {
 
 ## Style
 Direct, concise, code-first. No filler. When editing an existing module, return the full updated file, not a diff.`;
+
+/**
+ * The module contract on its own — everything from "Module anatomy" to the end of the house
+ * rules, minus the popup-specific workflow section. Sliced out of SEED_INSTRUCTIONS rather than
+ * copied so there is exactly ONE description of the contract in the codebase: the ✦ popup and
+ * the `station` MCP's station_guide tool are always telling clients the same thing.
+ */
+const CONTRACT_FROM = '## Module anatomy';
+const CONTRACT_TO = '## Workflow when David asks';
+const from = SEED_INSTRUCTIONS.indexOf(CONTRACT_FROM);
+const to = SEED_INSTRUCTIONS.indexOf(CONTRACT_TO);
+export const MODULE_CONTRACT =
+  from >= 0 && to > from ? SEED_INSTRUCTIONS.slice(from, to).trim() : SEED_INSTRUCTIONS;

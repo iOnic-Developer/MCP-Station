@@ -28,7 +28,7 @@ One Docker container (Node 22 + Express + `@modelcontextprotocol/sdk`, plain ESM
 ```
 server/index.js        all route wiring — read this first
 server/lib/*.js        env, log, crypto, state, auth, oauth, mcpHost, assistant, seedInstructions, backup
-mcps/{_template,telegram,gemini,siyuan,files,sonarr,radarr,openproject,xero}/   modules (telegram ✈️ 5, gemini ✨ 6, siyuan 📓 19, files 📁 10, sonarr 📺 9, radarr 🎬 9, openproject ⚙️ 14, xero 🧾 31 tools)
+mcps/{_template,telegram,gemini,siyuan,files,sonarr,radarr,openproject,xero,n8n,station}/   modules (telegram ✈️ 5, gemini ✨ 6, siyuan 📓 19, files 📁 10, sonarr 📺 9, radarr 🎬 9, openproject ⚙️ 14, xero 🧾 31, n8n 🔀 66, station ⛽ 12 tools)
 public/assets/js/      api.js, ui.js, app.js + views/{login,list,settings,editor,addNew,backup,station,assistant}.js
 docs/                  BUILD_JOURNAL (design log), BUILDING_MCPS (module contract), OAUTH (flows)
 ```

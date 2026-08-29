@@ -22,21 +22,23 @@ claude.ai                                MCP Station
    │ ◄─── { client_id }                       │  (no secret — public client)
    │  browser → GET /authorize?client_id&code_challenge&state…
    │        David enters APP_PASSWORD, hits Approve
-   │ ◄─── 302 redirect_uri?code&state         │  (code: 10 min, single use)
+   │ ◄─── 302 redirect_uri?code&state         │  (code: 5 min, single use)
    │  POST /token {code, code_verifier}       │  PKCE: S256(verifier) == challenge
-   │ ◄─── { access_token (30 d),              │
-   │        refresh_token (180 d, rotates) }  │
+   │ ◄─── { access_token (1 h),               │
+   │        refresh_token (no server expiry,  │
+   │                       rotates on use) }  │
    │  POST /gemini_mcp  Bearer access_token   │
    │ ◄─── MCP JSON-RPC responses              │
 ```
 
-Refresh: `POST /token` with `grant_type=refresh_token` — the old refresh token is consumed, a new pair is issued. That's the "permanent" part: claude.ai keeps refreshing silently.
+Refresh: `POST /token` with `grant_type=refresh_token` — the old refresh token is consumed, a new pair is issued. Refresh tokens have no server-side lifetime; they remain valid until use, explicit revocation, or loss of the persistent `/data` state.
 
 ## Design choices
 
 - **PKCE S256 only**, no implicit, no plain — OAuth 2.1 baseline.
 - **Open dynamic registration** (anyone may register a client) but **tokens only exist after password-gated approval**, rate-limited 8 tries/min/IP. Same trust model as the SiYuan Companion.
 - **Public clients** (`token_endpoint_auth_method: none`) — claude.ai's MCP client is a public client; possession of a valid code + PKCE verifier is the proof.
+- **No hidden DCR expiry** — clients that request a secret receive one with `client_secret_expires_at: 0`; access remains revocable, but the SDK cannot silently end the connection after its former 30-day default.
 - Redirect URIs must be **https** (localhost exempt for dev tools).
 - Tokens are opaque random 256-bit values stored server-side in `/data/station.json` — no JWTs, instantly revocable (`POST /revoke`, or delete from state).
 - One authorization server covers **all** hosted MCPs; a token works on any enabled endpoint. Single-operator homelab trade-off, documented in the build journal.
