@@ -1,5 +1,49 @@
 # Changelog
 
+## v1.5.4 — 2026-08-29
+
+**Connectors stop needing to be re-added, and the station can now build its own MCPs.**
+
+### OAuth: two SDK defaults were quietly killing claude.ai connectors
+
+Both were defaults of `mcpAuthRouter` that the station never overrode, and both are now set
+explicitly in `server/lib/oauth.js`:
+
+- **`clientSecretExpirySeconds: 0`** — the SDK defaults a DCR client's secret to a **30-day**
+  lifetime. When it lapsed, `/token` began answering `invalid_client` and every connector
+  registered with that client died at once. That is the "reconnect everything every few weeks"
+  symptom. `0` emits `client_secret_expires_at: 0` (RFC 7591 "never"), which the SDK's
+  `authenticateClient` reads as falsy and skips.
+- **`rateLimit: { windowMs: 1h, max: 200 }`** — the `/register` limiter defaulted to **20 per
+  hour**. With no `trust proxy` (deliberate — see the note at the top of `server/index.js`),
+  `req.ip` is the reverse proxy's address, so those 20 were **one bucket for the whole station**.
+  claude.ai runs a fresh DCR per connection, so re-adding a station's worth of modules in one
+  sitting hit the wall and every later add failed with a 429 the client never surfaces.
+
+Nothing else about the flow changed: PKCE S256, the RFC 8707 `resource` → per-slug token
+scoping, and the typed `OAuthError`s from v1.5.0 are all as they were.
+
+### New bundled module: ⛽ MCP Station (12 tools, slug `station`)
+
+The station managing itself, so an AI can build and maintain MCPs over MCP instead of through the
+admin UI. `mcpHost` now injects a `stationStore` alongside `shareStore`, exposing the same
+functions the UI drives — no HTTP hop, no session cookie.
+
+- **Learn**: `station_guide` (the module contract, sliced out of the ✦ popup's seed instructions
+  so there is exactly one copy of it), `station_list_mcps`, `station_inspect_mcp` (runs the module
+  over an in-memory transport and asks it, rather than parsing source).
+- **Read**: `station_list_files`, `station_read_file`, `station_get_settings` (secrets masked).
+- **Build**: `station_create_mcp` (scaffold from `_template`), `station_write_file` (overwrite +
+  hot-reload, and the reply reports the module's load error when the new code fails to import).
+- **Configure**: `station_configure_mcp` (secrets encrypted; `'••••••'` = unchanged, `''` = clear),
+  `station_set_enabled`, `station_delete_mcp` (needs `confirm: true`; folder goes to
+  `DATA_DIR/trash`), `station_reload`.
+- **Guard rail**: the module refuses to write to, disable or delete **itself** — bricking the
+  endpoint you are talking through is only recoverable from the admin UI.
+
+`docs/BUILDING_MCPS.md` and `server/lib/seedInstructions.js` now document `shareStore` and
+`stationStore` in the injected-context table, keeping the contract truthful.
+
 ## v1.6.0 — 2026-08-12
 
 **n8n becomes a bundled default module 🔀 (n8n v1.0.0, slug `n8n_mcp`).**

@@ -5,7 +5,7 @@
  *
  * Module contract (see docs/BUILDING_MCPS.md and mcps/_template):
  *   manifest.json — { id, slug, name, description, icon, version, settings[] }
- *   index.js      — export function register({ server, z, getSettings, log, fetchJson })
+ *   index.js      — export function register({ server, z, getSettings, log, fetchJson, shareStore, stationStore })
  *                   export async function test(settings, { fetchJson })   // optional
  */
 import fs from 'node:fs';
@@ -20,6 +20,7 @@ import { cfg } from './env.js';
 import { getState, save } from './state.js';
 import { encrypt, decrypt } from './crypto.js';
 import { createShare, listShares, revokeShare, parseTtl } from './fileShares.js';
+import { MODULE_CONTRACT } from './seedInstructions.js';
 import { log } from './log.js';
 
 const shareStore = { createShare, listShares, revokeShare, parseTtl };
@@ -139,7 +140,7 @@ export async function loadModules() {
       entry.manifest = manifest;
       const mod = await import(pathToFileURL(path.join(dir, 'index.js')).href + `?v=${Date.now()}`);
       if (typeof mod.register !== 'function') {
-        throw new Error('index.js must export: function register({ server, z, getSettings, log, fetchJson })');
+        throw new Error('index.js must export: function register({ server, z, getSettings, log, fetchJson, shareStore, stationStore })');
       }
       entry.register = mod.register;
       entry.test = typeof mod.test === 'function' ? mod.test : null;
@@ -207,6 +208,64 @@ export function saveSettings(id, values) {
   mirrorConfig(id);
 }
 
+/* ── stationStore: the station managing itself ────────────────────────
+ * Injected into modules exactly the way shareStore is. It exposes the same operations the
+ * admin UI drives — mcpHost's own functions, so no HTTP hop and no session cookie — which is
+ * what lets the bundled `station` module hand an AI the ability to read, create, edit,
+ * configure and reload MCPs. Reaching any of it still needs a bearer for /station, so it is
+ * gated exactly like every other endpoint. */
+export const stationStore = {
+  /** The module contract, verbatim — what an AI needs before it writes an MCP. */
+  guide: () => MODULE_CONTRACT,
+
+  /** Every module, with enough detail to decide what to do next. */
+  list: () =>
+    [...modules.values()].map((m) => ({
+      id: m.id,
+      slug: m.manifest?.slug || m.id,
+      name: m.manifest?.name || m.id,
+      icon: m.manifest?.icon || '🔌',
+      description: m.manifest?.description || '',
+      version: m.manifest?.version || '',
+      enabled: Boolean(m.enabled),
+      configured: m.manifest ? isConfigured(m.id) : false,
+      settingKeys: (m.manifest?.settings || []).map((x) => x.key),
+      error: m.error || null
+    })),
+
+  /** Live introspection — runs the module and asks it, rather than parsing its source. */
+  inspect: (id) => describeModule(id),
+
+  files: (id) => listModuleFiles(id),
+  read: (id, rel) => readModuleFile(id, rel),
+  write: (id, rel, content) => writeModuleFile(id, rel, content),
+  create: (spec) => createModule(spec),
+  remove: (id) => deleteModule(id),
+  setEnabled: (id, on) => setEnabled(id, on),
+  reload: () => loadModules(),
+
+  /** Settings schema + current values, secrets masked exactly as the UI masks them. */
+  settings: (id) => {
+    const mod = getModuleById(id);
+    if (!mod?.manifest) throw new Error(`Unknown MCP '${id}'`);
+    const vals = getSettingsFor(id);
+    return {
+      configured: isConfigured(id),
+      settings: mod.manifest.settings.map((s) => ({
+        key: s.key,
+        label: s.label,
+        type: s.type,
+        required: Boolean(s.required),
+        help: s.help || '',
+        value: s.type === 'secret' ? (vals[s.key] ? '••••••' : '') : (vals[s.key] ?? '')
+      }))
+    };
+  },
+
+  /** Write settings. '••••••' for a secret means "leave unchanged"; '' clears it. */
+  configure: (id, values) => saveSettings(id, values)
+};
+
 /* ── Request handling: fresh server per request (stateless) ──────────── */
 export function buildServerFor(mod) {
   const server = new McpServer(
@@ -219,7 +278,8 @@ export function buildServerFor(mod) {
     getSettings: () => getSettingsFor(mod.id),
     log: (m) => log(`mcp:${mod.id}`, m),
     fetchJson,
-    shareStore // { createShare, listShares, revokeShare, parseTtl } — public /f/<token> links
+    shareStore, // { createShare, listShares, revokeShare, parseTtl } — public /f/<token> links
+    stationStore // station self-management: list/inspect/read/write/create/configure/reload MCPs
   });
   return server;
 }

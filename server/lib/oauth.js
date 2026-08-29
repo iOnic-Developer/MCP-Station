@@ -208,6 +208,21 @@ export function mountOAuth(app) {
     issuerUrl: new URL(base),
     resourceServerUrl: new URL(base),
     resourceName: 'MCP Station',
+    // Two SDK defaults quietly kill claude.ai connectors on a station this size:
+    //  - clientSecretExpirySeconds defaults to 30 DAYS. A confidential DCR client's secret
+    //    expires and /token starts answering invalid_client, so every connector registered
+    //    with it dies at once — the "reconnect everything every few weeks" symptom. 0 emits
+    //    `client_secret_expires_at: 0` (RFC 7591 "never"), which the SDK's authenticateClient
+    //    reads as falsy and skips.
+    //  - the /register limiter defaults to 20/hour. With no `trust proxy` (deliberate, see the
+    //    note at the top of index.js) req.ip is the reverse proxy's address, so those 20 are ONE
+    //    bucket for the WHOLE station. claude.ai runs a fresh DCR per connection, so re-adding a
+    //    station's worth of modules in one sitting hits the wall and every later add fails with
+    //    a 429 the client never surfaces.
+    clientRegistrationOptions: {
+      clientSecretExpirySeconds: 0,
+      rateLimit: { windowMs: 60 * 60 * 1000, max: 200 },
+    },
   }));
 
   return provider;

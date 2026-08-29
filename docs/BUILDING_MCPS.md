@@ -124,6 +124,12 @@ for the same behaviour, in clients that expose them. Use both.
 | `getSettings()` | decrypted settings object, manifest defaults applied |
 | `log(msg)` | writes to the station Logs panel |
 | `fetchJson(url, opts)` | fetch → parsed JSON; throws readable errors; 30 s timeout (override `opts.timeoutMs`) |
+| `shareStore` | `{ createShare, listShares, revokeShare, parseTtl }` — mint public `PUBLIC_URL/f/<token>` links for a file |
+| `stationStore` | the station's own admin operations — `guide()`, `list()`, `inspect(id)`, `files/read/write(id…)`, `create(spec)`, `remove(id)`, `setEnabled(id, on)`, `settings(id)`, `configure(id, values)`, `reload()` |
+
+`shareStore` and `stationStore` are there for every module, but only the bundled `files` and
+`station` modules use them — most modules need `server`, `z`, `getSettings` and `fetchJson` and
+nothing else. Destructure just what you use.
 
 ### House rules
 
