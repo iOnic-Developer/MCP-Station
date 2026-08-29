@@ -1,27 +1,25 @@
 # Changelog
 
-## v1.5.4 — 2026-08-29
+## v1.7.0 — 2026-08-29
 
 **Connectors stop needing to be re-added, and the station can now build its own MCPs.**
 
-### OAuth: two SDK defaults were quietly killing claude.ai connectors
+### OAuth: the second SDK default that was killing claude.ai connectors
 
-Both were defaults of `mcpAuthRouter` that the station never overrode, and both are now set
-explicitly in `server/lib/oauth.js`:
+v1.5.3 set `clientSecretExpirySeconds: 0` and migrated the clients already on disk, ending the
+30-day client-secret expiry. That fixed connections *dying*. This release fixes not being able to
+**add them back**:
 
-- **`clientSecretExpirySeconds: 0`** — the SDK defaults a DCR client's secret to a **30-day**
-  lifetime. When it lapsed, `/token` began answering `invalid_client` and every connector
-  registered with that client died at once. That is the "reconnect everything every few weeks"
-  symptom. `0` emits `client_secret_expires_at: 0` (RFC 7591 "never"), which the SDK's
-  `authenticateClient` reads as falsy and skips.
 - **`rateLimit: { windowMs: 1h, max: 200 }`** — the `/register` limiter defaulted to **20 per
   hour**. With no `trust proxy` (deliberate — see the note at the top of `server/index.js`),
   `req.ip` is the reverse proxy's address, so those 20 were **one bucket for the whole station**.
   claude.ai runs a fresh DCR per connection, so re-adding a station's worth of modules in one
-  sitting hit the wall and every later add failed with a 429 the client never surfaces.
+  sitting hit the wall and every later add failed with a `429` the connector UI never surfaces —
+  it just reports a generic connection failure.
 
-Nothing else about the flow changed: PKCE S256, the RFC 8707 `resource` → per-slug token
-scoping, and the typed `OAuthError`s from v1.5.0 are all as they were.
+Both registration options now sit together in the `mcpAuthRouter` call with the reasoning inline.
+Nothing else in the flow changed: PKCE S256, the RFC 8707 `resource` → per-slug token scoping, and
+the typed `OAuthError`s from v1.5.0 are all as they were.
 
 ### New bundled module: ⛽ MCP Station (12 tools, slug `station`)
 

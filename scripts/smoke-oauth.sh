@@ -11,6 +11,8 @@ PORT=8791
 B="http://127.0.0.1:$PORT"
 J="$(mktemp)"; DATA="$(mktemp -d)"; LOG="$(mktemp)"; MCPS="$(mktemp -d)"
 cp -r mcps/. "$MCPS"/
+# Simulate a connector registered by an older release with the SDK's default 30-day secret expiry.
+printf '%s' '{"oauth":{"clients":{"legacy-client":{"client_id":"legacy-client","client_name":"Legacy client","redirect_uris":["https://claude.ai/api/mcp/auth_callback"],"client_secret":"legacy-secret","client_secret_expires_at":2000000000}}}}' > "$DATA/station.json"
 pass=0; fail=0
 ok()  { echo "  ✅ $1"; pass=$((pass+1)); }
 bad() { echo "  ❌ $1 — got: ${2:-}"; fail=$((fail+1)); }
@@ -25,11 +27,19 @@ SRV=$!
 trap 'kill -9 $SRV 2>/dev/null; rm -rf "$DATA" "$MCPS"' EXIT
 for i in $(seq 20); do curl -s "$B/healthz" > /dev/null && break; sleep 0.4; done
 curl -s -c "$J" -X POST "$B/api/login" -H 'content-type: application/json' -H 'x-station-csrf: 1' -d '{"password":"test1234"}' > /dev/null
+LEGACY_EXP=$(node -e "const s=require(process.argv[1]); process.stdout.write(String(s.oauth.clients['legacy-client'].client_secret_expires_at))" "$DATA/station.json")
+[ "$LEGACY_EXP" = 0 ] && ok "existing DCR client-secret expiry is removed at startup" || bad "existing DCR expiry survived startup" "$LEGACY_EXP"
 
 CID=$(curl -s -X POST "$B/register" -H 'content-type: application/json' \
   -d "{\"client_name\":\"Claude\",\"redirect_uris\":[\"$RU\"],\"token_endpoint_auth_method\":\"none\",\"grant_types\":[\"authorization_code\",\"refresh_token\"],\"response_types\":[\"code\"]}" | jq1 .client_id)
 CID2=$(curl -s -X POST "$B/register" -H 'content-type: application/json' \
   -d "{\"client_name\":\"Other client\",\"redirect_uris\":[\"$RU\"],\"token_endpoint_auth_method\":\"none\",\"grant_types\":[\"authorization_code\",\"refresh_token\"],\"response_types\":[\"code\"]}" | jq1 .client_id)
+# SDK 1.29 treats a client that omits token_endpoint_auth_method as confidential. Its default secret
+# lifetime is 30 days; the station overrides that to 0 (never) so long-lived connectors can refresh.
+CONF=$(curl -s -X POST "$B/register" -H 'content-type: application/json' \
+  -d "{\"client_name\":\"Confidential client\",\"redirect_uris\":[\"$RU\"],\"grant_types\":[\"authorization_code\",\"refresh_token\"],\"response_types\":[\"code\"]}")
+CONF_SECRET=$(echo "$CONF" | jq1 .client_secret); CONF_EXP=$(echo "$CONF" | jq1 .client_secret_expires_at)
+[ -n "$CONF_SECRET" ] && [ "$CONF_EXP" = 0 ] && ok "DCR client secrets do not expire" || bad "DCR secret acquired a hidden expiry" "$CONF"
 VER="verifier-0123456789abcdefghijklmnopqrstuvwxyz"
 CHAL=$(node -e "process.stdout.write(require('crypto').createHash('sha256').update('$VER').digest('base64url'))")
 
