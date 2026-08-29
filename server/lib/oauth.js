@@ -78,6 +78,21 @@ function issueTokens(clientId, scopes = [], resource) {
 export function mountOAuth(app) {
   const base = cfg.publicUrl;
 
+  // Remove the SDK's former 30-day DCR client-secret lifetime from clients already stored on disk.
+  // Without this migration, the router option below would protect only newly registered clients.
+  const storedClients = getState().oauth.clients || {};
+  let migratedClients = 0;
+  for (const client of Object.values(storedClients)) {
+    if (client?.client_secret_expires_at) {
+      client.client_secret_expires_at = 0; // RFC 7591: zero means the secret does not expire
+      migratedClients++;
+    }
+  }
+  if (migratedClients) {
+    persist();
+    log('oauth', `Removed client-secret expiry from ${migratedClients} existing OAuth client(s)`);
+  }
+
   provider = {
     clientsStore: {
       getClient: (id) => getState().oauth.clients[id],
@@ -208,6 +223,11 @@ export function mountOAuth(app) {
     issuerUrl: new URL(base),
     resourceServerUrl: new URL(base),
     resourceName: 'MCP Station',
+    // SDK 1.29 defaults confidential DCR client secrets to 30 days. A connector can then keep a
+    // perfectly valid refresh token but lose the ability to redeem it when that client credential
+    // expires. Station connections are explicitly long-lived and remain revocable from the UI, so
+    // registered client credentials must not acquire a hidden lifetime.
+    clientRegistrationOptions: { clientSecretExpirySeconds: 0 },
   }));
 
   return provider;
