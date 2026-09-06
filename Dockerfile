@@ -10,7 +10,9 @@ COPY server ./server
 COPY public ./public
 COPY mcps ./mcps-dist
 COPY docker-entrypoint.sh ./
-RUN chmod +x docker-entrypoint.sh
+RUN node --check server/index.js \
+ && node --check server/lib/assistant.js \
+ && chmod +x docker-entrypoint.sh
 
 ENV NODE_ENV=production \
     PORT=8788 \
