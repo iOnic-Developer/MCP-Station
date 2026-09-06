@@ -1,13 +1,14 @@
 {
   "name": "mcp-station",
-  "version": "1.8.0",
-  "description": "Self-hosted hub that serves, configures and builds MCP servers — each hosted at its own path, with OAuth 2.1 for claude.ai, a built-in Claude assistant, and import/export/backup.",
+  "version": "2.0.0",
+  "description": "Self-hosted hub that serves, configures and builds MCP servers — each hosted at its own path, with OAuth 2.1, a built-in multi-provider assistant, and import/export/backup.",
   "type": "module",
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
-    "test": "bash scripts/smoke.sh",
+    "test": "ASSISTANT_PROVIDER=anthropic bash scripts/smoke.sh",
+    "test:openai": "bash scripts/smoke-openai.sh",
     "test:oauth": "bash scripts/smoke-oauth.sh",
     "test:scoping": "bash scripts/smoke-scoping.sh",
     "test:selfcontained": "bash scripts/smoke-selfcontained.sh"
