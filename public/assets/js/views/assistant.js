@@ -41,7 +41,7 @@ export function mountAssistant(ctx) {
       { key: 'apiHost', label: 'API base URL', placeholder: 'API base URL (optional — I can usually find it)' },
       { key: 'apiDocs', label: 'API docs', placeholder: 'API docs link (optional)' }
     ],
-    greeting: `Hi — I'm the station assistant, running on <b>${who}</b> (${esc(ctx.me.model || '')}). Switch provider in ⚙ Station.<br><br>Ask me to <b>build an MCP</b> and I'll <b>actually create it</b> on this station and reload it live — say <i>“make one for Gmail”</i> and I'll find everything I need. The two boxes below are <b>optional</b>: fill them only if you want to point me at a specific API host or docs page.<br><br>For changes to an <i>existing</i> module, open its <b>‹/› Code</b> drawer — the chat in there can see that module's files.`
+    greeting: `Hi — I'm the station assistant, running on <b>${who}</b> (${esc(ctx.me.model || '')}). Switch provider in ⚙ Station.<br><br>Ask me to <b>build an MCP</b> and I'll <b>actually create it</b> on this station and reload it live — say <i>“make one for Gmail”</i> and I'll find everything I need. The two boxes below are <b>optional</b>: fill them only if you want to point me at a specific API host or docs page.<br><br>For changes to an <i>existing</i> module, open its <b>‹/› Code</b> drawer — the chat in there sees that module's files and <b>edits them in place</b> (or just name the module here).`
   });
 
   fab.onclick = () => {

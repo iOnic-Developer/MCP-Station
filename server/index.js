@@ -296,6 +296,9 @@ api.put('/instructions', (req, res) => {
   save();
   res.json({ ok: true });
 });
+/* Back to this version's seed — the stored brief is frozen at first boot, so an upgrade that
+ * teaches the popup new tools (v1.8: file edits) never reaches an existing install otherwise. */
+api.post('/instructions/reset', (req, res) => res.json({ ok: true, instructions: assistant.resetInstructions() }));
 api.post('/assistant', assistant.handleChat);
 
 /* Global settings */

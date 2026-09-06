@@ -45,7 +45,8 @@ export async function openStation(ctx) {
       </div>
       <div class="field"><label>Retained instructions (the popup's standing brief — what this site is, how to build modules)</label>
         <textarea class="input mono" id="gInstr" rows="12" spellcheck="false">${esc(instructions)}</textarea>
-        <div class="help">Edit freely — e.g. add house rules for your APIs. The popup also receives a live list of installed modules automatically.</div>
+        <div class="help">Edit freely — e.g. add house rules for your APIs. The popup also receives a live list of installed modules automatically.
+          <button class="btn sm" data-reset-instr title="Replace the brief with this version's default (your edits are lost)" style="margin-left:8px">↺ Reset to defaults</button></div>
       </div>
 
       <h4 style="margin:14px 0 8px">Logs</h4>
@@ -67,6 +68,14 @@ export async function openStation(ctx) {
   loadLogs();
 
   dlg.querySelector('[data-logs]').onclick = loadLogs;
+  dlg.querySelector('[data-reset-instr]').onclick = async () => {
+    if (!confirm('Replace the retained instructions with this version\'s defaults? Your edits to them are lost (Save still applies).')) return;
+    try {
+      const { instructions: fresh } = await api('/instructions/reset', { method: 'POST' });
+      dlg.querySelector('#gInstr').value = fresh;
+      toast('Instructions reset to the v' + me.version + ' defaults');
+    } catch (e) { toast(e.message, 'err'); }
+  };
   dlg.querySelector('[data-cancel]').onclick = () => dlg.close();
   dlg.querySelector('[data-save]').onclick = async () => {
     try {

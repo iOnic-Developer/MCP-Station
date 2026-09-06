@@ -535,19 +535,34 @@ export function writeModuleChat(id, messages) {
   return clean;
 }
 
-/** The module's editable files inlined, for the assistant's system prompt. */
-export function moduleSource(id, budget = 60_000) {
+/** The module's editable files inlined, for the assistant's system prompt. Every file is headed
+ * with its line count so the model knows the size of what it is editing; a file that overruns
+ * the budget is cut at a line boundary with a pointer to read_module_file for the rest, so the
+ * model never assumes it has seen the end. */
+export function moduleSource(id, budget = 240_000) {
   const mod = getModuleById(id);
   if (!mod) throw new Error(`Unknown MCP '${id}'`);
   const out = [];
   let left = budget;
   for (const f of listModuleFiles(id)) {
-    if (!EDITABLE.test(f.path) || left <= 0) continue;
+    if (!EDITABLE.test(f.path)) continue;
     let content;
     try { content = fs.readFileSync(path.join(mod.dir, f.path), 'utf8'); } catch { continue; }
-    if (content.length > left) content = content.slice(0, left) + '\n… [truncated]';
+    const lines = content.split('\n').length;
+    if (left <= 0) {
+      out.push(`### ${f.path} (${lines} lines — NOT inlined, budget exhausted; call read_module_file to see it)`);
+      continue;
+    }
+    let note = '';
+    if (content.length > left) {
+      const cut = content.lastIndexOf('\n', left);
+      const shown = content.slice(0, cut > 0 ? cut : left);
+      const shownLines = shown.split('\n').length;
+      note = `\n… [truncated after line ${shownLines} of ${lines} — call read_module_file with start_line: ${shownLines + 1} for the rest]`;
+      content = shown;
+    }
     left -= content.length;
-    out.push(`### ${f.path}\n\`\`\`\n${content}\n\`\`\``);
+    out.push(`### ${f.path} (${lines} lines, ${Buffer.byteLength(content, 'utf8').toLocaleString()} bytes${note ? ' — TRUNCATED below' : ''})\n\`\`\`\n${content}${note}\n\`\`\``);
   }
   return out.join('\n\n');
 }
