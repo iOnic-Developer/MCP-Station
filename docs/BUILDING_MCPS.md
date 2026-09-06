@@ -145,7 +145,7 @@ nothing else. Destructure just what you use.
 ## Workflow
 
 1. **➕ Add MCP** (name + slug) → module scaffolds from `_template`, enabled but empty.
-2. Open **‹/› Code** → replace `manifest.json` + `index.js` (ask the ✦ popup — it returns both files complete).
+2. Open **‹/› Code** → **✦ Chat** and describe the module (or paste the docs URL) — the assistant writes `manifest.json` + `index.js` onto the station and reloads it; later changes are edits in place, the open tab refreshes. You can still edit by hand in the same drawer.
 3. **Save & reload modules** — load errors show on the card.
 4. **⚙ Settings** → fill credentials → **▶ Test**.
 5. Connect `PUBLIC_URL/<slug>` in claude.ai (Settings → Connectors → Add custom connector) or Claude Code (`--header "Authorization: Bearer $MCP_TOKEN"`).

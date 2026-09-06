@@ -1,5 +1,69 @@
 # Changelog
 
+## v1.8.0 — 2026-09-06
+
+**The ✦ assistant stops going quiet and edits modules itself; the dashboard becomes two columns of one-line rows.**
+
+### Why the module chat "disappeared" or answered with random snippets
+
+Three defects lined up:
+
+- **Non-streamed upstream calls.** Each hop waited for the whole reply before writing a byte to
+  the browser — one to three minutes for a long answer. Behind Cloudflare Tunnel (or any proxy
+  with a 60–100 s read timeout) the idle response was closed; the UI saw a stream that simply
+  ended, dropped the "thinking" line and showed nothing.
+- **`max_tokens: 8192` and a brief that demanded complete files.** n8n's `index.js` is ~18k
+  tokens. A reply that overran was silently truncated — and when the cut landed inside a tool
+  call, the turn produced nothing at all. Faced with the same limit, the model would sometimes
+  give a snippet instead, with no home.
+- **A 60k-char source budget** hid the end of big files, so the model literally couldn't reproduce
+  them — and **⤵ Insert** replaced the entire open file with whatever code block was clicked.
+
+### Assistant
+
+- **Streaming on both providers** (Anthropic `stream: true`, Gemini `streamGenerateContent?alt=sse`):
+  text reaches the browser as it is generated; thinking blocks round-trip through tool calls.
+- **Keep-alive comments** (`: hb`, every 15 s — `ASSISTANT_HEARTBEAT_MS`) while the model thinks or a
+  tool runs; the upstream request is aborted when the browser leaves.
+- **Output cap = the model's own limit** (looked up via the Models API / Gemini's `outputTokenLimit`,
+  capped at 64k). A `400 max_tokens` or a `429 output tokens per minute` lowers it and retries.
+- **Cut-offs are announced**: `stop_reason: max_tokens` / `MAX_TOKENS` becomes a yellow notice in
+  the transcript ("reply cut off at the model's N-token limit…"), never silence. A stream that ends
+  without `done` is reported and the message handed back for a clean retry.
+- **New tools** — `read_module_file`, `edit_module_file` (exact find/replace, must match once; `all:
+  true` for every occurrence) and `write_module_file`. Each write hot-reloads the module and hands
+  the load status back to the model, which fixes its own syntax errors. The per-module chat is
+  pinned to its module; dot-files are off limits. **The open editor tab refreshes** when the
+  assistant writes the file (`file_changed` event; unsaved edits get a confirm).
+- **`fetch_url`** reads a docs page (HTML → text, links kept, paged by `offset`) so the assistant can
+  follow an API reference to every endpoint page and the OpenAPI spec. The build workflow now
+  requires an **endpoint inventory before code**, a tool per endpoint, and a reconcile pass
+  before finishing — the "you missed an endpoint" round-trip is what it is there to kill.
+- The brief is truthful again: *apply changes with tools; show code only when asked, labelled with
+  the file and whether it is complete or a snippet (and where it goes)*. The operative version is
+  regenerated every message; the retained instructions carry it for fresh installs, and
+  **⚙ Station → ↺ Reset to defaults** loads it on an existing one.
+- **⤵ Insert → ⤵ Replace file**, with a confirm that names the file and warns when the block looks
+  like a snippet.
+- `ANTHROPIC_BASE_URL` / `GEMINI_BASE_URL` — route the assistant through a gateway (OmniRoute,
+  LiteLLM) or a mock.
+- **`scripts/smoke-assistant.sh`** drills all of it (57 checks) against **`scripts/mock-llm.mjs`**, a
+  mock that speaks both providers' streaming wire shapes.
+
+### Dashboard
+
+- **Two columns of one-line rows** instead of cards: icon · name · status dot · version, then
+  icon-only buttons in groups — ⓘ · 🔗 📦 · ▶ 🔑 ⚙ · ‹/› 📄 🧰 ⧉ · toggle. ⓘ expands the description
+  and URL under the row. One column under 1000 px.
+- **Buttons carry status**: ⚙ Settings is green (configured), yellow (configured but the module has
+  a load error or its last test failed) or red (required settings missing); ▶ Test is green
+  (last test passed), red (failed) or yellow (not tested since the settings changed — the result
+  is kept server-side and cleared on a settings save). 🔑 Access shows the number of connected
+  OAuth clients and a dot when the module has its own token.
+- Disabled modules are greyed out; a module that fails to load gets a red border, its Settings
+  drawer shows the error, and 🗑 **Delete moved into the Settings drawer** (also available for a
+  module whose manifest won't parse).
+
 ## v1.7.0 — 2026-08-29
 
 **Connectors stop needing to be re-added, and the station can now build its own MCPs.**

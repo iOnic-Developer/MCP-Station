@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/MCP-streamable%20HTTP%20%2B%20OAuth%202.1-8A2BE2" alt="MCP">
 </p>
 
-<p align="center"><img src="docs/assets/screenshots/dashboard.png" width="900" alt="MCP Station admin dashboard — module cards with per-module URL, tools, settings and code editor"></p>
+<p align="center"><img src="docs/assets/screenshots/dashboard.png" width="900" alt="MCP Station admin dashboard — two columns of module rows, one line each: name, status, and icon buttons for info, share, export, test, access, settings, code, skill, tools, URL and the on/off toggle"></p>
 
 Why this exists!
 It started as a way to make my self hosted stuff easier to use, and to get round the odd paywall. My staff scheduling service charges for MCP access but the plain API is free, so I wrapped the API myself and now Claude uses it for nothing.
@@ -84,9 +84,10 @@ The real workflow, start to finish — usually a few minutes per integration:
 2. **Paste in the API.** The REST/API docs URL, an OpenAPI spec, or just a list of endpoints and a
    couple of example `curl` calls — whatever you have.
 3. **Create a temporary API key** for the service.
-4. **Tell it to build the module and test it** with that temp key — the assistant writes
-   `manifest.json` + `index.js`, and the station's **▶ Test** button hits the real API to confirm it
-   works.
+4. **Tell it to build the module and test it** with that temp key — the assistant reads the docs
+   (it follows the links to every endpoint page and the OpenAPI spec), lists the endpoints, writes
+   `manifest.json` + `index.js` with a tool for each one straight onto the station, and the
+   **▶ Test** button hits the real API to confirm it works.
 5. **Swap in a real key**, toggle the module on — it's now a live endpoint at `/<slug>/mcp`.
 6. **Add it to Claude** as a custom connector (paste the URL, approve with your station password) and
    **download the generated skill** (📄 Skill) into claude.ai.
@@ -116,12 +117,15 @@ isn't set up in Sonarr yet.
 
 You don't have to write modules by hand. The built-in **✦ assistant** (Claude or Gemini) lives in
 the station UI, knows the exact module contract, and sees the station's live context — so you can
-open ➕ **Add MCP**, describe what you want, and paste in whatever you have (API docs, an OpenAPI
-spec, example `curl` calls, an existing script). It writes the complete module — `manifest.json`
-with a settings form for the API keys, `index.js` with typed tools, descriptions Claude understands
-— straight into the in-browser editor. **⤵ Insert**, toggle it on, and it's a live MCP endpoint you
-can add to claude.ai thirty seconds later. Hot reload, no rebuilds, no SDK boilerplate, no local
-tooling. **If it speaks HTTP, it can be an MCP.**
+describe what you want and point it at whatever you have (a docs URL, an OpenAPI spec, example
+`curl` calls, an existing script). It reads the documentation page by page, lists every endpoint,
+and **creates the module on the station itself** — `manifest.json` with a settings form for the
+API keys, `index.js` with a typed tool per endpoint, descriptions Claude understands — then
+hot-reloads it. Nothing to paste: toggle it on and it's a live MCP endpoint you can add to claude.ai
+thirty seconds later. To change a module later, open its **‹/› Code** drawer: the chat there sees
+the module's files and **edits them in place** (targeted find/replace, so even a 70 KB module is a
+two-second change), reloads it, and refreshes the open tab. No rebuilds, no SDK boilerplate, no
+local tooling. **If it speaks HTTP, it can be an MCP.**
 
 <p align="center">
   <img src="docs/assets/screenshots/add-mcp.png" width="440" alt="Add a new MCP dialog">
@@ -134,8 +138,9 @@ tooling. **If it speaks HTTP, it can be an MCP.**
 ## Features
 
 - **Turn any API into an MCP** — if it speaks HTTP, it becomes a tool Claude can call.
-- **AI-assisted module builder** — paste API docs, an OpenAPI spec, or a few `curl` calls and the
-  built-in ✦ assistant writes the whole module into the browser editor.
+- **AI-assisted module builder** — give the built-in ✦ assistant a docs URL, an OpenAPI spec, or a
+  few `curl` calls and it reads the docs, builds the whole module on the station and reloads it live;
+  the per-module chat edits existing modules in place.
 - **Modules are just folders** — `manifest.json` + `index.js`, hot-reloaded, no rebuilds or restarts.
   Copy `_template`, or let the assistant write one.
 - **OAuth 2.1 built in** — claude.ai (web, mobile, desktop) connects by URL alone: discovery, dynamic
@@ -318,6 +323,7 @@ Docker tab → **Add Container**:
 | `ASSISTANT_PROVIDER` | — | `anthropic` or `gemini` (the ✦ assistant popup) |
 | `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | — | assistant on Claude |
 | `GEMINI_API_KEY` / `GEMINI_MODEL` | — | assistant on Gemini |
+| `ANTHROPIC_BASE_URL` / `GEMINI_BASE_URL` | — | API origin overrides — route the assistant through a gateway such as OmniRoute or LiteLLM |
 
 > Module settings such as a SiYuan URL/token are **not** env vars — set them in the station UI per
 > module. They're stored encrypted in `/data` and mirrored into the module folder.
