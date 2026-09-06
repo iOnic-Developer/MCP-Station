@@ -1,22 +1,6 @@
 /**
- * The ✦ popup backend. Runs a small agent loop with REAL tools (create / read / edit / write
- * module files, reload) so the assistant changes modules on the station instead of pasting
- * code — and streams every hop to the browser as it is generated.
- *
- * Wire shape to the browser (one SSE stream per turn, `data:` JSON lines):
- *   {text}                     a delta, forwarded the moment the model produces it
- *   {tool:{name,status}}       tool started / finished (+ ok, detail)
- *   {file_changed:{id,path}}   a tool wrote a module file — the open editor tab refreshes
- *   {modules_changed:true}     a module was created/reloaded — the cards refresh
- *   {notice}                   something the user must know (a cut-off reply, the hop limit)
- *   {error} / {done:true}
- * plus a comment line (": hb") every few seconds while nothing else is flowing, so a proxy in
- * front of the station never sees an idle response and closes it.
- *
- * Both providers are called with streaming. The old non-streamed hops were the reason the
- * popup "went quiet": a long reply meant minutes with no bytes to the browser, and anything in
- * between (Cloudflare's ~100 s read timeout, nginx's 60 s default) dropped the connection —
- * the UI then saw a stream that simply ended, showed nothing, and the reply was lost.
+ * ✦ assistant backend. Streams model output, executes station tools, then feeds tool results
+ * back to the selected provider until the turn is complete.
  */
 import { cfg } from './env.js';
 import { getState, save } from './state.js';
@@ -26,10 +10,11 @@ import { SEED_INSTRUCTIONS } from './seedInstructions.js';
 import { ASSISTANT_TOOLS, execAssistantTool } from './assistantTools.js';
 import { log } from './log.js';
 
-const MAX_HOPS = 8;          // model → tools → model rounds per turn
-const OUTPUT_CEILING = 64_000; // never ask for more than this, whatever the model allows
-const OUTPUT_FALLBACK = 16_000; // when the model's own cap can't be looked up
-const OUTPUT_FLOOR = 8_192;    // every current model allows at least this
+const MAX_HOPS = 8;
+const OUTPUT_CEILING = 64_000;
+const OUTPUT_FALLBACK = 16_000;
+const OUTPUT_FLOOR = 8_192;
+const VALID_PROVIDERS = new Set(['openai', 'anthropic', 'gemini']);
 
 export function ensureInstructions() {
   const st = getState();
@@ -47,20 +32,22 @@ export function resetInstructions() {
 }
 
 export function getProvider() {
-  return getState().global.provider === 'gemini' ? 'gemini' : getState().global.provider === 'anthropic' ? 'anthropic' : cfg.assistantProvider;
+  const stored = getState().global.provider;
+  return VALID_PROVIDERS.has(stored) ? stored : cfg.assistantProvider;
 }
 
 export function getApiKey(provider = getProvider()) {
-  // Env var wins; UI-stored key (encrypted) is the fallback.
   const st = getState().global;
-  return provider === 'gemini'
-    ? cfg.geminiApiKey || decrypt(st.geminiApiKey || '')
-    : cfg.anthropicApiKey || decrypt(st.anthropicApiKey || '');
+  if (provider === 'openai') return cfg.openaiApiKey || decrypt(st.openaiApiKey || '');
+  if (provider === 'gemini') return cfg.geminiApiKey || decrypt(st.geminiApiKey || '');
+  return cfg.anthropicApiKey || decrypt(st.anthropicApiKey || '');
 }
 
 export function getModel(provider = getProvider()) {
   const st = getState().global;
-  return provider === 'gemini' ? st.geminiModel || cfg.geminiModel : st.anthropicModel || cfg.anthropicModel;
+  if (provider === 'openai') return st.openaiModel || cfg.openaiModel;
+  if (provider === 'gemini') return st.geminiModel || cfg.geminiModel;
+  return st.anthropicModel || cfg.anthropicModel;
 }
 
 const TOOL_BRIEF =
@@ -71,9 +58,9 @@ const TOOL_BRIEF =
   'When the user asks you to build or change an MCP, DO IT with the tools — the user should not have to copy any code. ' +
   'Never re-send an existing module through `create_module`, and never reproduce a large file to change a few lines: use `edit_module_file`. ' +
   'If a tool reports a load error, fix it and call again. When a module is created, tell the user the connector URL and which settings to fill in the UI. ' +
-  'You know most public APIs (Gmail, weather, GitHub, home automation, …) well enough to build a module from the name alone; the optional API host/docs the user may attach are hints, not requirements. ' +
-  '`fetch_url` reads any public page or spec: when building from documentation, fetch the reference index, then EVERY endpoint page it links to (and the OpenAPI/Swagger spec if there is one), write the full endpoint inventory (METHOD /path) before coding, give every endpoint a tool, and reconcile inventory vs tools before you finish — a missed endpoint is the complaint to avoid. ' +
-  'Only paste code in chat when the user explicitly asks to see it — then label each fence with the file path and say whether it is the complete file or a snippet, and where a snippet goes.';
+  'You know most public APIs well enough to build a module from the name alone; optional API docs are hints, not requirements. ' +
+  '`fetch_url` reads any public page or spec: when building from documentation, fetch the reference index, then EVERY endpoint page it links to (and the OpenAPI/Swagger spec if there is one), write the full endpoint inventory (METHOD /path) before coding, give every endpoint a tool, and reconcile inventory vs tools before you finish. ' +
+  'Only paste code in chat when the user explicitly asks to see it.';
 
 function liveContext() {
   const st = getState();
@@ -96,8 +83,6 @@ function liveContext() {
   ].join('\n');
 }
 
-/** Focused brief for the per-MCP chat in the code drawer: this module's files, inlined, and
- * the rule that changes are APPLIED with tools rather than pasted for the user to copy. */
 function moduleContext(id) {
   const mod = getModuleById(id);
   if (!mod) throw new Error(`Unknown MCP '${id}'`);
@@ -107,10 +92,10 @@ function moduleContext(id) {
     "The user has this module open in the station's code editor beside this chat. Its files are inlined below — that is the CURRENT text on disk.",
     '',
     '### How to change it (this overrides any earlier instruction to reply with complete files)',
-    '- Apply changes with your tools; do not paste code for the user to copy. `edit_module_file` for a targeted change: `find` must match the text below exactly (whitespace included) and exactly once — include enough surrounding lines to make it unique. `write_module_file` for a new file or a genuine whole-file rewrite of a small file. `read_module_file` for any region marked truncated, or to re-check after an edit. `id` defaults to this module; you cannot touch other modules from here.',
-    '- Every write hot-reloads the module and the result says whether it loaded; the open editor tab refreshes by itself. If it reports a load error, fix it with another edit until it loads.',
-    '- Never rewrite a large file to change a few lines, and never send this module through `create_module` — the output limit would cut it off.',
-    '- Show code in chat only when asked to see it; then label each fence with the file path and say whether it is the complete file or a snippet, and exactly where a snippet goes.',
+    '- Apply changes with your tools; do not paste code for the user to copy. `edit_module_file` for a targeted change; `write_module_file` for a new file or a genuine whole-file rewrite of a small file. `read_module_file` for any truncated region or to re-check after an edit. `id` defaults to this module; you cannot touch other modules from here.',
+    '- Every write hot-reloads the module and reports whether it loaded. If it reports a load error, fix it with another edit until it loads.',
+    '- Never rewrite a large file to change a few lines, and never send this module through `create_module`.',
+    '- Show code in chat only when asked to see it.',
     '- Finish with one or two lines saying what changed and why.',
     '',
     '## Current source',
@@ -118,15 +103,111 @@ function moduleContext(id) {
   ].join('\n');
 }
 
-/* ── Provider adapters ──────────────────────────────────────────────────
- * Internal history is Anthropic-shaped content blocks ({type:'text'|'tool_use'|'tool_result'|
- * 'thinking'|…}); Gemini gets translated per hop. Keys starting with "_" are ours (Gemini's
- * function name for a result, its thoughtSignature) and are stripped before the API sees them.
- * Both providers stream; `read()` consumes the SSE body, calls onText() for every text delta
- * and resolves with the finished blocks plus a normalised stop reason. */
 const stripInternal = (b) => Object.fromEntries(Object.entries(b).filter(([k]) => !k.startsWith('_')));
 
+function openaiTools() {
+  return ASSISTANT_TOOLS.map((t) => ({
+    type: 'function',
+    name: t.name,
+    description: t.description,
+    parameters: t.input_schema,
+    strict: false
+  }));
+}
+
+function openaiInitialInput(messages) {
+  return messages.map((m) => ({ role: m.role, content: String(m.content || '') }));
+}
+
+function openaiToolOutputs(messages) {
+  const last = messages[messages.length - 1];
+  const blocks = Array.isArray(last?.content) ? last.content : [];
+  return blocks.filter((b) => b.type === 'tool_result').map((b) => ({
+    type: 'function_call_output',
+    call_id: b.tool_use_id,
+    output: b.content
+  }));
+}
+
 const PROVIDERS = {
+  openai: {
+    label: 'OpenAI',
+    outputCap: OUTPUT_CEILING,
+    request: (key, model, system, messages, maxTokens, state) => ({
+      url: `${cfg.openaiBaseUrl}/v1/responses`,
+      headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
+      body: {
+        model,
+        instructions: system,
+        input: state.previousResponseId ? openaiToolOutputs(messages) : openaiInitialInput(messages),
+        ...(state.previousResponseId ? { previous_response_id: state.previousResponseId } : {}),
+        tools: openaiTools(),
+        tool_choice: 'auto',
+        parallel_tool_calls: true,
+        reasoning: { effort: 'medium' },
+        max_output_tokens: maxTokens,
+        stream: true,
+        store: true
+      }
+    }),
+    lowerCap: (status, text, cur) => {
+      if (status === 400 && /max_output_tokens|max output tokens/i.test(text) && cur > OUTPUT_FLOOR) return Math.max(OUTPUT_FLOOR, Math.floor(cur / 2));
+      if (status === 429 && /output tokens|rate limit/i.test(text) && cur > OUTPUT_FLOOR) return Math.max(OUTPUT_FLOOR, Math.floor(cur / 2));
+      return 0;
+    },
+    read: async (body, onText, state) => {
+      const calls = new Map();
+      let text = '';
+      let stopReason = null;
+      let responseId = '';
+      for await (const { event, data } of sseEvents(body)) {
+        let ev;
+        try { ev = JSON.parse(data); } catch { continue; }
+        const type = ev.type || event;
+        if (type === 'response.created') responseId = ev.response?.id || responseId;
+        else if (type === 'response.output_text.delta') {
+          const delta = ev.delta || '';
+          text += delta;
+          if (delta) onText(delta);
+        } else if (type === 'response.output_item.added' && ev.item?.type === 'function_call') {
+          calls.set(ev.item.id, { type: 'tool_use', id: ev.item.call_id, name: ev.item.name, input: {}, _json: ev.item.arguments || '' });
+        } else if (type === 'response.function_call_arguments.delta') {
+          const c = calls.get(ev.item_id);
+          if (c) c._json = (c._json || '') + (ev.delta || '');
+        } else if (type === 'response.function_call_arguments.done') {
+          const c = calls.get(ev.item_id);
+          if (c) c._json = ev.arguments || c._json || '';
+        } else if (type === 'response.output_item.done' && ev.item?.type === 'function_call') {
+          const c = calls.get(ev.item.id) || { type: 'tool_use' };
+          c.id = ev.item.call_id || c.id;
+          c.name = ev.item.name || c.name;
+          c._json = ev.item.arguments || c._json || '';
+          calls.set(ev.item.id, c);
+        } else if (type === 'response.completed') {
+          responseId = ev.response?.id || responseId;
+          stopReason = ev.response?.incomplete_details?.reason === 'max_output_tokens' ? 'max_tokens' : 'end_turn';
+        } else if (type === 'response.incomplete') {
+          responseId = ev.response?.id || responseId;
+          stopReason = ev.response?.incomplete_details?.reason === 'max_output_tokens' ? 'max_tokens' : (ev.response?.incomplete_details?.reason || 'incomplete');
+        } else if (type === 'response.failed') {
+          throw new Error(ev.response?.error?.message || 'OpenAI response failed');
+        } else if (type === 'error' || type === 'response.error') {
+          throw new Error(ev.message || ev.error?.message || 'OpenAI stream error');
+        }
+      }
+      if (responseId) state.previousResponseId = responseId;
+      const toolBlocks = [...calls.values()].map((c) => {
+        try { c.input = c._json ? JSON.parse(c._json) : {}; }
+        catch { c._incomplete = true; }
+        delete c._json;
+        return c;
+      });
+      const blocks = [...(text ? [{ type: 'text', text }] : []), ...toolBlocks];
+      if (toolBlocks.length && stopReason === 'end_turn') stopReason = 'tool_use';
+      return { blocks, stopReason };
+    }
+  },
+
   anthropic: {
     label: 'Anthropic',
     request: (key, model, system, messages, maxTokens) => ({
@@ -136,11 +217,8 @@ const PROVIDERS = {
         model,
         max_tokens: maxTokens,
         stream: true,
-        // The system prompt (instructions + module source) is identical on every hop of a
-        // turn — cache it so the tool rounds don't pay for it again.
         system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
         tools: ASSISTANT_TOOLS,
-        // The API validates content blocks strictly: strip our internal markers and any empty text blocks.
         messages: messages.map((m) => ({
           role: m.role,
           content: typeof m.content === 'string' ? m.content : m.content
@@ -149,22 +227,17 @@ const PROVIDERS = {
         }))
       }
     }),
-    /** Look up the model's real output cap (the Models API reports `max_tokens`). */
     capRequest: (key, model) => ({
       url: `${cfg.anthropicBaseUrl}/v1/models/${encodeURIComponent(model)}`,
       headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
       pick: (j) => Number(j.max_tokens) || 0
     }),
-    /** A lower max_tokens that would make this failed request succeed — or 0 if it isn't that kind of failure. */
     lowerCap: (status, text, cur) => {
       if (status === 400 && /max_tokens/i.test(text)) {
-        // "max_tokens: 64000 > 32000, which is the maximum allowed number of output tokens for …"
         const m = text.match(/>\s*(\d[\d,]*)/);
         const n = m ? parseInt(m[1].replace(/,/g, ''), 10) : 0;
         return n && n < cur ? n : cur > OUTPUT_FLOOR ? OUTPUT_FLOOR : 0;
       }
-      // Output-tokens-per-minute limits are reserved from max_tokens up front, so a big ask can
-      // 429 on a low-tier key before a single token is generated. Halve and retry.
       if (status === 429 && /output tokens/i.test(text) && cur > OUTPUT_FLOOR) return Math.max(OUTPUT_FLOOR, Math.floor(cur / 2));
       return 0;
     },
@@ -197,9 +270,7 @@ const PROVIDERS = {
           b._done = true;
         } else if (type === 'message_delta') {
           if (ev.delta?.stop_reason) stopReason = ev.delta.stop_reason;
-        } else if (type === 'error') {
-          throw new Error(ev.error?.message || 'Anthropic stream error');
-        }
+        } else if (type === 'error') throw new Error(ev.error?.message || 'Anthropic stream error');
       }
       return {
         stopReason,
@@ -222,9 +293,6 @@ const PROVIDERS = {
         tools: [{ functionDeclarations: ASSISTANT_TOOLS.map((t) => ({ name: t.name, description: t.description, parameters: t.input_schema })) }],
         contents: messages.map((m) => ({
           role: m.role === 'assistant' ? 'model' : 'user',
-          // Gemini 3 REQUIRES the thoughtSignature it returned with a functionCall (stashed as
-          // _sig) to be echoed back on the next turn, or the request 400s "Function call is
-          // missing a thought_signature". Re-attach it to the exact part it belongs to.
           parts: (typeof m.content === 'string' ? [{ type: 'text', text: m.content }] : m.content)
             .filter((b) => ['text', 'tool_use', 'tool_result'].includes(b.type))
             .map((b) => {
@@ -254,7 +322,7 @@ const PROVIDERS = {
         if (ev.promptFeedback?.blockReason) throw new Error(`Gemini blocked the request: ${ev.promptFeedback.blockReason}`);
         const cand = ev.candidates?.[0];
         for (const p of cand?.content?.parts || []) {
-          const sig = p.thoughtSignature ? { _sig: p.thoughtSignature } : {}; // must round-trip on v3
+          const sig = p.thoughtSignature ? { _sig: p.thoughtSignature } : {};
           if (p.functionCall) {
             blocks.push({ type: 'tool_use', id: `g_${Date.now()}_${n++}`, name: p.functionCall.name, input: p.functionCall.args || {}, ...sig });
           } else if (typeof p.text === 'string' && !p.thought) {
@@ -272,7 +340,6 @@ const PROVIDERS = {
   }
 };
 
-/** Parse a text/event-stream body into {event, data} records. Handles CRLF and multi-line data. */
 async function* sseEvents(body) {
   const dec = new TextDecoder();
   let buf = '';
@@ -295,14 +362,14 @@ async function* sseEvents(body) {
   if (rec) yield rec;
 }
 
-/** The output cap we ask for: the model's own limit (looked up once per process, from the
- * provider's models endpoint), capped at OUTPUT_CEILING. Lowered at runtime if the API says so. */
 const capCache = new Map();
 async function outputCap(provider, key, model, signal) {
+  const p = PROVIDERS[provider];
+  if (p.outputCap) return Math.min(p.outputCap, OUTPUT_CEILING);
   const k = `${provider}:${model}`;
   if (capCache.has(k)) return capCache.get(k);
   try {
-    const { url, headers, pick } = PROVIDERS[provider].capRequest(key, model);
+    const { url, headers, pick } = p.capRequest(key, model);
     const r = await fetch(url, { headers, signal });
     if (r.ok) {
       const n = pick(await r.json());
@@ -316,10 +383,9 @@ async function outputCap(provider, key, model, signal) {
   } catch (e) {
     if (signal?.aborted) throw e;
   }
-  return OUTPUT_FALLBACK; // not cached: a transient failure shouldn't pin the fallback for the process
+  return OUTPUT_FALLBACK;
 }
 
-/** One-line status for the 🛠 note in the chat. */
 function toolDetail(name, out) {
   if (out.error) return out.error;
   if (out.load_error) return `${out.path ? out.path + ' — ' : ''}LOAD ERROR: ${out.load_error}`;
@@ -345,9 +411,7 @@ export async function handleChat(req, res) {
   const mcpId = typeof req.body?.mcpId === 'string' ? req.body.mcpId : '';
   let system;
   try {
-    system = mcpId
-      ? `${getState().instructions}\n\n${moduleContext(mcpId)}`
-      : `${getState().instructions}\n\n${liveContext()}`;
+    system = mcpId ? `${getState().instructions}\n\n${moduleContext(mcpId)}` : `${getState().instructions}\n\n${liveContext()}`;
   } catch (e) {
     return res.status(400).json({ error: e.message });
   }
@@ -359,28 +423,24 @@ export async function handleChat(req, res) {
   res.flushHeaders?.();
   const send = (obj) => { if (!res.writableEnded) res.write(`data: ${JSON.stringify(obj)}\n\n`); };
 
-  // Keep bytes flowing while the model thinks or a tool runs, so nothing upstream of the
-  // browser times the response out. The browser's parser ignores comment lines.
   const heartbeat = setInterval(() => { if (!res.writableEnded) res.write(': hb\n\n'); }, cfg.assistantHeartbeatMs);
-  // Stop paying for tokens nobody will read once the tab is gone.
   const ctrl = new AbortController();
   res.on('close', () => { if (!res.writableEnded) ctrl.abort(); });
 
-  // Agent loop: model → tools → model. Client history is plain text turns; tool_use/tool_result
-  // blocks live only inside this request (their effects are on disk).
   const internal = messages.map((m) => ({ role: m.role, content: m.content }));
+  const providerState = {};
   try {
     let maxTokens = await outputCap(provider, key, model, ctrl.signal);
     for (let hop = 0; hop < MAX_HOPS; hop++) {
       let upstream = null;
       for (let attempt = 0; attempt < 4; attempt++) {
-        const { url, headers, body } = p.request(key, model, system, internal, maxTokens);
+        const { url, headers, body } = p.request(key, model, system, internal, maxTokens, providerState);
         upstream = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: ctrl.signal });
         if (upstream.ok) break;
         const t = await upstream.text();
         const lower = p.lowerCap(upstream.status, t, maxTokens);
         if (lower && attempt < 3) {
-          log('assistant', `${p.label} ${upstream.status} at max_tokens ${maxTokens} — retrying at ${lower}: ${t.slice(0, 160)}`);
+          log('assistant', `${p.label} ${upstream.status} at output cap ${maxTokens} — retrying at ${lower}: ${t.slice(0, 160)}`);
           maxTokens = lower;
           capCache.set(`${provider}:${model}`, lower);
           upstream = null;
@@ -393,7 +453,7 @@ export async function handleChat(req, res) {
       }
       if (!upstream) break;
 
-      const { blocks, stopReason } = await p.read(upstream.body, (text) => send({ text }));
+      const { blocks, stopReason } = await p.read(upstream.body, (text) => send({ text }), providerState);
       const toolUses = blocks.filter((b) => b.type === 'tool_use');
       const broken = toolUses.find((b) => b._incomplete);
 
@@ -401,8 +461,8 @@ export async function handleChat(req, res) {
         log('assistant', `${p.label} reply hit the ${maxTokens}-token output cap${broken ? ` inside a ${broken.name} call` : ''}`);
         send({
           notice: broken
-            ? `Reply cut off: the ${maxTokens.toLocaleString()}-token output limit was reached in the middle of its ${broken.name} call, so nothing was changed. Ask for it as a smaller edit (edit_module_file on the exact lines) or in parts.`
-            : `Reply cut off at the model's ${maxTokens.toLocaleString()}-token output limit. For a big file, ask me to apply the change with edit_module_file instead of writing the whole file out.`
+            ? `Reply cut off: the ${maxTokens.toLocaleString()}-token output limit was reached in the middle of its ${broken.name} call, so nothing was changed. Ask for it as a smaller edit or in parts.`
+            : `Reply cut off at the model's ${maxTokens.toLocaleString()}-token output limit. For a big file, ask me to apply a targeted edit instead of writing the whole file out.`
         });
         break;
       }
@@ -430,12 +490,8 @@ export async function handleChat(req, res) {
       if (hop === MAX_HOPS - 1) send({ notice: `Stopped after ${MAX_HOPS} tool rounds — say "continue" to carry on.` });
     }
   } catch (e) {
-    if (ctrl.signal.aborted) {
-      log('assistant', 'Browser went away mid-turn — upstream request aborted');
-    } else {
-      log('assistant', `Agent loop error: ${e.message}`);
-      send({ error: e.message });
-    }
+    if (ctrl.signal.aborted) log('assistant', 'Browser went away mid-turn — upstream request aborted');
+    else { log('assistant', `Agent loop error: ${e.message}`); send({ error: e.message }); }
   } finally {
     clearInterval(heartbeat);
     send({ done: true });
