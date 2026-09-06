@@ -10,7 +10,6 @@ import { SEED_INSTRUCTIONS } from './seedInstructions.js';
 import { ASSISTANT_TOOLS, execAssistantTool } from './assistantTools.js';
 import { log } from './log.js';
 
-const MAX_HOPS = 8;
 const OUTPUT_CEILING = 64_000;
 const OUTPUT_FALLBACK = 16_000;
 const OUTPUT_FLOOR = 8_192;
@@ -431,7 +430,9 @@ export async function handleChat(req, res) {
   const providerState = {};
   try {
     let maxTokens = await outputCap(provider, key, model, ctrl.signal);
-    for (let hop = 0; hop < MAX_HOPS; hop++) {
+    // Keep chaining tool calls until the model naturally ends the turn. The browser disconnect
+    // abort signal and normal provider/tool errors are the only loop terminators besides end_turn.
+    while (!ctrl.signal.aborted) {
       let upstream = null;
       for (let attempt = 0; attempt < 4; attempt++) {
         const { url, headers, body } = p.request(key, model, system, internal, maxTokens, providerState);
@@ -487,7 +488,6 @@ export async function handleChat(req, res) {
         });
       }
       internal.push({ role: 'user', content: results });
-      if (hop === MAX_HOPS - 1) send({ notice: `Stopped after ${MAX_HOPS} tool rounds — say "continue" to carry on.` });
     }
   } catch (e) {
     if (ctrl.signal.aborted) log('assistant', 'Browser went away mid-turn — upstream request aborted');
