@@ -1,8 +1,8 @@
-name: Build & push MCP Station 2.0.0
+name: Build & push MCP Station 2.1.0 alpha
 
 on:
   push:
-    branches: [release/2.0.0]
+    branches: [alpha/2.1.0]
   workflow_dispatch:
 
 jobs:
@@ -25,6 +25,9 @@ jobs:
       - name: OpenAI Responses smoke suite
         run: npm run test:openai
 
+      - name: Dashboard syntax checks
+        run: npm run test:ui
+
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
 
@@ -39,9 +42,10 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/mcp-station
+          flavor: latest=false
           tags: |
-            type=raw,value=2.0.0
-            type=sha,prefix=2.0.0-
+            type=raw,value=2.1.0_alpha
+            type=sha,prefix=2.1.0_alpha-
 
       - name: Build and push
         uses: docker/build-push-action@v6
