@@ -1,0 +1,124 @@
+/* MCP Station 2.0 — uniform two-row module action matrix */
+.rows { column-gap: 14px; }
+.mcp-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 254px;
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 4px;
+  min-height: 76px;
+  padding: 8px 9px 8px 10px;
+  overflow: visible;
+}
+.mcp-row .r-ident {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mcp-row .r-icon { width: 26px; font-size: 19px; }
+.mcp-row .r-name { min-width: 0; }
+.mcp-row .r-btns {
+  width: 254px;
+  display: grid;
+  grid-template-columns: repeat(7, 32px);
+  grid-template-rows: repeat(2, 28px);
+  gap: 4px;
+  align-items: center;
+  justify-content: end;
+  margin-left: 0;
+  overflow: visible;
+}
+.mcp-row .act-slot {
+  position: relative;
+  width: 32px;
+  height: 28px;
+  overflow: visible;
+}
+.mcp-row .act-slot .btn.ic {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  width: 32px;
+  height: 28px;
+  min-width: 32px;
+  padding: 3px 7px;
+  justify-content: flex-start;
+  overflow: hidden;
+  gap: 0;
+  transition: width .16s ease, border-color .15s, background .15s, color .15s;
+}
+.mcp-row .act-slot .btn.ic.edge-left {
+  left: auto;
+  right: 0;
+  justify-content: flex-end;
+}
+.mcp-row .act-slot .btn.ic:hover,
+.mcp-row .act-slot .btn.ic:focus-visible {
+  width: max-content;
+  min-width: 32px;
+  z-index: 30;
+  gap: 6px;
+  background: var(--panel-2);
+  box-shadow: 0 7px 22px rgba(0,0,0,.42);
+}
+.mcp-row .act-slot .btn.ic .act-label {
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: max-width .16s ease, opacity .12s ease;
+}
+.mcp-row .act-slot .btn.ic:hover .act-label,
+.mcp-row .act-slot .btn.ic:focus-visible .act-label {
+  max-width: 110px;
+  opacity: 1;
+}
+.mcp-row .access-count {
+  width: 32px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border-2);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.mcp-row .access-count.live { color: var(--ok); border-color: var(--ok); }
+.mcp-row .enable-slot {
+  width: 32px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+}
+.mcp-row .r-desc {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  padding: 5px 4px 1px 34px;
+}
+.mcp-row .r-desc:not([hidden]) + * { }
+
+/* Description becomes a third visual line only while expanded. */
+.mcp-row:has(.r-desc:not([hidden])) { grid-template-rows: auto auto auto; }
+.mcp-row:has(.r-desc:not([hidden])) .r-desc { grid-row: 3; }
+
+@media (max-width: 620px) {
+  .mcp-row {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+  }
+  .mcp-row .r-btns {
+    grid-column: 1;
+    width: 100%;
+    grid-template-columns: repeat(7, 32px);
+    justify-content: start;
+    padding-left: 34px;
+  }
+  .mcp-row .r-desc,
+  .mcp-row:has(.r-desc:not([hidden])) .r-desc { grid-column: 1; grid-row: 3; }
+}
