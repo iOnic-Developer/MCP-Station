@@ -1,27 +1,29 @@
 services:
   mcp-station:
     build: .
-    image: mcp-station:latest
+    image: mcp-station:2.0.0
     container_name: mcp-station
     restart: unless-stopped
     ports:
       - "8788:8788"
     environment:
       # ── required ──
-      APP_PASSWORD: change-me                # admin UI + OAuth approval
-      PUBLIC_URL: https://mcp.dbzocchi.app   # OAuth issuer — MUST serve the station directly (no auth wall / redirect)
+      APP_PASSWORD: change-me
+      PUBLIC_URL: https://mcp.dbzocchi.app
       # ── recommended ──
-      SESSION_SECRET: ""                     # long random string (sessions + secret encryption survive rebuilds)
-      MCP_TOKEN: ""                          # static bearer for Claude Code CLI / scripts
-      COOKIE_SECURE: "1"                     # you're behind HTTPS (SWAG / NPM)
-      FILES_DIR: /files                      # 📁 Files module root (container path — see volume below)
+      SESSION_SECRET: ""
+      MCP_TOKEN: ""
+      COOKIE_SECURE: "1"
+      FILES_DIR: /files
       # ── assistant (can also be set in the UI) ──
-      ASSISTANT_PROVIDER: anthropic          # anthropic | gemini — UI toggle overrides this
+      ASSISTANT_PROVIDER: openai              # openai | anthropic | gemini
+      OPENAI_API_KEY: ""
+      OPENAI_MODEL: gpt-6-astra
       ANTHROPIC_API_KEY: ""
       ANTHROPIC_MODEL: claude-sonnet-4-6
       GEMINI_API_KEY: ""
       GEMINI_MODEL: gemini-2.5-flash
     volumes:
-      - ./volumes/data:/data                 # state, encryption key, backups, trash
-      - ./volumes/mcps:/app/mcps             # module folders (seeded on first boot)
-      - ./volumes/files:/files               # the 📁 Files module's storage root (Claude's file drop)
+      - ./volumes/data:/data
+      - ./volumes/mcps:/app/mcps
+      - ./volumes/files:/files
