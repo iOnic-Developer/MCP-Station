@@ -72,6 +72,7 @@ const TOOL_BRIEF =
   'Never re-send an existing module through `create_module`, and never reproduce a large file to change a few lines: use `edit_module_file`. ' +
   'If a tool reports a load error, fix it and call again. When a module is created, tell the user the connector URL and which settings to fill in the UI. ' +
   'You know most public APIs (Gmail, weather, GitHub, home automation, …) well enough to build a module from the name alone; the optional API host/docs the user may attach are hints, not requirements. ' +
+  '`fetch_url` reads any public page or spec: when building from documentation, fetch the reference index, then EVERY endpoint page it links to (and the OpenAPI/Swagger spec if there is one), write the full endpoint inventory (METHOD /path) before coding, give every endpoint a tool, and reconcile inventory vs tools before you finish — a missed endpoint is the complaint to avoid. ' +
   'Only paste code in chat when the user explicitly asks to see it — then label each fence with the file path and say whether it is the complete file or a snippet, and where a snippet goes.';
 
 function liveContext() {

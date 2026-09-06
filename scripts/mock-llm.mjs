@@ -51,9 +51,11 @@ function scenario(text, results, body, kind) {
   if (results.length) {
     const r = results[0];
     if (t.includes('read')) return { text: [`READ_RESULT:${String(r.content || '').split('\n')[0]}`] };
+    if (t.includes('fetch')) return { text: [`FETCH_RESULT:${String(r.content || r.error || '').replace(/\s+/g, ' ').slice(0, 160)}`] };
     if (t.includes('thinkedit')) return { text: [`THINKING_ECHOED:${thinkingEchoed(body) ? 'yes' : 'no'}`] };
     return { text: [`TOOL_RESULT:${r.error ? 'error:' + r.error : r.load_error ? 'load_error' : 'ok'}`] };
   }
+  if (t.includes('fetch')) return { tools: [{ name: 'fetch_url', input: { url: `http://127.0.0.1:${port}/docs` } }] };
   if (t.includes('cutoff')) return { text: ['This reply will be ', 'cut off'], stop: 'max_tokens' };
   if (t.includes('toolcut')) return { tools: [EDIT], cutTool: true, stop: 'max_tokens' };
   if (t.includes('slow')) return { text: ['slow reply'], delayMs: 1500 };
@@ -135,6 +137,12 @@ http.createServer(async (req, res) => {
   try { body = raw ? JSON.parse(raw) : {}; } catch { /* keep {} */ }
   const kind = url.pathname.startsWith('/v1beta/') ? 'gemini' : 'anthropic';
   if (record) fs.appendFileSync(record, JSON.stringify({ kind, method: req.method, path: url.pathname, body }) + '\n');
+
+  // A fake API reference for the fetch_url scenario.
+  if (req.method === 'GET' && url.pathname === '/docs') {
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+    return res.end('<html><head><title>Mock API</title><style>.x{}</style></head><body><h1>Mock API</h1><ul><li><a href="/docs/users">Users</a></li><li><a href="/docs/orders">Orders</a></li></ul><p>GET /v1/users &amp; friends</p><script>hidden()</script></body></html>');
+  }
 
   // Model info — the output cap the station asks the provider for.
   if (req.method === 'GET' && url.pathname.startsWith('/v1/models/')) {

@@ -96,6 +96,25 @@ export const ASSISTANT_TOOLS = [
     }
   },
   {
+    name: 'fetch_url',
+    description:
+      'Fetch a public web page or API document (http/https GET) and return its text — HTML is stripped to readable text ' +
+      'with links kept as "text (url)"; JSON/YAML/Markdown come back verbatim. Use it to READ THE DOCS before building a ' +
+      'module: the API reference index, then EVERY endpoint page it links to, and the OpenAPI/Swagger spec if one exists ' +
+      '(try /openapi.json, /swagger.json, /api-docs, /api/v1/docs). Long documents are paged: the result says how many ' +
+      'characters there are; pass `offset` to continue. Pass `find` to jump straight to the first occurrence of a word.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'Absolute http(s) URL' },
+        offset: { type: 'integer', minimum: 0, description: 'Character offset to start from (for paging through a long document, default 0)' },
+        max_chars: { type: 'integer', minimum: 1000, maximum: 60000, description: 'How much to return (default 24000)' },
+        find: { type: 'string', description: 'Optional: start the page at the first case-insensitive match of this text' }
+      },
+      required: ['url']
+    }
+  },
+  {
     name: 'reload_modules',
     description: 'Re-scan the mcps/ folder and hot-reload every module. Returns each module id, slug and load status. Use after any module change, or when the user asks to reload.',
     input_schema: { type: 'object', properties: {} }
@@ -141,8 +160,68 @@ async function reloadStatus(id) {
 
 const lineCount = (s) => s.split('\n').length;
 
+/** Readable text out of an HTML page: scripts/styles gone, block tags → newlines, links kept as "text (href)". */
+function htmlToText(html, base) {
+  const abs = (h) => { try { return new URL(h, base).href; } catch { return h; } };
+  return String(html)
+    .replace(/<(script|style|noscript|svg|template)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_, h, t) => {
+      const text = t.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+      return text ? `${text} (${abs(h)})` : abs(h);
+    })
+    .replace(/<(br|\/p|\/div|\/li|\/tr|\/h[1-6]|\/pre|\/section|\/article|\/table|\/dd|\/dt)\b[^>]*>/gi, '\n')
+    .replace(/<(li)\b[^>]*>/gi, '\n- ')
+    .replace(/<(td|th)\b[^>]*>/gi, ' | ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'")
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n\s*\n\s*\n+/g, '\n\n')
+    .trim();
+}
+
+const FETCH_MAX_BYTES = 6 * 1024 * 1024;
+
+async function fetchUrlTool(args) {
+  let url;
+  try { url = new URL(String(args.url || '')); } catch { return { error: 'url must be an absolute http(s) URL' }; }
+  if (!/^https?:$/.test(url.protocol)) return { error: 'Only http and https URLs can be fetched' };
+  const r = await fetch(url, {
+    redirect: 'follow',
+    headers: { 'User-Agent': `MCP-Station/${cfg.version} (+assistant)`, Accept: 'text/html, application/json, text/plain, application/yaml, text/markdown, */*;q=0.5' },
+    signal: AbortSignal.timeout(30_000)
+  });
+  const type = (r.headers.get('content-type') || '').toLowerCase();
+  const buf = Buffer.from(await r.arrayBuffer());
+  if (buf.length > FETCH_MAX_BYTES) return { error: `Document is ${(buf.length / 1048576).toFixed(1)} MB — too big to read here` };
+  let text = buf.toString('utf8');
+  const isHtml = type.includes('html') || /^\s*<(!doctype|html)/i.test(text.slice(0, 300));
+  if (isHtml) text = htmlToText(text, r.url);
+  if (!r.ok) return { error: `HTTP ${r.status} from ${url.host}`, url: r.url, excerpt: text.slice(0, 500) };
+  const max = Math.min(Math.max(Number(args.max_chars) || 24_000, 1000), 60_000);
+  let offset = Math.max(0, Number(args.offset) || 0);
+  if (args.find) {
+    const at = text.toLowerCase().indexOf(String(args.find).toLowerCase(), offset);
+    if (at < 0) return { ok: true, url: r.url, total_chars: text.length, note: `'${args.find}' not found in this document` };
+    offset = Math.max(0, at - 200);
+  }
+  const slice = text.slice(offset, offset + max);
+  return {
+    ok: true,
+    url: r.url,
+    content_type: type.split(';')[0] || 'unknown',
+    total_chars: text.length,
+    offset,
+    end: offset + slice.length,
+    ...(offset + slice.length < text.length ? { note: `${text.length - offset - slice.length} more chars — call again with offset: ${offset + slice.length}` } : {}),
+    content: slice
+  };
+}
+
 export async function execAssistantTool(name, args = {}, { scopeId = '' } = {}) {
   try {
+    if (name === 'fetch_url') return await fetchUrlTool(args);
+
     if (name === 'reload_modules') {
       await loadModules();
       return { ok: true, modulesChanged: true, modules: modulesSummary() };

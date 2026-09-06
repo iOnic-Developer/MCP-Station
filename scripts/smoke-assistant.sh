@@ -57,6 +57,7 @@ has "$REQ" '"max_tokens":32000' && ok "max_tokens from the model's own cap (3200
 has "$REQ" 'cache_control' && ok "system prompt carries a cache breakpoint" || bad "cache_control" "$REQ"
 has "$REQ" '"name":"edit_module_file"' && has "$REQ" '"name":"read_module_file"' && has "$REQ" '"name":"write_module_file"' && ok "file tools offered to the model" || bad "tools offered" "$REQ"
 has "$REQ" 'How to change it' && has "$REQ" 'ORIGINAL_MARKER' && ok "module brief + current source in the system prompt" || bad "module brief" "$REQ"
+has "$REQ" '"name":"fetch_url"' && ok "fetch_url offered to the model" || bad "fetch_url offered" "$REQ"
 has "$REQ" '(' && has "$REQ" 'lines,' && ok "inlined files are headed with line counts" || bad "line counts" "$REQ"
 R=$(chat "slow")
 has "$R" ': hb' && has "$R" '"text":"slow reply"' && ok "keep-alive comments flow while the model is slow" || bad "heartbeat" "$R"
@@ -95,6 +96,10 @@ R=$(file about.md); has "$R" 'Written by the mock' && ok "about.md on disk" || b
 
 R=$(chat "read")
 has "$R" 'READ_RESULT:' && has "$R" 'lines 1-2 of' && ok "read_module_file returns a line range" || bad "read" "$R"
+
+R=$(chat "fetch")
+has "$R" '"name":"fetch_url","ok":true' && has "$R" 'FETCH_RESULT:Mock API' && ok "fetch_url reads a docs page as text" || bad "fetch" "$R"
+has "$R" "Users (http://127.0.0.1:$MPORT/docs/users)" && ! has "$R" 'hidden()' && ok "links kept with absolute URLs, scripts/styles stripped" || bad "fetch text" "$R"
 
 R=$(chat "break")
 has "$R" 'LOAD ERROR' && has "$R" 'TOOL_RESULT:load_error' && ok "an edit that breaks the module reports the load error" || bad "break" "$R"
