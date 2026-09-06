@@ -1,16 +1,29 @@
-name: Build & push to Docker Hub
+name: Build & push MCP Station 2.0.0
 
 on:
   push:
-    branches: [main]
-    tags: ['v*']
+    branches: [release/2.0.0]
   workflow_dispatch:
 
 jobs:
-  docker:
+  test-and-docker:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Legacy smoke suite
+        run: npm test
+
+      - name: OpenAI Responses smoke suite
+        run: npm run test:openai
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
@@ -27,9 +40,8 @@ jobs:
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/mcp-station
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=semver,pattern={{version}}
-            type=sha,prefix=
+            type=raw,value=2.0.0
+            type=sha,prefix=2.0.0-
 
       - name: Build and push
         uses: docker/build-push-action@v6
