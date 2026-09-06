@@ -118,6 +118,10 @@ function mcpListing(req) {
       enabled: Boolean(reg.enabled),
       configured: m.manifest ? host.isConfigured(m.id) : false,
       tokenSet: Boolean(reg.token),
+      // live OAuth connections that can reach this MCP (station-wide tokens count for every module)
+      clients: m.manifest ? oauth.listConnections(m.manifest.slug).length : 0,
+      // last ▶ Test outcome, kept so the list can colour the button; cleared when settings change
+      lastTest: reg.lastTest || null,
       settings,
       url: `${oauth.baseUrl(req)}/${m.manifest?.slug || m.id}/mcp`
     };
@@ -145,6 +149,8 @@ api.patch('/mcps/:id', (req, res) => {
     if (typeof req.body?.enabled === 'boolean') host.setEnabled(id, req.body.enabled);
     if (req.body?.settings && typeof req.body.settings === 'object') {
       host.saveSettings(id, req.body.settings);
+      st.mcps[id].lastTest = null; // a new configuration is untested until ▶ Test says otherwise
+      save();
     }
     res.json({ ok: true });
   } catch (e) {
@@ -165,14 +171,20 @@ api.delete('/mcps/:id', async (req, res) => {
 api.post('/mcps/:id/test', async (req, res) => {
   const mod = host.getModuleById(req.params.id);
   if (!mod) return res.status(404).json({ error: 'Unknown MCP' });
-  if (mod.error) return res.json({ ok: false, message: `Load error: ${mod.error}` });
-  if (!mod.test) return res.json({ ok: true, message: 'Module loads fine (no test() export — add one for a real connectivity check).' });
-  try {
-    const out = await mod.test(host.getSettingsFor(mod.id), { fetchJson: host.fetchJson });
-    res.json({ ok: out?.ok !== false, message: out?.message || 'Test passed' });
-  } catch (e) {
-    res.json({ ok: false, message: e.message });
+  let result;
+  if (mod.error) result = { ok: false, message: `Load error: ${mod.error}` };
+  else if (!mod.test) result = { ok: true, message: 'Module loads fine (no test() export — add one for a real connectivity check).' };
+  else {
+    try {
+      const out = await mod.test(host.getSettingsFor(mod.id), { fetchJson: host.fetchJson });
+      result = { ok: out?.ok !== false, message: out?.message || 'Test passed' };
+    } catch (e) {
+      result = { ok: false, message: e.message };
+    }
   }
+  const reg = getState().mcps[mod.id];
+  if (reg) { reg.lastTest = { ok: result.ok, message: String(result.message).slice(0, 300), at: new Date().toISOString() }; save(); }
+  res.json(result);
 });
 
 api.get('/mcps/:id/files', (req, res) => {

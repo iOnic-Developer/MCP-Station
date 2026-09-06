@@ -88,6 +88,43 @@ code, pre, .mono { font-family: ui-monospace, 'Cascadia Code', Consolas, monospa
 .card .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .spacer { flex: 1; }
 
+/* ── Module rows: two tight columns, one thin line per module, icon-only buttons in groups ── */
+/* Multi-column flow, not a grid: the list reads down the left column then the right, and an
+   expanded ⓘ description only pushes its own column (a grid would leave a hole opposite it). */
+.rows { column-count: 2; column-gap: 12px; }
+@media (max-width: 1000px) { .rows { column-count: 1; } }
+.mcp-row {
+  break-inside: avoid; page-break-inside: avoid; margin-bottom: 8px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  padding: 6px 8px 6px 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-width: 0;
+  transition: opacity .15s;
+}
+.mcp-row.off { opacity: .45; }               /* disabled modules fade back */
+.mcp-row.off:hover { opacity: .9; }
+.mcp-row.err { border-color: rgba(248, 81, 73, .55); }
+.mcp-row .r-icon { font-size: 18px; width: 24px; text-align: center; flex: none; line-height: 1; }
+.mcp-row .r-name {
+  flex: 1; min-width: 0; font-weight: 700; font-size: 13.5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 7px;
+}
+.mcp-row .r-name small { color: var(--muted); font-weight: 500; font-size: 11px; }
+.mcp-row .r-btns { display: flex; align-items: center; flex: none; margin-left: auto; }
+.mcp-row .grp { display: flex; align-items: center; gap: 3px; padding: 0 5px; border-left: 1px solid var(--border-2); }
+.mcp-row .grp:first-child { border-left: 0; padding-left: 0; }
+.mcp-row .grp:last-child { padding-right: 0; }
+.btn.ic { padding: 3px 6px; font-size: 13px; line-height: 1.25; min-width: 28px; justify-content: center; gap: 2px; }
+.btn.st-ok { border-color: var(--ok); color: var(--ok); }
+.btn.st-warn { border-color: var(--warn); color: var(--warn); }
+.btn.st-err { border-color: var(--err); color: var(--err); }
+.btn.ic .n { font-size: 10px; font-weight: 800; background: var(--accent); color: #fff; border-radius: 999px; padding: 0 5px; line-height: 14px; }
+.btn.ic .tok { color: var(--ok); font-size: 8px; line-height: 1; }
+.mcp-row .r-desc { flex-basis: 100%; color: var(--muted); font-size: 12.5px; padding: 2px 2px 2px 32px; }
+.mcp-row .r-desc.is-err { color: var(--err); }
+.mcp-row .r-desc .dim { opacity: .8; font-size: 11.5px; }
+.toggle.sm { width: 32px; height: 18px; }
+.toggle.sm .track::after { width: 12px; height: 12px; }
+.toggle.sm input:checked + .track::after { left: 17px; }
+
 /* toggle */
 .toggle { position: relative; width: 40px; height: 22px; flex: none; }
 .toggle input { display: none; }
