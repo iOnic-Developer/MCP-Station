@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { esc, toast, drawer } from '../ui.js';
+import { esc, toast, drawer, confirmModal } from '../ui.js';
 import { chatPane } from '../chat.js';
 
 export async function openEditor(m, ctx) {
@@ -24,7 +24,7 @@ export async function openEditor(m, ctx) {
           <textarea class="code" id="codeArea" spellcheck="false" placeholder="Pick a file…"></textarea>
         </div>
         <div class="editor-chat chat" id="mcpChat" hidden>
-          <div class="a-head">✦ Ask about ${esc(name)}<span class="sub">sees this module's files</span>
+          <div class="a-head">✦ Ask about ${esc(name)}<span class="sub">sees and edits this module's files</span>
             <div class="spacer"></div>
             <button class="btn sm" data-clear title="Clear this module's conversation">🧹</button>
           </div>
@@ -51,17 +51,52 @@ export async function openEditor(m, ctx) {
     persist: (h) => api(`/mcps/${m.id}/chat`, { method: 'PUT', body: { messages: h } }),
     extra: () => ({ mcpId: m.id }),
     placeholder: `e.g. add a delete_message tool, or: why does get_updates 409?`,
-    greeting: `I can see <b>${esc(name)}</b>'s files (manifest.json, index.js, …) and the module contract.<br><br>Ask me to add a tool, fix a bug or explain what it does — I'll reply with the complete file, and you can drop it straight into the open editor with <b>⤵ Insert</b>.`
+    greeting: `I can see <b>${esc(name)}</b>'s files (manifest.json, index.js, …) and the module contract.<br><br>Ask me to add a tool, fix a bug or explain what it does — I <b>edit the files directly</b> and reload the module, and the open tab refreshes when I change it. Nothing to copy.<br><br>If you'd rather paste something yourself, ask to see the code: <b>⤵ Replace file</b> on a code block swaps the whole open file for it (complete files only).`
   });
 
-  // Code blocks the assistant returns can go straight into the open file.
-  chat.msgsEl.addEventListener('click', (e) => {
+  // The assistant edits files on disk with its tools — keep the open tab (and tab list) in sync.
+  const onFileChanged = async (e) => {
+    if (!d.el.isConnected) return window.removeEventListener('station:module-file-changed', onFileChanged);
+    const { id, path: p } = e.detail || {};
+    if (id !== m.id) return;
+    try { files = (await api(`/mcps/${m.id}/files`)).files; } catch { /* keep the old list */ }
+    if (p !== current) {
+      renderTabs();
+      if (p) toast(`✦ wrote ${p} — open its tab to see it`);
+      return;
+    }
+    if (dirty && !(await confirmModal('File changed on disk', `The assistant changed ${p}. Reload it into the editor and discard your unsaved edits?`))) return;
+    try {
+      const r = await api(`/mcps/${m.id}/file?path=${encodeURIComponent(p)}`);
+      area.value = r.content;
+      dirty = false;
+      renderTabs();
+      toast(`✦ updated ${p} — module reloaded`);
+    } catch (ex) { toast(ex.message, 'err'); }
+  };
+  window.addEventListener('station:module-file-changed', onFileChanged);
+
+  // A code block the assistant shows can still replace the open file — deliberately, and only
+  // the whole file: a snippet pasted over index.js is how modules used to get wrecked.
+  chat.msgsEl.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-insert-code]');
     if (!btn) return;
     if (!current) return toast('Open a file tab first', 'err');
-    area.value = btn.closest('pre').querySelector('code').textContent;
+    const code = btn.closest('pre').querySelector('code').textContent;
+    const looksPartial = current === 'index.js'
+      ? !/export\s+(async\s+)?function\s+register\b/.test(code)
+      : current === 'manifest.json'
+        ? !(() => { try { const j = JSON.parse(code); return Boolean(j && j.slug); } catch { return false; } })()
+        : false;
+    const ok = await confirmModal(
+      `Replace ${current}?`,
+      (looksPartial ? `⚠️ This block looks like a snippet, not a complete ${current} — replacing the whole file with it will break the module. Better: ask the assistant to apply the change itself. ` : '')
+        + `This replaces the entire contents of ${current} in the editor with this code block. You still need to Save.`
+    );
+    if (!ok) return;
+    area.value = code;
     dirty = true;
-    toast(`Inserted into ${current} — Save to write it`);
+    toast(`Replaced ${current} in the editor — Save to write it`);
   });
   const addInsertButtons = () => {
     for (const pre of chat.msgsEl.querySelectorAll('pre')) {
@@ -69,7 +104,8 @@ export async function openEditor(m, ctx) {
       const b = document.createElement('button');
       b.className = 'btn sm copy-code insert-code';
       b.dataset.insertCode = '1';
-      b.textContent = '⤵ Insert';
+      b.title = 'Replace the whole open file with this code block (complete files only)';
+      b.textContent = '⤵ Replace file';
       pre.prepend(b);
     }
   };

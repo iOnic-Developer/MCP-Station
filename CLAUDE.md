@@ -27,7 +27,7 @@ One Docker container (Node 22 + Express + `@modelcontextprotocol/sdk`, plain ESM
 
 ```
 server/index.js        all route wiring — read this first
-server/lib/*.js        env, log, crypto, state, auth, oauth, mcpHost, assistant, seedInstructions, backup
+server/lib/*.js        env, log, crypto, state, auth, oauth, mcpHost, assistant (streaming agent loop), assistantTools (create/read/edit/write/fetch_url/reload), seedInstructions, backup, fileShares, zip
 mcps/{_template,telegram,gemini,siyuan,files,sonarr,radarr,openproject,xero,n8n,station}/   modules (telegram ✈️ 5, gemini ✨ 6, siyuan 📓 19, files 📁 10, sonarr 📺 9, radarr 🎬 9, openproject ⚙️ 14, xero 🧾 31, n8n 🔀 66, station ⛽ 12 tools)
 public/assets/js/      api.js, ui.js, app.js + views/{login,list,settings,editor,addNew,backup,station,assistant}.js
 docs/                  BUILD_JOURNAL (design log), BUILDING_MCPS (module contract), OAUTH (flows)
@@ -35,13 +35,19 @@ docs/                  BUILD_JOURNAL (design log), BUILDING_MCPS (module contrac
 
 ## Working here
 
-- **Test before claiming done**: `npm install && APP_PASSWORD=test PUBLIC_URL=http://localhost:8788 node server/index.js`, then the smoke script pattern in `scripts/smoke.sh` (login → PKCE round trip → MCP initialize/tools). No test framework — keep it curl-able.
+- **Test before claiming done**: `npm install && APP_PASSWORD=test PUBLIC_URL=http://localhost:8788 node server/index.js`, then the smoke script pattern in `scripts/smoke.sh` (login → PKCE round trip → MCP initialize/tools). The ✦ assistant has its own drill, `scripts/smoke-assistant.sh`, against `scripts/mock-llm.mjs` (both providers' streaming wire shapes) — run it after touching `assistant.js`/`assistantTools.js`. No test framework — keep it curl-able.
 - **Commit granularly** to `main`; David wants constant commits, branches only for risky rework.
 - **Track in Todoist** (project `Claude`, ID `6h37qwfR8cChXRjh`) and log decisions in SiYuan (notebook doc `MCP Station`) — David runs on those two systems.
 - Update `docs/BUILD_JOURNAL.md` work-log table when you ship something meaningful, and bump `cfg.version` (`server/lib/env.js`) + `CHANGELOG.md` on releases.
 - The ✦ popup's seed instructions must stay truthful about the module contract — if you touch `mcpHost.js` context injection or the manifest schema, update `seedInstructions.js` and `docs/BUILDING_MCPS.md` in the same commit.
 
-## Known gaps / next ideas (as of v1.5.0)
+## The ✦ assistant (v1.8.0)
+
+- **Streams both providers** (`stream:true` / `streamGenerateContent?alt=sse`), sends `: hb` keep-alive comments every 15 s, aborts upstream when the browser leaves. Never go back to non-streamed hops — behind Cloudflare Tunnel a silent 100 s response is dropped and the popup "goes quiet".
+- **`max_tokens` is the model's own cap** (Models API, capped at 64k), lowered on a `400 max_tokens` / `429 output tokens per minute`. A `max_tokens` stop becomes a `{notice}` event, never silence.
+- **It edits modules with tools** — `read_module_file` / `edit_module_file` (exact find/replace) / `write_module_file`, all hot-reloading and reporting the load status; `fetch_url` reads docs. The per-module chat is pinned to its module (`scopeId`). The operative brief lives in `moduleContext()` / `TOOL_BRIEF` (regenerated every message) — the retained instructions are frozen in state at first boot, so put anything that must reach existing installs there, and keep the seed's workflow sections in step (⚙ Station → ↺ Reset to defaults reloads the seed).
+
+## Known gaps / next ideas (as of v1.8.0)
 
 - ~~No per-MCP OAuth scoping~~ — **done in v1.3.0**. Tokens carry a `slug`; `requireBearer` enforces it (403 cross-MCP). Three auth lanes: station `MCP_TOKEN` (master, opens everything) → the module's own token (`st.mcps[id].token`, opens only it) → OAuth token (opens the slug it was granted for). The slug is derived purely from the RFC 8707 `resource` claude.ai sends to `/authorize` (`slugFromResource` in `oauth.js`); **`slug: ''` = station-wide, and happens when no resource is sent** — there is no per-approval MCP picker on the consent page (an earlier idea that never shipped).
 - **OAuth provider must throw the SDK's typed `OAuthError`s** (`InvalidGrantError`/`InvalidTokenError` from `@modelcontextprotocol/sdk/server/auth/errors.js`), never plain `Error` — the SDK (≥1.29) maps a plain throw to `500 server_error` and only typed errors to the RFC 4xx codes. (Fixed in v1.5.0; `scripts/smoke-oauth.sh` guards it.)

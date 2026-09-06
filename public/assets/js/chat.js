@@ -5,6 +5,12 @@ import { esc, toast, md } from './ui.js';
  * History lives wherever the caller says: `history` is the starting array, `persist`
  * is called with the updated array after every turn (localStorage / module folder).
  * `extra()` adds fields to the POST body — the editor passes { mcpId } to scope it.
+ *
+ * Server events (one SSE stream per turn): {text} deltas, {tool} status lines, {notice}
+ * (a cut-off reply, the hop limit — shown, never persisted), {file_changed} (a tool wrote a
+ * module file → `station:module-file-changed` for the editor), {modules_changed} (→ one
+ * `station:mcps-changed` per turn), {error}, then {done}. A stream that ends without
+ * {done} was cut by something between here and the station — say so instead of going quiet.
  */
 export function chatPane({ el, greeting, history = [], persist = () => {}, extra = () => ({}), placeholder = 'Ask…', fields = [] }) {
   el.innerHTML = `
@@ -36,19 +42,27 @@ export function chatPane({ el, greeting, history = [], persist = () => {}, extra
     return div;
   }
 
+  /** Dashed status line (tool progress, notices) — shown in the transcript, never persisted. */
+  function addNote(html, kind = '') {
+    const note = addBubble('assistant', '');
+    note.className = `msg bot tool-note ${kind}`.trim();
+    note.innerHTML = html;
+    return note;
+  }
+
   async function send() {
-    let text = input.value.trim();
-    if (!text || sendBtn.disabled) return;
+    const typed = input.value.trim();
+    if (!typed || sendBtn.disabled) return;
     // Optional context fields (API host / docs) ride along inside the message so they
     // persist in history and work identically on both providers.
     const hints = fields
       .map((f, i) => ({ label: f.label || f.key, val: fieldEls[i]?.value.trim() }))
       .filter((h) => h.val)
       .map((h) => `${h.label}: ${h.val}`);
-    if (hints.length) text += `\n\n(${hints.join(' · ')})`;
+    const text = hints.length ? `${typed}\n\n(${hints.join(' · ')})` : typed;
     input.value = '';
     history.push({ role: 'user', content: text });
-    addBubble('user', text);
+    const userBubble = addBubble('user', text);
 
     sendBtn.disabled = true;
     const think = document.createElement('div');
@@ -59,6 +73,18 @@ export function chatPane({ el, greeting, history = [], persist = () => {}, extra
 
     let bubble = null;
     let acc = '';
+    let gotDone = false;
+    let modulesChanged = false;
+    // Text before a tool call is its own bubble in the transcript; close it out and save it,
+    // so a turn that dies half-way keeps what already arrived.
+    const closeSegment = () => {
+      if (!acc) return;
+      history.push({ role: 'assistant', content: acc });
+      acc = '';
+      bubble = null;
+      persist(history);
+    };
+
     try {
       const r = await fetch('/api/assistant', {
         method: 'POST',
@@ -90,36 +116,50 @@ export function chatPane({ el, greeting, history = [], persist = () => {}, extra
             msgsEl.scrollTop = msgsEl.scrollHeight;
           }
           if (ev.tool) {
-            // Tool status line — a new text bubble follows it, so close the current one.
             const t = ev.tool;
             if (t.status === 'running') {
-              const note = addBubble('assistant', '');
-              note.classList.add('tool-note');
-              note.innerHTML = `🛠 <code>${esc(t.name)}</code> …`;
+              closeSegment();
+              addNote(`🛠 <code>${esc(t.name)}</code> …`);
             } else {
               const notes = msgsEl.querySelectorAll('.tool-note');
               const last = notes[notes.length - 1];
               if (last) last.innerHTML = `${t.ok ? '✅' : '⚠️'} <code>${esc(t.name)}</code>${t.detail ? ` — ${esc(String(t.detail))}` : ''}`;
-              if (acc) { history.push({ role: 'assistant', content: acc }); acc = ''; bubble = null; }
             }
+            msgsEl.scrollTop = msgsEl.scrollHeight;
           }
-          if (ev.modules_changed) {
-            toast('Modules updated — refreshing');
-            window.dispatchEvent(new CustomEvent('station:mcps-changed'));
+          if (ev.notice) {
+            closeSegment();
+            think.remove();
+            addNote(`⚠️ ${esc(ev.notice)}`, 'notice');
           }
+          if (ev.file_changed) {
+            window.dispatchEvent(new CustomEvent('station:module-file-changed', { detail: ev.file_changed }));
+          }
+          if (ev.modules_changed) modulesChanged = true;
           if (ev.error) throw new Error(ev.error);
+          if (ev.done) gotDone = true;
         }
       }
-      if (acc) history.push({ role: 'assistant', content: acc });
-      await persist(history);
+      closeSegment();
+      if (!gotDone) throw new Error('The connection dropped before the reply finished (a proxy timeout, usually) — try again.');
     } catch (e) {
-      toast(e.message, 'err', 6000);
-      if (!acc) history.pop(); // roll back the user turn so retry is clean
-      await persist(history);
+      toast(e.message, 'err', 8000);
+      closeSegment();
+      if (history[history.length - 1]?.role === 'user') {
+        // Nothing came back: roll the turn back and hand the text back for a clean retry.
+        history.pop();
+        userBubble.remove();
+        input.value = typed;
+      }
     } finally {
       think.remove();
       sendBtn.disabled = false;
       input.focus();
+      await persist(history);
+      if (modulesChanged) {
+        toast('Modules updated — refreshing');
+        window.dispatchEvent(new CustomEvent('station:mcps-changed'));
+      }
     }
   }
 
@@ -146,5 +186,5 @@ export function chatPane({ el, greeting, history = [], persist = () => {}, extra
 
 /** The <code> text belonging to a button inside a rendered code block. */
 export function codeOf(btn) {
-  return btn.nextElementSibling?.textContent || btn.parentElement.textContent.replace(/^Copy/, '');
+  return btn.closest('pre')?.querySelector('code')?.textContent ?? '';
 }

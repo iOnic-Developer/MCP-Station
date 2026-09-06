@@ -1,7 +1,9 @@
 import { api } from '../api.js';
-import { esc, toast, drawer } from '../ui.js';
+import { esc, toast, drawer, confirmModal } from '../ui.js';
 
 export function openSettings(m, ctx) {
+  // A module whose manifest failed to load has nothing to configure — but it still needs a way out.
+  if (!m.manifest) return openBroken(m, ctx);
   const fields = (m.manifest.settings || []).map((s) => {
     const cur = m.settings?.[s.key] ?? '';
     let control;
@@ -27,17 +29,20 @@ export function openSettings(m, ctx) {
 
   const d = drawer({
     title: `${m.manifest.icon} ${m.manifest.name} — settings`,
-    body: `<form id="setForm">${fields}</form>
+    body: `${m.error ? `<div class="banner">⚠️ This module currently fails to load: ${esc(m.error)} — fix it in ‹/› Code (the ✦ chat there sees the error), or delete it below.</div>` : ''}
+      <form id="setForm">${fields}</form>
       <div class="field" style="margin-top:18px">
         <label>Endpoint</label>
         <div class="endpoint"><span class="url mono">${esc(m.url)}</span></div>
         <div class="help">Add this URL in claude.ai → Settings → Connectors → Add custom connector.</div>
       </div>`,
     foot: `<button class="btn" data-cancel>Cancel</button>
+           <button class="btn danger" data-del title="Delete this module (a copy is kept in data/trash)">🗑 Delete</button>
            <div class="spacer"></div>
            <button class="btn" data-test>▶ Save &amp; test</button>
            <button class="btn primary" data-save>Save</button>`
   });
+  wireDelete(d, m, ctx);
 
   const cleared = new Set();
   d.el.querySelectorAll('[data-clear]').forEach((b) => {
@@ -85,4 +90,32 @@ export function openSettings(m, ctx) {
     } catch (ex) { toast(ex.message, 'err'); }
     e.target.disabled = false;
   };
+}
+
+/** The delete button lives in the settings drawer (it used to sit on every card). */
+function wireDelete(d, m, ctx) {
+  d.el.querySelector('[data-del]').onclick = async () => {
+    const name = m.manifest?.name || m.id;
+    if (!await confirmModal('Delete module?', `'${name}' will be moved to data/trash and its settings removed. The endpoint /${m.manifest?.slug || m.id} goes away immediately.`)) return;
+    try {
+      await api(`/mcps/${m.id}`, { method: 'DELETE' });
+      toast('Module deleted (copy kept in data/trash)');
+      d.close();
+      ctx.refresh();
+    } catch (ex) { toast(ex.message, 'err'); }
+  };
+}
+
+/** Settings drawer for a module that failed to load: the error, and the way out. */
+function openBroken(m, ctx) {
+  const d = drawer({
+    title: `⚠️ ${m.id} — failed to load`,
+    body: `<div class="banner">${esc(m.error || 'Unknown load error')}</div>
+      <p class="desc">Fix the file in <b>‹/› Code</b> (the ✦ chat there can see the error and edit the module), or delete the module.</p>`,
+    foot: `<button class="btn" data-cancel>Close</button>
+           <button class="btn danger" data-del>🗑 Delete</button>
+           <div class="spacer"></div>`
+  });
+  d.el.querySelector('[data-cancel]').onclick = d.close;
+  wireDelete(d, m, ctx);
 }
