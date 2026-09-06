@@ -1,7 +1,7 @@
 services:
   mcp-station:
     build: .
-    image: mcp-station:2.0.0
+    image: mcp-station:2.1.0_alpha
     container_name: mcp-station
     restart: unless-stopped
     ports:
