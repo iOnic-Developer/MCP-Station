@@ -24,19 +24,9 @@ import * as assistant from './lib/assistant.js';
 import * as backup from './lib/backup.js';
 
 const app = express();
-// Deliberately NO `trust proxy` and NO x-powered-by suppression: the working SiYuan Companion
-// sets neither, and the mandate is a machine surface indistinguishable from it. (`trust proxy`
-// only fed rate-limit keys — and its absence silences the express-rate-limit ValidationError
-// spam; the Companion runs the same shared-bucket behaviour behind the same proxy.)
 app.use(express.json({ limit: '4mb' }));
 app.use(express.urlencoded({ extended: false }));
 
-/* ── Security headers for the admin UI only ──────────────────────────── */
-// The hand-rolled CORS layer for the OAuth/MCP surfaces is GONE on purpose. The Companion serves
-// zero CORS headers on /mcp and only the SDK's own cors() on /token, /register, /revoke and the
-// metadata routes — and it connects. Ours now does exactly the same: the SDK router carries its
-// own CORS; the MCP endpoints carry none. (v1.3.3 added this layer chasing the connector bug; it
-// was never the cause, and it was the last header-level difference from the working server.)
 app.use((req, res, next) => {
   const machine = req.path.startsWith('/.well-known/')
     || ['/register', '/token', '/revoke', '/authorize', '/oauth/approve'].includes(req.path)
@@ -49,19 +39,13 @@ app.use((req, res, next) => {
   next();
 });
 
-/* ── Health ──────────────────────────────────────────────────────────── */
 app.get('/healthz', (req, res) => {
   const mods = [...host.getModules().values()];
   res.json({ ok: true, version: cfg.version, modules: mods.filter((m) => !m.error).length, oauth: oauth.oauthEnabled() });
 });
 
-/* ── OAuth 2.1 ─────────────────────────────────────────────────────────
- * Discovery / DCR / authorize / token / revoke are served by the MCP SDK's own mcpAuthRouter (the
- * exact code the working SiYuan Companion runs), plus our per-slug protected-resource metadata and
- * /oauth/approve consent step — all wired in mountOAuth(). Only mounted when PUBLIC_URL is set. */
 if (oauth.oauthEnabled()) oauth.mountOAuth(app);
 
-/* ── Auth (admin UI) ─────────────────────────────────────────────────── */
 app.post('/api/login', (req, res) => {
   const ip = req.ip || 'unknown';
   if (!cfg.appPassword) return res.status(503).json({ error: 'APP_PASSWORD is not set on the server — set it and restart.' });
@@ -80,6 +64,7 @@ app.post('/api/logout', (req, res) => {
 });
 
 app.get('/api/me', (req, res) => {
+  const hasAssistantKey = Boolean(assistant.getApiKey());
   res.json({
     authed: Boolean(auth.readSession(req)),
     version: cfg.version,
@@ -87,13 +72,13 @@ app.get('/api/me', (req, res) => {
     oauth: oauth.oauthEnabled(),
     mcpTokenSet: Boolean(cfg.mcpToken),
     passwordSet: Boolean(cfg.appPassword),
-    hasAnthropicKey: Boolean(assistant.getApiKey()),
+    hasAssistantKey,
+    hasAnthropicKey: hasAssistantKey,
     provider: assistant.getProvider(),
     model: assistant.getModel()
   });
 });
 
-/* ── Admin API (session-gated) ───────────────────────────────────────── */
 const api = express.Router();
 app.use('/api', (req, res, next) => {
   if (['/login', '/logout', '/me'].includes(req.path)) return next();
@@ -118,9 +103,7 @@ function mcpListing(req) {
       enabled: Boolean(reg.enabled),
       configured: m.manifest ? host.isConfigured(m.id) : false,
       tokenSet: Boolean(reg.token),
-      // live OAuth connections that can reach this MCP (station-wide tokens count for every module)
       clients: m.manifest ? oauth.listConnections(m.manifest.slug).length : 0,
-      // last ▶ Test outcome, kept so the list can colour the button; cleared when settings change
       lastTest: reg.lastTest || null,
       settings,
       url: `${oauth.baseUrl(req)}/${m.manifest?.slug || m.id}/mcp`
@@ -136,9 +119,7 @@ api.post('/mcps', async (req, res) => {
     const created = host.createModule({ name, slug, description, icon });
     await host.loadModules();
     res.status(201).json({ ok: true, ...created });
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
+  } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
 api.patch('/mcps/:id', (req, res) => {
@@ -149,13 +130,11 @@ api.patch('/mcps/:id', (req, res) => {
     if (typeof req.body?.enabled === 'boolean') host.setEnabled(id, req.body.enabled);
     if (req.body?.settings && typeof req.body.settings === 'object') {
       host.saveSettings(id, req.body.settings);
-      st.mcps[id].lastTest = null; // a new configuration is untested until ▶ Test says otherwise
+      st.mcps[id].lastTest = null;
       save();
     }
     res.json({ ok: true });
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
+  } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
 api.delete('/mcps/:id', async (req, res) => {
@@ -163,9 +142,7 @@ api.delete('/mcps/:id', async (req, res) => {
     host.deleteModule(req.params.id);
     await host.loadModules();
     res.json({ ok: true });
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
+  } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
 api.post('/mcps/:id/test', async (req, res) => {
@@ -178,9 +155,7 @@ api.post('/mcps/:id/test', async (req, res) => {
     try {
       const out = await mod.test(host.getSettingsFor(mod.id), { fetchJson: host.fetchJson });
       result = { ok: out?.ok !== false, message: out?.message || 'Test passed' };
-    } catch (e) {
-      result = { ok: false, message: e.message };
-    }
+    } catch (e) { result = { ok: false, message: e.message }; }
   }
   const reg = getState().mcps[mod.id];
   if (reg) { reg.lastTest = { ok: result.ok, message: String(result.message).slice(0, 300), at: new Date().toISOString() }; save(); }
@@ -191,35 +166,26 @@ api.get('/mcps/:id/files', (req, res) => {
   try { res.json({ files: host.listModuleFiles(req.params.id) }); }
   catch (e) { res.status(400).json({ error: e.message }); }
 });
-
 api.get('/mcps/:id/file', (req, res) => {
   try { res.json({ path: req.query.path, content: host.readModuleFile(req.params.id, String(req.query.path || '')) }); }
   catch (e) { res.status(400).json({ error: e.message }); }
 });
-
 api.put('/mcps/:id/file', (req, res) => {
   try {
     host.writeModuleFile(req.params.id, String(req.body?.path || ''), String(req.body?.content ?? ''));
     res.json({ ok: true, note: 'Saved — hit Reload modules to apply.' });
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
+  } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-/* Claude skill (about.md + live tool introspection), two ways to install it:
- * a .zip claude.ai's Skills uploader accepts, or a public /f/<token> link to the raw SKILL.md. */
 api.get('/mcps/:id/skill', async (req, res) => {
   try {
     const { name, content } = await host.buildSkillMd(req.params.id);
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${name}-skill.zip"`);
     res.send(zipFiles([{ name: `${name}/SKILL.md`, data: content }]));
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
+  } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-// Regenerating overwrites the same path, so a link handed out earlier keeps serving the current skill.
 api.post('/mcps/:id/skill/share', async (req, res) => {
   try {
     const { name, content } = await host.buildSkillMd(req.params.id);
@@ -230,46 +196,32 @@ api.post('/mcps/:id/skill/share', async (req, res) => {
     const share = fileShares.createShare({ rootDir: root, absPath: abs, ttlMs: fileShares.parseTtl(req.body?.expires_in ?? '7d') });
     log('mcp', `Shared skill for '${req.params.id}' at /f/${share.token.slice(0, 8)}…`);
     res.json(share);
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
+  } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-/* A shareable .zip of the module (manifest + code + docs; no secrets, no chat). Drop the
- * extracted folder into any other station's mcps/ and it runs. This is how modules travel. */
 api.get('/mcps/:id/export-module', (req, res) => {
   try {
     const { name, entries } = host.exportModuleZip(req.params.id);
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${name}-module.zip"`);
     res.send(zipFiles(entries));
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
+  } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-/* What this MCP can do — introspected by running it, not by reading its source */
 api.get('/mcps/:id/capabilities', async (req, res) => {
   try { res.json(await host.describeModule(req.params.id)); }
   catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-/* Per-MCP access: its own bearer token + the live OAuth connections that can reach it */
 api.post('/mcps/:id/token', (req, res) => {
   try {
     const token = host.setModuleToken(req.params.id, randomToken(32));
-    res.json({ ok: true, token }); // shown once — only the encrypted copy is kept
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
+    res.json({ ok: true, token });
+  } catch (e) { res.status(400).json({ error: e.message }); }
 });
 api.delete('/mcps/:id/token', (req, res) => {
-  try {
-    host.setModuleToken(req.params.id, '');
-    res.json({ ok: true });
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
+  try { host.setModuleToken(req.params.id, ''); res.json({ ok: true }); }
+  catch (e) { res.status(400).json({ error: e.message }); }
 });
 api.get('/mcps/:id/connections', (req, res) => {
   const mod = host.getModuleById(req.params.id);
@@ -277,15 +229,10 @@ api.get('/mcps/:id/connections', (req, res) => {
   res.json({ connections: oauth.listConnections(mod.manifest.slug) });
 });
 api.delete('/connections/:handle', (req, res) => {
-  try {
-    oauth.revokeConnection(req.params.handle);
-    res.json({ ok: true });
-  } catch (e) {
-    res.status(404).json({ error: e.message });
-  }
+  try { oauth.revokeConnection(req.params.handle); res.json({ ok: true }); }
+  catch (e) { res.status(404).json({ error: e.message }); }
 });
 
-/* Per-MCP assistant chat — history lives in the module's own folder (.chat.json) */
 api.get('/mcps/:id/chat', (req, res) => {
   try { res.json({ messages: host.readModuleChat(req.params.id) }); }
   catch (e) { res.status(400).json({ error: e.message }); }
@@ -300,7 +247,6 @@ api.post('/reload', async (req, res) => {
   res.json({ ok: true, mcps: mcpListing(req) });
 });
 
-/* Assistant */
 api.get('/instructions', (req, res) => res.json({ instructions: getState().instructions }));
 api.put('/instructions', (req, res) => {
   const st = getState();
@@ -308,16 +254,16 @@ api.put('/instructions', (req, res) => {
   save();
   res.json({ ok: true });
 });
-/* Back to this version's seed — the stored brief is frozen at first boot, so an upgrade that
- * teaches the popup new tools (v1.8: file edits) never reaches an existing install otherwise. */
 api.post('/instructions/reset', (req, res) => res.json({ ok: true, instructions: assistant.resetInstructions() }));
 api.post('/assistant', assistant.handleChat);
 
-/* Global settings */
 api.get('/global', (req, res) => {
   const st = getState();
   res.json({
     provider: assistant.getProvider(),
+    openaiModel: st.global.openaiModel || cfg.openaiModel,
+    openaiApiKey: st.global.openaiApiKey ? '••••••' : '',
+    openaiEnvKeySet: Boolean(cfg.openaiApiKey),
     anthropicModel: st.global.anthropicModel || cfg.anthropicModel,
     anthropicApiKey: st.global.anthropicApiKey ? '••••••' : '',
     envKeySet: Boolean(cfg.anthropicApiKey),
@@ -329,7 +275,11 @@ api.get('/global', (req, res) => {
 api.put('/global', (req, res) => {
   const st = getState();
   const b = req.body || {};
-  if (b.provider === 'anthropic' || b.provider === 'gemini') st.global.provider = b.provider;
+  if (['openai', 'anthropic', 'gemini'].includes(b.provider)) st.global.provider = b.provider;
+  if (typeof b.openaiModel === 'string' && b.openaiModel.trim()) st.global.openaiModel = b.openaiModel.trim();
+  if (typeof b.openaiApiKey === 'string' && b.openaiApiKey !== '••••••') {
+    st.global.openaiApiKey = b.openaiApiKey ? encrypt(b.openaiApiKey.trim()) : '';
+  }
   if (typeof b.anthropicModel === 'string' && b.anthropicModel.trim()) st.global.anthropicModel = b.anthropicModel.trim();
   if (typeof b.anthropicApiKey === 'string' && b.anthropicApiKey !== '••••••') {
     st.global.anthropicApiKey = b.anthropicApiKey ? encrypt(b.anthropicApiKey.trim()) : '';
@@ -342,7 +292,6 @@ api.put('/global', (req, res) => {
   res.json({ ok: true });
 });
 
-/* Import / export / backup */
 api.get('/export', (req, res) => {
   const data = backup.exportConfig(req.query.secrets === '1');
   res.setHeader('Content-Disposition', `attachment; filename="mcp-station-export-${Date.now()}.json"`);
@@ -365,9 +314,7 @@ api.post('/restore', express.raw({ type: ['application/gzip', 'application/x-gzi
   try {
     if (req.body?.length > 100) return res.json(await backup.restoreBackup({ buffer: req.body }));
     return res.status(400).json({ error: 'Upload a .tar.gz backup as the request body' });
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
+  } catch (e) { res.status(400).json({ error: e.message }); }
 });
 api.post('/restore/:name', async (req, res) => {
   try { res.json(await backup.restoreBackup({ name: req.params.name })); }
@@ -376,11 +323,6 @@ api.post('/restore/:name', async (req, res) => {
 
 api.get('/logs', (req, res) => res.json({ logs: getLogs() }));
 
-/* ── Public file shares (unauthenticated by design) ──────────────────── */
-// GET /f/<token> streams ONE file a module explicitly shared. The token is the only credential;
-// it's unguessable (128-bit), can expire, and resolveShare re-checks the file is still inside the
-// recorded jail root. This is the one route on the station that intentionally bypasses auth —
-// registered before the static handler and the /:slug MCP catch-all so /f/ can never be a module.
 app.get('/f/:token', (req, res) => {
   const hit = fileShares.resolveShare(req.params.token);
   if (!hit) {
@@ -390,61 +332,38 @@ app.get('/f/:token', (req, res) => {
   res.setHeader('Content-Type', hit.contentType);
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Content-Disposition', `inline; filename="${hit.name.replace(/[^\w.\-]+/g, '_')}"`);
-  res.setHeader('Cache-Control', 'no-store'); // honour revocation immediately
+  res.setHeader('Cache-Control', 'no-store');
   fs.createReadStream(hit.abs)
     .on('error', () => { if (!res.headersSent) res.status(500).end(); })
     .pipe(res);
 });
 
-/* ── Static UI ───────────────────────────────────────────────────────── */
-// no-cache = "revalidate every load" (ETags still make that a cheap 304). The SPA's assets are
-// unversioned, so any max-age served a stale app.js/app.css for that long after every redeploy.
 app.use(express.static(path.join(ROOT, 'public'), {
   index: 'index.html',
   etag: true,
   setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache')
 }));
 
-/* ── Hosted MCP endpoints (must stay last) ───────────────────────────── */
-// Canonical endpoint: /<slug>/mcp — the path shape every MCP server out there (including the
-// working SiYuan Companion) terminates with, and the shape whose absence was the last
-// wire-visible difference from it. Bare /<slug> stays as an alias so existing tokens,
-// Claude Code CLI configs and old connector URLs keep working.
 app.all(['/:slug/mcp', '/:slug'], (req, res, next) => {
   if (!host.getModuleBySlug(req.params.slug)) return next();
-  // A CORS preflight carries no Authorization header by definition — gating it behind the bearer
-  // check answers a browser's OPTIONS with 401 and the real request never fires. Answer preflight
-  // directly (no CORS headers = still same-origin only, matching the rest of the MCP surface).
   if (req.method === 'OPTIONS') return res.status(204).end();
-  // Log EVERY MCP request and its outcome. A successful call used to log nothing, which left a
-  // blind spot exactly where connectors were failing: we could see a token issued and then silence,
-  // with no way to tell "the client never called" from "the call arrived and something ate it".
-  const auth = req.headers.authorization ? 'bearer' : 'NONE';
+  const authType = req.headers.authorization ? 'bearer' : 'NONE';
   const ua = String(req.headers['user-agent'] || '-').slice(0, 60);
   const method = req.method;
   const rpc = req.body?.method || '-';
   res.on('finish', () => {
-    log('mcp', `${method} ${req.path} → ${res.statusCode} (auth=${auth}, rpc=${rpc}, ua=${ua})`);
+    log('mcp', `${method} ${req.path} → ${res.statusCode} (auth=${authType}, rpc=${rpc}, ua=${ua})`);
   });
   oauth.bearerGate(req, res, () => host.handleMcpRequest(req, res));
 });
 
 app.use((req, res) => {
-  // Log the misses too — an authenticated call to a wrong/stale path used to vanish without a
-  // trace, which read as "claude.ai never called" when it actually called the wrong URL.
-  const auth = req.headers.authorization ? 'bearer' : 'NONE';
+  const authType = req.headers.authorization ? 'bearer' : 'NONE';
   const ua = String(req.headers['user-agent'] || '-').slice(0, 60);
-  log('mcp', `${req.method} ${req.path} → 404 no such path (auth=${auth}, ua=${ua})`);
+  log('mcp', `${req.method} ${req.path} → 404 no such path (auth=${authType}, ua=${ua})`);
   res.status(404).json({ error: `Nothing here. Hosted MCPs: ${[...host.getModules().keys()].map((s) => `/${s}/mcp`).join(', ') || '(none)'}` });
 });
 
-/* ── Error handler (must be last; 4 args) ────────────────────────────────
- * Every surface on this station answers JSON. Without this, a malformed request body makes
- * express.json()/urlencoded() throw and Express's DEFAULT handler answers with an HTML page —
- * one that leaks a full stack trace with absolute server paths whenever NODE_ENV isn't
- * 'production' (e.g. the README's `node server/index.js` quick-start). This normalises every
- * thrown error to a clean `{ error }` JSON body, maps the common body-parser failures to the
- * right status, and never exposes a stack. */
 app.use((err, req, res, next) => {
   if (res.headersSent) return next(err);
   const type = err?.type;
@@ -458,7 +377,6 @@ app.use((err, req, res, next) => {
   res.status(status).json({ error: message });
 });
 
-/* ── Boot ────────────────────────────────────────────────────────────── */
 async function main() {
   initKey();
   loadState();
@@ -468,8 +386,6 @@ async function main() {
   if (!cfg.appPassword) log('boot', '⚠ APP_PASSWORD is not set — the admin UI and OAuth approvals are locked out until you set it.');
   if (!cfg.publicUrl) log('boot', '⚠ PUBLIC_URL is not set — OAuth is off; claude.ai connectors will not work (MCP_TOKEN bearer still does).');
   if (cfg.mcpToken) log('boot', 'Static MCP_TOKEN bearer is enabled.');
-  // Surface OAuth-store durability: if this shows 0 clients/tokens right after you had a live
-  // connector, DATA_DIR is NOT on a persistent volume and every restart is wiping the connection.
   const oa = getState().oauth;
   const nClients = Object.keys(oa.clients || {}).length;
   const nTokens = Object.keys(oa.tokens || {}).length;
@@ -486,13 +402,6 @@ async function main() {
   });
 }
 
-/* PUBLIC_URL self-check — catches the #1 silent connector failure: PUBLIC_URL pointing at a host
- * that isn't actually this station (an auth wall like Cloudflare Access, the wrong subdomain, or a
- * proxy misroute). PUBLIC_URL is the OAuth issuer and the base of every URL claude.ai is told to
- * call, so if it doesn't land back here, discovery/token silently fail and claude.ai reports a
- * generic "authorization failed". We fetch our own advertised /healthz and say plainly whether it
- * reaches us. Never fatal — split-horizon DNS can legitimately block the loopback, so a connection
- * error is only a soft note, but a redirect is the smoking gun and gets flagged loudly. */
 async function verifyPublicUrl() {
   if (!cfg.publicUrl) return;
   const target = `${cfg.publicUrl}/healthz`;
@@ -502,8 +411,8 @@ async function verifyPublicUrl() {
     const r = await fetch(target, { redirect: 'manual', signal: ctrl.signal });
     if (r.status >= 300 && r.status < 400) {
       const loc = r.headers.get('location') || '';
-      let host = loc; try { host = new URL(loc).host; } catch { /* keep raw */ }
-      return log('boot', `⚠ PUBLIC_URL (${cfg.publicUrl}) REDIRECTS to ${host || loc} — claude.ai cannot reach the station through it. An auth wall (e.g. Cloudflare Access) or the wrong host fails every connector. Point PUBLIC_URL at the host that serves the station directly.`);
+      let hostName = loc; try { hostName = new URL(loc).host; } catch { /* keep raw */ }
+      return log('boot', `⚠ PUBLIC_URL (${cfg.publicUrl}) REDIRECTS to ${hostName || loc} — claude.ai cannot reach the station through it. Point PUBLIC_URL at the host that serves the station directly.`);
     }
     if (!r.ok) return log('boot', `⚠ PUBLIC_URL self-check: ${target} → HTTP ${r.status} (not 200). claude.ai's discovery will fail here — check the host/proxy.`);
     const j = await r.json().catch(() => null);
@@ -511,9 +420,7 @@ async function verifyPublicUrl() {
     log('boot', `⚠ PUBLIC_URL (${cfg.publicUrl}) answered 200 but not with this station's /healthz — it may point at a different service.`);
   } catch (e) {
     log('boot', `Note: couldn't self-verify PUBLIC_URL from inside the container (${e.name === 'AbortError' ? 'timeout' : e.message}). Often just split-horizon DNS — verify externally: curl ${target}`);
-  } finally {
-    clearTimeout(t);
-  }
+  } finally { clearTimeout(t); }
 }
 
 main().catch((e) => {
