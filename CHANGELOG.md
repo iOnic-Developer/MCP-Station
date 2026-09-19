@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased (2.1.0 alpha)
+
+**Image base moves from Alpine to Debian bookworm-slim and ships the Proton Pass CLI.**
+
+- `FROM node:22-bookworm-slim`; `bash`, `curl`, `jq`, `ca-certificates` installed via apt.
+- Proton Pass CLI (`pass-cli`) installed system-wide to `/usr/local/bin` from Proton's official
+  installer, verified at build time with `pass-cli --version`.
+- Healthcheck now uses `curl` (bookworm-slim has no `wget`). The backup engine is unchanged —
+  GNU tar+gzip in the base image accept the same `-czf`/`-xzf` flags busybox did.
+
 ## v1.8.0 — 2026-09-06
 
 **The ✦ assistant stops going quiet and edits modules itself; the dashboard becomes two columns of one-line rows.**
