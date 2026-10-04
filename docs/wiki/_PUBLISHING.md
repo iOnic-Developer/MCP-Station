@@ -1,28 +1,18 @@
 # Publishing these pages to the GitHub Wiki
 
-These Markdown files are written as GitHub Wiki pages (the internal links use bare page names like
-`[Use Cases](Use-Cases)`, which is how the wiki resolves them). To publish them:
+These Markdown files are the source of the GitHub Wiki. Internal links use bare page names like
+`[Use Cases](Use-Cases)`, which is how the wiki resolves them, so they don't work when browsing this
+folder on GitHub — read them on the wiki instead.
 
-## One-time: enable the wiki
+## How it publishes
 
-Repo → **Settings → Features → Wikis** (tick it), then create the first page in the web UI once (this
-initialises the wiki's git repo at `github.com/iOnic-Developer/MCP-Station.wiki.git`).
+`.github/workflows/wiki.yml` mirrors this folder into `MCP-Station.wiki.git` whenever a change to
+`docs/wiki/` lands on `main` (or when you run the workflow by hand from the Actions tab). Pages
+deleted here are deleted from the wiki. This file is excluded.
 
-## Push all pages at once
+- `_Sidebar.md` is the wiki's sidebar.
+- A page's file name is its URL: `Quick-Start.md` → `/wiki/Quick-Start`.
 
-```bash
-git clone https://github.com/iOnic-Developer/MCP-Station.wiki.git
-cd MCP-Station.wiki
-cp ../MCP-Station/docs/wiki/Home.md .
-cp ../MCP-Station/docs/wiki/Use-Cases.md .
-cp ../MCP-Station/docs/wiki/Quick-Start.md .
-cp ../MCP-Station/docs/wiki/Building-a-Module.md .
-cp ../MCP-Station/docs/wiki/Connecting-Claude.md .
-cp ../MCP-Station/docs/wiki/FAQ.md .
-cp ../MCP-Station/docs/wiki/Troubleshooting.md .
-git add -A && git commit -m "Wiki: initial pages" && git push
-```
+## Don't edit in the web UI
 
-`Home.md` becomes the wiki landing page automatically. (Don't copy this `_PUBLISHING.md` file.)
-
-They also render fine as-is inside the repo under `docs/wiki/`, so publishing to the wiki is optional.
+The next sync overwrites wiki-side edits. Change the files here and merge to `main`.

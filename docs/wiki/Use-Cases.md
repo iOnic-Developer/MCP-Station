@@ -52,6 +52,21 @@ a drop for generated reports and images.
 The `telegram` module lets Claude send and read messages through a bot — wire it into a workflow so a
 long job pings your phone when it's done, or ask Claude to message the family chat.
 
+## 🔀 Automations that outlive the chat
+
+The `n8n_mcp` module covers the whole n8n Public API (66 tools). Claude can build, run and fix n8n
+workflows — schedules, webhooks, retries — so anything a conversation can't do on its own becomes a
+workflow that keeps running after the chat ends.
+
+> "Every morning at 7, check the queue and send me a Telegram summary."
+
+## ⛽ Let Claude build the next MCP
+
+Connect the `station` module and Claude can manage the station itself — list and inspect modules,
+scaffold a new one, write its files, set its settings and reload it — all over MCP, from any client.
+
+> "Make me an MCP for the Open-Meteo API with current conditions and a 7-day forecast."
+
 ## 🪄 Anything with an API
 
 This is the real use case. A weather API, an RSS feed, your NAS, a smart-home hub, a POS system, a

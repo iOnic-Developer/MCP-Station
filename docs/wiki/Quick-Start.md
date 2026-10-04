@@ -8,7 +8,7 @@ The shortest path to a running station and your first claude.ai connector.
 # docker-compose.yml
 services:
   mcp-station:
-    image: dbzocchi/mcp-station:latest
+    image: dbzocchi/mcp-station:latest     # or :2.2.0_alpha for the newest features
     container_name: mcp-station
     restart: unless-stopped
     ports:
@@ -24,11 +24,11 @@ services:
 
 ```bash
 docker compose up -d
-curl http://localhost:8788/healthz    # → {"ok":true,"version":"…","modules":8,"oauth":true}
+curl http://localhost:8788/healthz    # → {"ok":true,"version":"…","modules":10,"oauth":true}
 ```
 
 Not exposing it yet? Leave `PUBLIC_URL` unset to run local-only (OAuth off; the `MCP_TOKEN` bearer
-still works). To expose a home box, a [Cloudflare Tunnel](../CLOUDFLARE.md) is the easiest route.
+still works). To expose a home box, a [Cloudflare Tunnel](https://github.com/iOnic-Developer/MCP-Station/blob/main/docs/CLOUDFLARE.md) is the easiest route.
 
 ## 2. Log in & configure
 
@@ -40,7 +40,8 @@ it reaches the real service.
 
 In claude.ai: **Settings → Connectors → Add custom connector** →
 `https://mcp.example.com/<module>/mcp` → a popup shows the station's consent page → enter your
-`APP_PASSWORD` → connected. The token is scoped to that one module and refreshes automatically.
+`APP_PASSWORD` → leave **Stay signed in for** on *Unlimited* (2.2.0+) → connected. The token is
+scoped to that one module.
 
 ## 4. (Optional) grab the skill
 
@@ -49,8 +50,9 @@ in claude.ai → Settings → Capabilities → Skills so Claude knows how to use
 
 ## 5. Add your own MCP
 
-➕ **Add MCP** → describe what you want or paste an API's docs → the ✦ assistant writes the module →
-Insert → toggle on. It's live at `/<your-slug>/mcp`.
+➕ **Add MCP** → describe what you want or paste an API's docs → the ✦ assistant reads the docs,
+writes the module straight onto the station and reloads it → ▶ Test → toggle on. It's live at
+`/<your-slug>/mcp`.
 
 That's it. See [Use Cases](Use-Cases) for ideas and [Building a Module](Building-a-Module) for the
 contract.

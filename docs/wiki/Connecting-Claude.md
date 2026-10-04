@@ -5,9 +5,17 @@ MCP Station speaks MCP over streamable HTTP, with three ways to authenticate.
 ## claude.ai (web / mobile / desktop) — OAuth, permanent
 
 **Settings → Connectors → Add custom connector** → `https://mcp.example.com/<module>/mcp`. A popup
-shows the station's consent page; enter your `APP_PASSWORD` and approve (or **Deny**). The token is
-scoped to that single module and refreshes automatically (1 h access token, rotating refresh) so the
-connector stays live indefinitely.
+shows the station's consent page; enter your `APP_PASSWORD`, choose **Stay signed in for**, and
+approve (or **Deny**). The token is scoped to that single module.
+
+| Stay signed in for | What happens |
+|---|---|
+| **Unlimited** (default) | The connection never lapses. It ends only when you revoke it in 🔑 Access. |
+| 1 day / 1 week / 1 month | The connection works for that long, then claude.ai asks you to sign in again. Refreshing doesn't extend it. |
+
+> On images before 2.2.0 the access token lasted one hour and the connector relied on claude.ai
+> refreshing it in time — the cause of connectors that "kept expiring". Connections made on an older
+> image become unlimited the next time they refresh on 2.2.0.
 
 - One connector per module URL. Add as many as you like.
 - Revoke any connection from the module's 🔑 **Access** panel.
@@ -21,7 +29,9 @@ claude mcp add --transport http siyuan https://mcp.example.com/siyuan/mcp \
 ```
 
 Use the station-wide `MCP_TOKEN` (opens every module) or a **per-module token** (from 🔑 Access —
-opens only that one), so a script gets one endpoint without the keys to the whole station.
+opens only that one), so a script gets one endpoint without the keys to the whole station. When you
+generate a per-module token you pick its lifetime the same way (Unlimited by default); an expired
+token stops working and the Access panel says so.
 
 ## Any other MCP client
 

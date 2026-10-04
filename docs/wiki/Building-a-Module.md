@@ -72,6 +72,14 @@ export async function test(settings, { fetchJson }) {
 
 ## The easy way
 
-Open ➕ **Add MCP** (or any module's ✦ **Chat**) and describe what you want, or paste the API's docs
-/ an OpenAPI spec / example `curl` calls. The assistant knows this contract and writes the whole
-module into the editor. Insert, toggle on, done. Then 📦 **Export** it to share.
+Open ➕ **Add MCP** and describe what you want, or paste the API's docs URL / an OpenAPI spec /
+example `curl` calls. The ✦ assistant knows this contract: it reads the docs page by page, lists every
+endpoint, writes `manifest.json` + `index.js` **straight onto the station** with its file tools and
+hot-reloads the module, fixing its own load errors. Hit ▶ Test, toggle it on, done.
+
+To change a module later, open its **‹/› Code** drawer — the chat there is pinned to that module and
+edits its files in place (exact find/replace), so even a very large module is a quick change. Then
+📦 **Export** it to share.
+
+You can also build modules from Claude itself: connect the bundled ⛽ **MCP Station** module
+(`/station/mcp`) and Claude gets tools to create, write, configure and reload modules over MCP.

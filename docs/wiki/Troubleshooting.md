@@ -6,9 +6,11 @@ Most connector problems are one of a handful of things. Work top-down.
 
 | Symptom | Cause → fix |
 |---|---|
-| Password page works, then "Couldn't connect" / auth failed; log ends at `token ISSUED` | **Cloudflare AI-bot blocking** eating `Claude-User` requests at the edge. See [Cloudflare](../CLOUDFLARE.md). The #1 cause behind a proxy. |
+| Password page works, then "Couldn't connect" / auth failed; log ends at `token ISSUED` | **Cloudflare AI-bot blocking** eating `Claude-User` requests at the edge. See [Cloudflare](https://github.com/iOnic-Developer/MCP-Station/blob/main/docs/CLOUDFLARE.md). The #1 cause behind a proxy. |
 | "Authorization with the MCP server failed" immediately | Hostname in the connector URL ≠ `PUBLIC_URL`, or a stale authorize page (>5 min). Fix `PUBLIC_URL`, restart, retry fresh. |
-| "Couldn't register with the sign-in service" | Hostname doesn't resolve (DNS caching after a rename), or `/register` rate-limited (20/h — restart resets it). |
+| "Couldn't register with the sign-in service" | Hostname doesn't resolve (DNS caching after a rename), or `/register` rate-limited (200/h — restart resets it). |
+| Connector keeps asking you to sign in again | It was approved with a 1 day / 1 week / 1 month lifetime, or it's on a pre-2.2 image (1-hour tokens). Run `2.2.0_alpha` or later and reconnect with **Unlimited**. |
+| Per-module token suddenly returns 401 | It was generated with an expiry that has passed — 🔑 Access shows "expired". Rotate it. |
 | Connectors die every redeploy | `/data` isn't a persistent volume — boot log says `0 client(s)`. Mount it. |
 | Tool calls error "not configured" | Module settings are blank — fill them in the UI (not env vars). |
 | Connect flow 404s before the password page | Wrong module slug in the URL — the 404 body lists the hosted MCPs. |
@@ -35,4 +37,4 @@ Most connector problems are one of a handful of things. Work top-down.
 
 Open an issue with the relevant **Logs panel** lines, your deployment shape (Docker / Unraid /
 TrueNAS, behind Cloudflare or not), and what `claude-flow-sim.mjs` reports. Security-sensitive?
-[SECURITY.md](../../SECURITY.md).
+[SECURITY.md](https://github.com/iOnic-Developer/MCP-Station/blob/main/SECURITY.md).

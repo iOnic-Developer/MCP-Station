@@ -39,6 +39,25 @@ https://mcp.example.com/<anything>/mcp    → whatever you build next    🪄
 
 ---
 
+## What's new in 2.x (alpha)
+
+The `2.2.0_alpha` image (branch `alpha/2.2.0`) is where new work lands before it becomes `latest`:
+
+- **Sign-ins that don't expire.** The claude.ai consent page now asks *Stay signed in for* — 1 day,
+  1 week, 1 month or **Unlimited** (the default). The access token lives for the whole period you
+  pick instead of one hour, so connectors stop dropping out when a client misses a refresh.
+  Per-module tokens get the same picker. Existing connections become unlimited at their next refresh.
+- **OpenAI as the ✦ assistant's default provider** — GPT-6 Astra through the Responses API, with
+  Claude and Gemini still one setting away.
+- **Debian base image with the Proton Pass CLI** — `node:22-bookworm-slim`, with `pass-cli`, `bash`,
+  `curl` and `jq` on the path for modules and scripts that need them.
+- **Dashboard filters** and tidier action rows; the assistant no longer stops after a fixed number of
+  tool rounds.
+
+See **[Versions & image tags](#versions--image-tags)** for which tag to run.
+
+---
+
 ## The big idea: give Claude access to *your* world
 
 Every SaaS, home-lab service and internal API has a REST endpoint. Very few ship an MCP — and the
@@ -115,7 +134,7 @@ isn't set up in Sonarr yet.
 
 ## 🪄 AI-generated MCPs — the assistant writes the module for you
 
-You don't have to write modules by hand. The built-in **✦ assistant** (Claude or Gemini) lives in
+You don't have to write modules by hand. The built-in **✦ assistant** (OpenAI, Claude or Gemini) lives in
 the station UI, knows the exact module contract, and sees the station's live context — so you can
 describe what you want and point it at whatever you have (a docs URL, an OpenAPI spec, example
 `curl` calls, an existing script). It reads the documentation page by page, lists every endpoint,
@@ -145,7 +164,8 @@ local tooling. **If it speaks HTTP, it can be an MCP.**
   Copy `_template`, or let the assistant write one.
 - **OAuth 2.1 built in** — claude.ai (web, mobile, desktop) connects by URL alone: discovery, dynamic
   client registration, PKCE S256, rotating refresh tokens, and a password-gated consent page with an
-  explicit **Deny**.
+  explicit **Deny** — and *you* choose how long a sign-in lasts (1 day / 1 week / 1 month /
+  **Unlimited**, the default).
 - **Three auth lanes** — a station-wide `MCP_TOKEN` (master), per-module tokens (hand out one
   endpoint), and per-MCP-scoped OAuth (a token for `/siyuan` is refused at `/gemini_mcp`).
 - **Encrypted secrets** — module settings are AES-256-GCM at rest, masked in the UI, never echoed back.
@@ -185,6 +205,8 @@ want and build what's missing:
 |---|---|---|---|
 | 📁 Files | `files` | 10 | Jailed file storage for Claude — read/write/move files, save images from base64, mint public share links |
 | ✨ Gemini | `gemini_mcp` | 6 | Google Gemini — text, chat, embeddings, native image generation (Nano Banana 2) |
+| ⛽ MCP Station | `station` | 12 | The station managing itself — list, inspect, create, edit, configure and reload modules over MCP, so Claude can build MCPs for you |
+| 🔀 n8n | `n8n_mcp` | 66 | The whole n8n Public API — workflows, executions, credentials, tags, variables, users, projects, folders, data tables and more |
 | ⚙️ OpenProject | `openproject_mcp` | 14 | Work packages (incl. parent nesting), projects & sub-projects, users, statuses, types |
 | 🎬 Radarr | `radarr_mcp` | 9 | Movie library — search & add (availability-aware), queue with warnings, disk space, command triggers |
 | 📓 SiYuan | `siyuan` | 19 | SiYuan knowledge base — read, search, create, edit, move and audit docs |
@@ -200,10 +222,25 @@ want and build what's missing:
 |---|---|
 | **Live capabilities inspector** — what a client actually sees, read from the running module | **Per-module access** — its own token + the OAuth connections that can reach it |
 | <img src="docs/assets/screenshots/tools-inspector.png" width="420"> | <img src="docs/assets/screenshots/access.png" width="420"> |
-| **Encrypted per-module settings** — secrets masked, AES-256-GCM at rest | **claude.ai consent** — one password, per-MCP scope, explicit Deny |
+| **Encrypted per-module settings** — secrets masked, AES-256-GCM at rest | **claude.ai consent** — one password, per-MCP scope, a sign-in lifetime (Unlimited by default), explicit Deny |
 | <img src="docs/assets/screenshots/settings.png" width="420"> | <img src="docs/assets/screenshots/oauth-consent.png" width="420"> |
 
 ---
+
+## Versions & image tags
+
+Images are published to Docker Hub as **[`dbzocchi/mcp-station`](https://hub.docker.com/r/dbzocchi/mcp-station)**
+for `linux/amd64` and `linux/arm64`.
+
+| Tag | What it is | Branch |
+|---|---|---|
+| `latest` | Stable release (currently v1.8.0) | `main` |
+| `2.2.0_alpha` | Newest features, rebuilt on every push — see *What's new in 2.x* | `alpha/2.2.0` |
+| `2.2.0_alpha-<sha>` | A specific alpha build, pinned to one commit | `alpha/2.2.0` |
+| `1.x.y`, `2.0.0`, `2.1.0_alpha` | Older releases, kept for rollback | — |
+
+Alpha tags never move `latest`. To try the alpha, swap the image line below for
+`dbzocchi/mcp-station:2.2.0_alpha` — `/data` and `/app/mcps` carry over unchanged.
 
 ## Quick start (Docker Compose)
 
@@ -227,7 +264,7 @@ services:
 
 ```bash
 docker compose up -d
-curl http://localhost:8788/healthz   # → {"ok":true,"version":"…","modules":8,"oauth":true}
+curl http://localhost:8788/healthz   # → {"ok":true,"version":"…","modules":10,"oauth":true}
 ```
 
 Open `http://host:8788`, log in with `APP_PASSWORD`, configure each module's settings (e.g. the
@@ -251,8 +288,9 @@ SiYuan module needs your SiYuan URL + API token — **settings live in the UI, n
 
 **claude.ai (web / mobile / desktop) — permanent, OAuth:**
 Settings → Connectors → **Add custom connector** → `https://mcp.example.com/<module>/mcp` → a popup
-shows the station's consent page → enter `APP_PASSWORD` → connected. Tokens are scoped to that one
-module and refresh automatically (1 h access, rotating refresh).
+shows the station's consent page → enter `APP_PASSWORD`, pick how long to stay signed in
+(**Unlimited** by default; 1 day / 1 week / 1 month if you want it to lapse) → connected. Tokens are
+scoped to that one module; revoke any connection from the module's 🔑 Access panel.
 
 **Claude Code CLI — static token:**
 
@@ -320,10 +358,14 @@ Docker tab → **Add Container**:
 | `COOKIE_SECURE` | — | `1` when served over HTTPS |
 | `SESSION_SECRET` | — | leave **unset** (a key is generated and persisted in `/data`). If you set it, pick the final value **before** configuring modules — changing it later makes encrypted settings unreadable |
 | `FILES_DIR` | — | container path the 📁 Files module is jailed to (default `/files`); the module's `root_dir` UI setting overrides it. Map a host folder to this path |
-| `ASSISTANT_PROVIDER` | — | `anthropic` or `gemini` (the ✦ assistant popup) |
+| `ASSISTANT_PROVIDER` | — | `openai` (default on 2.x), `anthropic` or `gemini` — the ✦ assistant popup; the UI toggle overrides it |
+| `OPENAI_API_KEY` / `OPENAI_MODEL` | — | assistant on OpenAI (default model `gpt-6-astra`) |
 | `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | — | assistant on Claude |
 | `GEMINI_API_KEY` / `GEMINI_MODEL` | — | assistant on Gemini |
-| `ANTHROPIC_BASE_URL` / `GEMINI_BASE_URL` | — | API origin overrides — route the assistant through a gateway such as OmniRoute or LiteLLM |
+| `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL` / `GEMINI_BASE_URL` | — | API origin overrides — route the assistant through a gateway such as OmniRoute or LiteLLM |
+
+> Assistant keys can also be saved (encrypted) in **⚙ Station** settings instead of env vars; an env
+> var wins when both are set.
 
 > Module settings such as a SiYuan URL/token are **not** env vars — set them in the station UI per
 > module. They're stored encrypted in `/data` and mirrored into the module folder.
@@ -413,7 +455,8 @@ Each module card shows 🧰 **Tools** (live capabilities inspection — what a c
 |---|---|
 | Password page works, then "Couldn't connect" / auth failed; log ends at `token ISSUED` | Cloudflare blocking `Claude-User` — see the Cloudflare section / doc |
 | "Authorization with the MCP server failed" immediately | Hostname in the connector URL ≠ `PUBLIC_URL`, or a stale authorize page (>5 min old) — fix `PUBLIC_URL`/restart, retry fresh |
-| "Couldn't register with the sign-in service" | Hostname doesn't resolve (DNS caching after a rename), or `/register` rate-limited after many attempts (20/h — restarting the container resets it) |
+| "Couldn't register with the sign-in service" | Hostname doesn't resolve (DNS caching after a rename), or `/register` rate-limited after very many attempts (200/h — restarting the container resets it) |
+| Connector keeps asking you to sign in again | It was approved with a 1 day / 1 week / 1 month lifetime, or on a pre-2.2 image (1-hour tokens that depended on the client refreshing). Reconnect on `2.2.0_alpha` and leave *Stay signed in for* on **Unlimited** |
 | Connectors die whenever you redeploy | `/data` isn't on a persistent volume — boot log says `0 client(s)` |
 | Connector connects but every tool call errors "not configured" | Module settings are blank — set them in the station UI (not env vars) |
 | Connect flow 404s before the password page | Wrong module slug in the URL — the 404 body lists the hosted MCPs, and unknown slugs are refused at discovery on purpose |
@@ -450,7 +493,9 @@ npm install
 APP_PASSWORD=test PUBLIC_URL=http://localhost:8788 node server/index.js
 
 npm test                 # full smoke suite (auth, PKCE round-trip, MCP handshake, lifecycle)
-npm run test:oauth       # OAuth 2.1 conformance + abuse suite
+npm run test:openai      # ✦ assistant on the OpenAI Responses API, against a mock
+npm run test:ui          # dashboard JavaScript syntax checks
+npm run test:oauth       # OAuth 2.1 conformance + abuse suite, incl. sign-in lifetimes
 npm run test:scoping     # per-MCP token / OAuth scoping
 npm run test:selfcontained  # delete-a-module-and-restore drill
 ```

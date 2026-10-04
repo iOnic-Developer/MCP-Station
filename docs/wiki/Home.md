@@ -7,6 +7,9 @@ is the deeper reference.
 
 ## Pages
 
+- **[Versions & Images](Versions-and-Images)** — which Docker tag to run, what's in 2.2.0 alpha, upgrading.
+- **[Configuration](Configuration)** — every environment variable, volumes, and the ✦ assistant providers.
+- **[Bundled Modules](Bundled-Modules)** — the eleven modules that ship in the box.
 - **[Use Cases & Recipes](Use-Cases)** — what people actually do with it, with concrete examples.
 - **[Quick Start](Quick-Start)** — the shortest path to a running station + first connector.
 - **[Building a Module](Building-a-Module)** — the module contract, by hand or via the ✦ assistant.
