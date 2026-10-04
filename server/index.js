@@ -22,6 +22,7 @@ import * as oauth from './lib/oauth.js';
 import * as host from './lib/mcpHost.js';
 import * as assistant from './lib/assistant.js';
 import * as backup from './lib/backup.js';
+import { expiryFromChoice } from './lib/expiry.js';
 
 const app = express();
 app.use(express.json({ limit: '4mb' }));
@@ -103,6 +104,7 @@ function mcpListing(req) {
       enabled: Boolean(reg.enabled),
       configured: m.manifest ? host.isConfigured(m.id) : false,
       tokenSet: Boolean(reg.token),
+      tokenExpiresAt: reg.token ? reg.tokenExpiresAt || null : null, // null = unlimited
       clients: m.manifest ? oauth.listConnections(m.manifest.slug).length : 0,
       lastTest: reg.lastTest || null,
       settings,
@@ -215,8 +217,9 @@ api.get('/mcps/:id/capabilities', async (req, res) => {
 
 api.post('/mcps/:id/token', (req, res) => {
   try {
-    const token = host.setModuleToken(req.params.id, randomToken(32));
-    res.json({ ok: true, token });
+    const expiresAt = expiryFromChoice(req.body?.expiry);
+    const token = host.setModuleToken(req.params.id, randomToken(32), expiresAt);
+    res.json({ ok: true, token, expiresAt });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 api.delete('/mcps/:id/token', (req, res) => {

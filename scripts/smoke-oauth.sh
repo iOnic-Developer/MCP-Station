@@ -130,6 +130,24 @@ AT2=$(echo "$R" | jq1 .access_token); RT2=$(echo "$R" | jq1 .refresh_token)
 R=$(curl -s -X POST "$B/token" -d "grant_type=refresh_token" -d "refresh_token=$RT" -d "client_id=$CID")
 has "$R" 'invalid_grant' && ok "the OLD refresh token is dead (no reuse)" || bad "REFRESH REUSE ACCEPTED" "$R"
 
+echo "── grant lifetime (consent page picker; Unlimited is the default) ──"
+P=$(curl -s "$B/authorize?client_id=$CID&redirect_uri=$RU&response_type=code&code_challenge=$CHAL&code_challenge_method=S256&state=st8&scope=mcp")
+has "$P" '<option value="never" selected>Unlimited' && has "$P" 'value="1d"' && has "$P" 'value="1w"' && has "$P" 'value="1m"' && ok "consent page offers 1 day / 1 week / 1 month / Unlimited, Unlimited preselected" || bad "expiry picker missing" ""
+R=$(curl -s -X POST "$B/token" -d "grant_type=authorization_code" -d "code=$(mint "$CID")" -d "client_id=$CID" -d "code_verifier=$VER")
+E=$(echo "$R" | jq1 .expires_in); [ "${E:-0}" -gt 300000000 ] && ok "no choice sent → unlimited (expires_in ${E}s, no hourly expiry)" || bad "default grant must be unlimited" "$R"
+R=$(curl -s -X POST "$B/token" -d "grant_type=authorization_code" -d "code=$(mint "$CID" -d expiry=1d)" -d "client_id=$CID" -d "code_verifier=$VER")
+E=$(echo "$R" | jq1 .expires_in); RT1D=$(echo "$R" | jq1 .refresh_token)
+[ "${E:-0}" -gt 86000 ] && [ "${E:-0}" -le 86400 ] && ok "1 day → expires_in ${E}s" || bad "1-day grant lifetime" "$R"
+R=$(curl -s -X POST "$B/token" -d "grant_type=refresh_token" -d "refresh_token=$RT1D" -d "client_id=$CID")
+E=$(echo "$R" | jq1 .expires_in); [ "${E:-0}" -gt 0 ] && [ "${E:-0}" -le 86400 ] && ok "refresh never extends a 1-day grant (${E}s left)" || bad "refresh extended a limited grant" "$R"
+R=$(curl -s -X POST "$B/token" -d "grant_type=authorization_code" -d "code=$(mint "$CID" -d expiry=1m)" -d "client_id=$CID" -d "code_verifier=$VER")
+E=$(echo "$R" | jq1 .expires_in); [ "${E:-0}" -gt 2591000 ] && [ "${E:-0}" -le 2592000 ] && ok "1 month → expires_in ${E}s" || bad "1-month grant lifetime" "$R"
+R=$(api -X POST "$B/api/mcps/gemini/token" -d '{"expiry":"1w"}'); X=$(echo "$R" | jq1 .expiresAt); NOW=$(date +%s000)
+[ -n "$X" ] && [ $((X - NOW)) -gt 604000000 ] && [ $((X - NOW)) -le 604801000 ] && ok "module token: 1 week expiry stored" || bad "module token expiry" "$R"
+R=$(api -X POST "$B/api/mcps/gemini/token" -d '{}'); T=$(echo "$R" | jq1 .token); X=$(echo "$R" | jq1 .expiresAt)
+[ -n "$T" ] && [ -z "$X" ] && [ "$(mcp gemini_mcp "$T")" = 200 ] && ok "module token: no choice → unlimited, and it opens the MCP" || bad "module token default" "$R"
+api -X DELETE "$B/api/mcps/gemini/token" > /dev/null
+
 echo "── MCP endpoint ──"
 [ "$(mcp gemini_mcp "$AT2")" = 200 ] && ok "fresh access token opens the MCP" || bad "token should open the MCP" "$(mcp gemini_mcp "$AT2")"
 [ "$(mcp gemini_mcp not-a-token)" = 401 ] && ok "garbage bearer → 401" || bad "garbage bearer" "$(mcp gemini_mcp not-a-token)"

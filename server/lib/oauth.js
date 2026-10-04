@@ -20,9 +20,15 @@ import { sha256b64url, timingEqual } from './crypto.js';
 import { verifyPassword, checkRate, noteFail } from './auth.js';
 import { getModuleBySlug, getModuleToken } from './mcpHost.js';
 import { log } from './log.js';
+import { EXPIRY_CHOICES, expiryFromChoice } from './expiry.js';
 
 const CODE_TTL_MS = 5 * 60 * 1000; // auth code + pending login live 5 min
-const ACCESS_TTL_S = 60 * 60;      // access token lives 1 hour; refresh keeps the connection permanent
+// An access token lives as long as the grant the user picked on the consent page (1 day / 1 week /
+// 1 month), or UNLIMITED_ACCESS_S for an unlimited grant. The old fixed 1-hour token leaned on the
+// client refreshing on time; whenever claude.ai didn't (or two refreshes raced on the rotated
+// refresh token) the connector died and had to be re-authorised. The SDK's bearer check requires
+// a numeric expiry, so "unlimited" is a 10-year horizon — revoking from 🔑 Access still ends it.
+const UNLIMITED_ACCESS_S = 10 * 365 * 24 * 60 * 60;
 const rand = (n = 32) => crypto.randomBytes(n).toString('hex'); // hex tokens, exactly like the Companion
 
 export function baseUrl(req) {
@@ -54,21 +60,26 @@ function sweepPending() {
 
 let provider = null;
 
-function issueTokens(clientId, scopes = [], resource) {
+/* grantExpiresAt: ms epoch the whole grant ends (chosen at consent), null = unlimited. It rides along
+ * every refresh rotation, so refreshing never extends a limited grant. Records issued before this
+ * field existed have none and are treated as unlimited. */
+function issueTokens(clientId, scopes = [], resource, grantExpiresAt = null) {
   const st = getState();
   const access = rand(32);
   const refresh = rand(32);
   const now = Date.now();
-  const expiresAt = Math.floor(now / 1000) + ACCESS_TTL_S; // SECONDS — requireBearerAuth compares to Date.now()/1000
+  const ttlS = grantExpiresAt ? Math.max(1, Math.floor((grantExpiresAt - now) / 1000)) : UNLIMITED_ACCESS_S;
+  const expiresAt = Math.floor(now / 1000) + ttlS; // SECONDS — requireBearerAuth compares to Date.now()/1000
   const slug = slugFromResource(resource) || '';
-  st.oauth.tokens[access] = { clientId, scopes, resource: resource || '', slug, createdAt: now, expiresAt };
-  st.oauth.refresh[refresh] = { clientId, scopes, resource: resource || '', slug, createdAt: now };
+  const grant = grantExpiresAt || null;
+  st.oauth.tokens[access] = { clientId, scopes, resource: resource || '', slug, createdAt: now, expiresAt, grantExpiresAt: grant };
+  st.oauth.refresh[refresh] = { clientId, scopes, resource: resource || '', slug, createdAt: now, grantExpiresAt: grant };
   persist(); // durable before we hand the token back
-  log('oauth', `/token ISSUED for client ${clientId} → ${slug ? `/${slug}` : 'ALL MCPs'}`);
+  log('oauth', `/token ISSUED for client ${clientId} → ${slug ? `/${slug}` : 'ALL MCPs'} · ${grant ? `expires ${new Date(grant).toISOString()}` : 'unlimited'}`);
   return {
     access_token: access,
     token_type: 'bearer',
-    expires_in: ACCESS_TTL_S,
+    expires_in: ttlS,
     scope: scopes.length ? scopes.join(' ') : undefined,
     refresh_token: refresh,
   };
@@ -141,7 +152,7 @@ export function mountOAuth(app) {
       if (!c || c.clientId !== client.client_id || c.exp < Date.now()) throw new InvalidGrantError('invalid or expired authorization code');
       if (redirectUri && redirectUri !== c.redirectUri) throw new InvalidGrantError('redirect_uri mismatch');
       delete st.oauth.codes[code]; // one-time use
-      return issueTokens(client.client_id, c.scopes, c.resource || (resource && resource.href));
+      return issueTokens(client.client_id, c.scopes, c.resource || (resource && resource.href), c.grantExpiresAt || null);
     },
 
     async exchangeRefreshToken(client, refreshToken, scopes, resource) {
@@ -149,7 +160,12 @@ export function mountOAuth(app) {
       const r = st.oauth.refresh[refreshToken];
       if (!r || r.clientId !== client.client_id) throw new InvalidGrantError('invalid refresh token');
       delete st.oauth.refresh[refreshToken]; // rotate
-      return issueTokens(client.client_id, scopes && scopes.length ? scopes : r.scopes, r.resource || (resource && resource.href));
+      if (r.grantExpiresAt && r.grantExpiresAt < Date.now()) {
+        persist();
+        log('oauth', `Refresh refused for client ${client.client_id}: the grant's chosen lifetime has ended`);
+        throw new InvalidGrantError('authorization expired — sign in again');
+      }
+      return issueTokens(client.client_id, scopes && scopes.length ? scopes : r.scopes, r.resource || (resource && resource.href), r.grantExpiresAt || null);
     },
 
     async verifyAccessToken(token) {
@@ -276,7 +292,7 @@ export function handleApprove(req, res) {
   if (!password || !verifyPassword(password)) {
     noteFail(ip);
     log('oauth', `Authorization refused for client ${p.clientId}: ${password ? 'wrong password' : 'no password'}`);
-    return res.status(401).send(loginPage(loginId, p.clientName, 'Wrong password.'));
+    return res.status(401).send(loginPage(loginId, p.clientName, 'Wrong password.', req.body.expiry));
   }
 
   pending.delete(loginId);
@@ -288,10 +304,11 @@ export function handleApprove(req, res) {
     redirectUri: p.redirectUri,
     resource: p.resource,
     scopes: p.scopes,
+    grantExpiresAt: expiryFromChoice(req.body.expiry),
     exp: Date.now() + CODE_TTL_MS,
   };
   persist(); // durable before the redirect — the code must survive a restart before the token exchange
-  log('oauth', `Authorization approved for client ${p.clientId}`);
+  log('oauth', `Authorization approved for client ${p.clientId} (expiry: ${EXPIRY_CHOICES.find((c) => c.value === req.body.expiry)?.label || 'Unlimited'})`);
   const u = new URL(p.redirectUri);
   u.searchParams.set('code', code);
   if (p.state) u.searchParams.set('state', p.state);
@@ -369,7 +386,7 @@ export function listConnections(slug) {
       clientId: t.clientId,
       allMcps: !t.slug,
       createdAt: t.createdAt,
-      expiresAt: t.expiresAt * 1000,
+      expiresAt: t.grantExpiresAt || null, // null = unlimited
       lastUsedAt: t.lastUsedAt || null,
     }))
     .sort((a, b) => b.createdAt - a.createdAt);
@@ -393,20 +410,22 @@ function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-function loginPage(loginId, clientName, error) {
+function loginPage(loginId, clientName, error, expiry = 'never') {
   const who = clientName ? `<p class="who"><b>${esc(clientName)}</b> wants to connect to your MCP servers.</p>` : '';
   const err = error ? `<p class="err">${esc(error)}</p>` : '';
   return `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MCP Station — Authorize</title>
 <style>body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:#0b0f14;color:#e6edf3;display:grid;place-items:center;min-height:100vh;margin:0}
 form{background:#111823;border:1px solid #1f2a37;padding:28px;border-radius:16px;width:min(92vw,340px);box-shadow:0 20px 60px rgba(0,0,0,.5)}
 h1{font-size:17px;margin:0 0 4px}.who{color:#8b98a9;font-size:13px;margin:0 0 16px;line-height:1.5}
-input{width:100%;box-sizing:border-box;padding:11px;border-radius:10px;border:1px solid #2a3846;background:#0b1420;color:#e6edf3;font-size:15px}
+input,select{width:100%;box-sizing:border-box;padding:11px;border-radius:10px;border:1px solid #2a3846;background:#0b1420;color:#e6edf3;font-size:15px}
 button{width:100%;margin-top:12px;padding:11px;border:0;border-radius:10px;background:#1f6feb;color:#fff;font-weight:600;font-size:15px;cursor:pointer}
 button.deny{background:transparent;color:#8b98a9;border:1px solid #2a3846;margin-top:8px}
-.err{color:#ff9ea3;font-size:13px;margin:10px 0 0}</style>
+.err{color:#ff9ea3;font-size:13px;margin:10px 0 0}label{display:block;color:#8b98a9;font-size:12px;margin:12px 0 6px}</style>
 <form method="post" action="/oauth/approve"><h1>⛽ MCP Station</h1>${who}
 <input type="hidden" name="login_id" value="${esc(loginId)}">
 <input type="password" name="password" placeholder="Station password" autofocus autocomplete="current-password">
+<label for="expiry">Stay signed in for</label>
+<select id="expiry" name="expiry">${EXPIRY_CHOICES.map((c) => `<option value="${c.value}"${c.value === expiry ? ' selected' : ''}>${c.label}</option>`).join('')}</select>
 <button type="submit">Authorise</button>
 <button type="submit" class="deny" name="deny" value="1" formnovalidate>Deny</button>${err}</form>`;
 }

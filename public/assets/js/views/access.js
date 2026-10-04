@@ -2,6 +2,12 @@ import { api } from '../api.js';
 import { esc, toast, modal, confirmModal } from '../ui.js';
 
 const when = (ms) => (ms ? new Date(ms).toLocaleString() : '—');
+const until = (ms) => (ms ? new Date(ms).toLocaleString() : 'never');
+// Mirrors server/lib/expiry.js — Unlimited is the default.
+const EXPIRY = [['never', 'Unlimited'], ['1d', '1 day'], ['1w', '1 week'], ['1m', '1 month']];
+const tokenRow = (expiresAt) => expiresAt && expiresAt < Date.now()
+  ? `<div class="list-row"><span class="grow">⚠ The token expired ${esc(when(expiresAt))} — generate a new one</span></div>`
+  : `<div class="list-row"><span class="grow">✅ A token is set (stored encrypted — it can't be shown again) · expires ${esc(until(expiresAt))}</span></div>`;
 
 /** 🔑 Access: this MCP's own bearer token + the live OAuth connectors that can reach it. */
 export async function openAccess(m, ctx) {
@@ -21,9 +27,10 @@ export async function openAccess(m, ctx) {
       <h4 style="margin:16px 0 8px">This MCP's own token</h4>
       <div class="help" style="margin-bottom:10px">A bearer that opens <b>only</b> /${esc(slug)} — hand it to a script or n8n without giving away the rest of the station. The station-wide <span class="mono">MCP_TOKEN</span> ${ctx.me.mcpTokenSet ? 'is set and still opens every MCP' : 'is not set'}.</div>
       <div id="tokBox">${m.tokenSet
-        ? `<div class="list-row"><span class="grow">✅ A token is set (stored encrypted — it can't be shown again)</span></div>`
+        ? tokenRow(m.tokenExpiresAt)
         : `<div class="list-row"><span class="grow dim">No token yet</span></div>`}</div>
       <div class="actions" style="margin-top:10px">
+        <select class="input" id="tokExpiry" style="width:auto" title="How long the new token stays valid">${EXPIRY.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
         <button class="btn sm" data-gen>${m.tokenSet ? '🔄 Rotate token' : '🔑 Generate token'}</button>
         ${m.tokenSet ? '<button class="btn sm danger" data-clear>Clear</button>' : ''}
       </div>
@@ -40,7 +47,7 @@ export async function openAccess(m, ctx) {
       <div class="list-row">
         <span class="grow">
           <b>${esc(c.clientName)}</b>${c.allMcps ? ' <span class="dim">· ⚠ scoped to ALL MCPs</span>' : ''}<br>
-          <span class="dim" style="font-size:11.5px">last used ${esc(when(c.lastUsedAt))} · expires ${esc(when(c.expiresAt))}</span>
+          <span class="dim" style="font-size:11.5px">last used ${esc(when(c.lastUsedAt))} · expires ${esc(until(c.expiresAt))}</span>
         </span>
         <button class="btn sm danger" data-revoke="${esc(c.handle)}">Revoke</button>
       </div>`).join('');
@@ -69,9 +76,10 @@ export async function openAccess(m, ctx) {
   dlg.querySelector('[data-gen]').onclick = async () => {
     if (m.tokenSet && !await confirmModal('Rotate the token?', 'The current token stops working immediately. Anything using it must be updated.')) return;
     try {
-      const { token } = await api(`/mcps/${m.id}/token`, { method: 'POST' });
+      const expiry = dlg.querySelector('#tokExpiry').value;
+      const { token, expiresAt } = await api(`/mcps/${m.id}/token`, { method: 'POST', body: { expiry } });
       dlg.querySelector('#tokBox').innerHTML = `
-        <div class="field"><label>Copy it now — it is stored encrypted and will never be shown again</label>
+        <div class="field"><label>Copy it now — it is stored encrypted and will never be shown again · expires ${esc(until(expiresAt))}</label>
           <div class="endpoint"><span class="url mono" id="newTok">${esc(token)}</span>
             <button class="btn sm" data-copytok title="Copy">⧉</button></div>
           <div class="help">Claude Code: <span class="mono">claude mcp add --transport http ${esc(slug)} ${esc(m.url)} --header "Authorization: Bearer ${esc(token)}"</span></div>

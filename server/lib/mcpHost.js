@@ -70,7 +70,7 @@ export function mirrorConfig(id) {
   try {
     fs.writeFileSync(
       path.join(mod.dir, CONFIG_FILE),
-      JSON.stringify({ id, enabled: reg.enabled, settings: reg.settings || {}, token: reg.token || '', updatedAt: reg.updatedAt }, null, 2)
+      JSON.stringify({ id, enabled: reg.enabled, settings: reg.settings || {}, token: reg.token || '', tokenExpiresAt: reg.tokenExpiresAt || null, updatedAt: reg.updatedAt }, null, 2)
     );
   } catch (e) {
     log('mcp', `Could not mirror config for '${id}': ${e.message}`);
@@ -86,6 +86,7 @@ function adoptConfig(dir, id, hasError) {
       enabled: hasError ? false : c.enabled !== false,
       settings: c.settings && typeof c.settings === 'object' ? c.settings : {},
       token: typeof c.token === 'string' ? c.token : '',
+      tokenExpiresAt: typeof c.tokenExpiresAt === 'number' ? c.tokenExpiresAt : null,
       createdAt: new Date().toISOString(),
       adoptedAt: new Date().toISOString()
     };
@@ -94,17 +95,20 @@ function adoptConfig(dir, id, hasError) {
   }
 }
 
-/** This module's own static bearer ('' = none; the station-wide MCP_TOKEN still works). */
+/** This module's own static bearer ('' = none or past its expiry; the station-wide MCP_TOKEN still works). */
 export function getModuleToken(id) {
   const reg = getState().mcps[id];
-  return reg?.token ? decrypt(reg.token) : '';
+  if (!reg?.token) return '';
+  if (reg.tokenExpiresAt && reg.tokenExpiresAt < Date.now()) return '';
+  return decrypt(reg.token);
 }
 
-/** Set (or clear, with '') a module's own bearer token. Returns the plaintext once. */
-export function setModuleToken(id, plain) {
+/** Set (or clear, with '') a module's own bearer token; expiresAt ms epoch or null = unlimited. Returns the plaintext once. */
+export function setModuleToken(id, plain, expiresAt = null) {
   const st = getState();
   if (!st.mcps[id]) throw new Error(`Unknown MCP '${id}'`);
   st.mcps[id].token = plain ? encrypt(plain) : '';
+  st.mcps[id].tokenExpiresAt = plain && expiresAt ? expiresAt : null;
   st.mcps[id].updatedAt = new Date().toISOString();
   save();
   mirrorConfig(id);
