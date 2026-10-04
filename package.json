@@ -1,6 +1,6 @@
 {
   "name": "mcp-station",
-  "version": "2.1.0-alpha.0",
+  "version": "2.2.0-alpha.0",
   "description": "Self-hosted hub that serves, configures and builds MCP servers — each hosted at its own path, with OAuth 2.1, a built-in multi-provider assistant, and import/export/backup.",
   "type": "module",
   "main": "server/index.js",

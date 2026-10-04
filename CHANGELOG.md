@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (2.1.0 alpha)
+## Unreleased (2.2.0 alpha)
 
 **Image base moves from Alpine to Debian bookworm-slim and ships the Proton Pass CLI.**
 

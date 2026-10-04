@@ -1,8 +1,8 @@
-name: Build & push MCP Station 2.1.0 alpha
+name: Build & push MCP Station 2.2.0 alpha
 
 on:
   push:
-    branches: [alpha/2.1.0]
+    branches: [alpha/2.2.0]
   workflow_dispatch:
 
 jobs:
@@ -44,8 +44,8 @@ jobs:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/mcp-station
           flavor: latest=false
           tags: |
-            type=raw,value=2.1.0_alpha
-            type=sha,prefix=2.1.0_alpha-
+            type=raw,value=2.2.0_alpha
+            type=sha,prefix=2.2.0_alpha-
 
       - name: Build and push
         uses: docker/build-push-action@v6
