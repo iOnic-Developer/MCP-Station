@@ -10,6 +10,19 @@
 - Healthcheck now uses `curl` (bookworm-slim has no `wget`). The backup engine is unchanged —
   GNU tar+gzip in the base image accept the same `-czf`/`-xzf` flags busybox did.
 
+**Connections stop expiring: pick a lifetime when signing in or generating a token — Unlimited by default.**
+
+- The OAuth consent page has a *Stay signed in for* picker: 1 day / 1 week / 1 month / **Unlimited**
+  (preselected). The access token now lives as long as the chosen grant (Unlimited = a 10-year
+  horizon, the SDK needs a number) instead of 1 hour, so a connector no longer dies when the client
+  misses a refresh or two refreshes race on the rotated refresh token. Refreshing never extends a
+  limited grant; once it ends the client must sign in again. Connections made before this upgrade
+  carry no limit and become unlimited at their next refresh.
+- 🔑 Access → *Generate / Rotate token* has the same picker for the module's own bearer token
+  (default Unlimited); an expired token stops opening the MCP and the dialog says so.
+- 🔑 Access shows each connection's real end date ("expires never" for unlimited) rather than the
+  hourly access-token expiry.
+
 ## v1.8.0 — 2026-09-06
 
 **The ✦ assistant stops going quiet and edits modules itself; the dashboard becomes two columns of one-line rows.**
