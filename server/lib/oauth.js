@@ -29,6 +29,13 @@ const CODE_TTL_MS = 5 * 60 * 1000; // auth code + pending login live 5 min
 // refresh token) the connector died and had to be re-authorised. The SDK's bearer check requires
 // a numeric expiry, so "unlimited" is a 10-year horizon — revoking from 🔑 Access still ends it.
 const UNLIMITED_ACCESS_S = 10 * 365 * 24 * 60 * 60;
+// What we TELL the client (`expires_in`) is capped at a week, whatever the real lifetime. A client
+// that schedules its refresh with setTimeout overflows past 2^31-1 ms (~24.8 days) — a 10-year or
+// 1-month expires_in made it refresh IMMEDIATELY, every time, in a tight loop that drained the
+// station-wide /token rate limit ("You have exceeded the rate limit for token requests") and locked
+// every sign-in out. The token stays valid server-side for the whole grant, so a client that
+// refreshes late (or never) keeps working; one that refreshes on time costs one /token a week.
+const ADVERTISED_MAX_S = 7 * 24 * 60 * 60;
 const rand = (n = 32) => crypto.randomBytes(n).toString('hex'); // hex tokens, exactly like the Companion
 
 export function baseUrl(req) {
@@ -62,8 +69,10 @@ let provider = null;
 
 /* grantExpiresAt: ms epoch the whole grant ends (chosen at consent), null = unlimited. It rides along
  * every refresh rotation, so refreshing never extends a limited grant. Records issued before this
- * field existed have none and are treated as unlimited. */
-function issueTokens(clientId, scopes = [], resource, grantExpiresAt = null) {
+ * field existed have none and are treated as unlimited.
+ * grantId ties one sign-in's access + refresh tokens together across rotations: a refresh retires
+ * the access tokens it supersedes, so long-lived tokens don't pile up (one connection, one row). */
+function issueTokens(clientId, scopes = [], resource, grantExpiresAt = null, grantId = rand(8)) {
   const st = getState();
   const access = rand(32);
   const refresh = rand(32);
@@ -72,14 +81,14 @@ function issueTokens(clientId, scopes = [], resource, grantExpiresAt = null) {
   const expiresAt = Math.floor(now / 1000) + ttlS; // SECONDS — requireBearerAuth compares to Date.now()/1000
   const slug = slugFromResource(resource) || '';
   const grant = grantExpiresAt || null;
-  st.oauth.tokens[access] = { clientId, scopes, resource: resource || '', slug, createdAt: now, expiresAt, grantExpiresAt: grant };
-  st.oauth.refresh[refresh] = { clientId, scopes, resource: resource || '', slug, createdAt: now, grantExpiresAt: grant };
+  st.oauth.tokens[access] = { clientId, scopes, resource: resource || '', slug, createdAt: now, expiresAt, grantExpiresAt: grant, grantId };
+  st.oauth.refresh[refresh] = { clientId, scopes, resource: resource || '', slug, createdAt: now, grantExpiresAt: grant, grantId };
   persist(); // durable before we hand the token back
   log('oauth', `/token ISSUED for client ${clientId} → ${slug ? `/${slug}` : 'ALL MCPs'} · ${grant ? `expires ${new Date(grant).toISOString()}` : 'unlimited'}`);
   return {
     access_token: access,
     token_type: 'bearer',
-    expires_in: ttlS,
+    expires_in: Math.min(ttlS, ADVERTISED_MAX_S),
     scope: scopes.length ? scopes.join(' ') : undefined,
     refresh_token: refresh,
   };
@@ -102,6 +111,27 @@ export function mountOAuth(app) {
   if (migratedClients) {
     persist();
     log('oauth', `Removed client-secret expiry from ${migratedClients} existing OAuth client(s)`);
+  }
+
+  // Tokens minted by 2.2.0-alpha before grantId existed: one 10-year access token per refresh, so a
+  // client caught in the refresh loop left hundreds behind. Keep the newest per client+MCP only —
+  // that's the one the client holds; the rest were superseded by its own refreshes.
+  const tokens = getState().oauth.tokens || {};
+  const newest = new Map();
+  for (const [tok, t] of Object.entries(tokens)) {
+    if (t.grantId) continue;
+    const k = `${t.clientId}|${t.slug || ''}`;
+    const cur = newest.get(k);
+    if (!cur || (t.createdAt || 0) > (tokens[cur].createdAt || 0)) newest.set(k, tok);
+  }
+  const keep = new Set(newest.values());
+  let pruned = 0;
+  for (const [tok, t] of Object.entries(tokens)) {
+    if (!t.grantId && !keep.has(tok)) { delete tokens[tok]; pruned++; }
+  }
+  if (pruned) {
+    persist();
+    log('oauth', `Pruned ${pruned} superseded access token(s) left by earlier refreshes`);
   }
 
   provider = {
@@ -165,7 +195,12 @@ export function mountOAuth(app) {
         log('oauth', `Refresh refused for client ${client.client_id}: the grant's chosen lifetime has ended`);
         throw new InvalidGrantError('authorization expired — sign in again');
       }
-      return issueTokens(client.client_id, scopes && scopes.length ? scopes : r.scopes, r.resource || (resource && resource.href), r.grantExpiresAt || null);
+      // Retire the access tokens this refresh supersedes (same grant; legacy records: same client + MCP).
+      for (const [tok, t] of Object.entries(st.oauth.tokens)) {
+        const same = r.grantId ? t.grantId === r.grantId : (!t.grantId && t.clientId === r.clientId && (t.slug || '') === (r.slug || ''));
+        if (same) delete st.oauth.tokens[tok];
+      }
+      return issueTokens(client.client_id, scopes && scopes.length ? scopes : r.scopes, r.resource || (resource && resource.href), r.grantExpiresAt || null, r.grantId || rand(8));
     },
 
     async verifyAccessToken(token) {
@@ -253,10 +288,18 @@ export function mountOAuth(app) {
     //    bucket for the WHOLE station. claude.ai runs a fresh DCR per connection, so re-adding a
     //    station's worth of modules in one sitting hits the wall and every later add fails with
     //    a 429 the client never surfaces.
+    // The same one-bucket problem applies to every other SDK limiter, so they're raised too:
+    //  - /token defaults to 50 per 15 min — for the whole station. Every connector's refreshes and
+    //    every new sign-in share it; once a client looped on refresh it locked everyone out
+    //    ("You have exceeded the rate limit for token requests" from every location).
+    //  - /authorize 100 and /revoke 50 per 15 min, likewise station-wide.
     clientRegistrationOptions: {
       clientSecretExpirySeconds: 0,
       rateLimit: { windowMs: 60 * 60 * 1000, max: 200 },
     },
+    tokenOptions: { rateLimit: { windowMs: 15 * 60 * 1000, max: 1000 } },
+    authorizationOptions: { rateLimit: { windowMs: 15 * 60 * 1000, max: 500 } },
+    revocationOptions: { rateLimit: { windowMs: 15 * 60 * 1000, max: 500 } },
   }));
 
   return provider;

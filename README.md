@@ -456,6 +456,7 @@ Each module card shows 🧰 **Tools** (live capabilities inspection — what a c
 | Password page works, then "Couldn't connect" / auth failed; log ends at `token ISSUED` | Cloudflare blocking `Claude-User` — see the Cloudflare section / doc |
 | "Authorization with the MCP server failed" immediately | Hostname in the connector URL ≠ `PUBLIC_URL`, or a stale authorize page (>5 min old) — fix `PUBLIC_URL`/restart, retry fresh |
 | "Couldn't register with the sign-in service" | Hostname doesn't resolve (DNS caching after a rename), or `/register` rate-limited after very many attempts (200/h — restarting the container resets it) |
+| "You have exceeded the rate limit for token requests" / `too_many_requests` on every connect | Fixed in the current `2.2.0_alpha`: earlier 2.2.0 alpha builds made some clients refresh in a loop, and the SDK's `/token` limit (50 per 15 min) is shared by the whole station behind a proxy. Pull the latest image and restart — a restart also clears the limit |
 | Connector keeps asking you to sign in again | It was approved with a 1 day / 1 week / 1 month lifetime, or on a pre-2.2 image (1-hour tokens that depended on the client refreshing). Reconnect on `2.2.0_alpha` and leave *Stay signed in for* on **Unlimited** |
 | Connectors die whenever you redeploy | `/data` isn't on a persistent volume — boot log says `0 client(s)` |
 | Connector connects but every tool call errors "not configured" | Module settings are blank — set them in the station UI (not env vars) |

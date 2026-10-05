@@ -23,6 +23,18 @@
 - 🔑 Access shows each connection's real end date ("expires never" for unlimited) rather than the
   hourly access-token expiry.
 
+**Fix: "You have exceeded the rate limit for token requests" on every sign-in.**
+
+- The first cut advertised the real lifetime in `expires_in` (10 years for Unlimited, 30 days for
+  1 month). Clients that schedule their refresh with `setTimeout` overflow past 2³¹−1 ms (~24.8 days)
+  and fire at once, so they refreshed in a tight loop. `expires_in` is now capped at **7 days**; the
+  token itself stays valid for the whole grant, so a late refresh still costs nothing.
+- The SDK's `/token` limiter (50 per 15 min) — like `/register` before it — is one bucket for the
+  **whole station** behind a reverse proxy, so one looping client locked everyone out. Raised to
+  1000 per 15 min; `/authorize` and `/revoke` to 500.
+- A refresh now retires the access token it replaces (tokens carry a `grantId` across rotations),
+  and boot prunes the superseded long-lived tokens the loop left behind.
+
 ## v1.8.0 — 2026-09-06
 
 **The ✦ assistant stops going quiet and edits modules itself; the dashboard becomes two columns of one-line rows.**
