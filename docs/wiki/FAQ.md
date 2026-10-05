@@ -30,14 +30,14 @@ Almost always Cloudflare's AI-bot blocking eating `Claude-User` requests at the 
 [docs/CLOUDFLARE.md](https://github.com/iOnic-Developer/MCP-Station/blob/main/docs/CLOUDFLARE.md).
 
 **Why did my connectors keep expiring, and how do I stop it?**
-Before 2.2.0 the access token lasted an hour and the connection depended on claude.ai refreshing it
-on time. On 2.2.0+ the consent page asks how long to stay signed in, with **Unlimited** as the
+On 1.x the access token lasted an hour and the connection depended on claude.ai refreshing it on
+time. From 2.4.0 the consent page asks how long to stay signed in, with **Unlimited** as the
 default — pick that and the connection lasts until you revoke it. See
 [Connecting Claude](Connecting-Claude).
 
 **Which Docker tag should I run?**
-`latest` for the stable release, `2.2.0_alpha` for the newest features. Both use the same volumes, so
-you can switch back and forth. See [Versions & Images](Versions-and-Images).
+`latest` (currently v2.4.0), or `2.4.0` if you'd rather pin a version and upgrade on your own
+schedule. Older tags use the same volumes, so you can roll back. See [Versions & Images](Versions-and-Images).
 
 **Which AI powers the ✦ assistant?**
 Your choice: OpenAI (the 2.x default), Claude or Gemini — set a key in ⚙ Station or via env vars. See

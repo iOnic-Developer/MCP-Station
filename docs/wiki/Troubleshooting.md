@@ -9,7 +9,8 @@ Most connector problems are one of a handful of things. Work top-down.
 | Password page works, then "Couldn't connect" / auth failed; log ends at `token ISSUED` | **Cloudflare AI-bot blocking** eating `Claude-User` requests at the edge. See [Cloudflare](https://github.com/iOnic-Developer/MCP-Station/blob/main/docs/CLOUDFLARE.md). The #1 cause behind a proxy. |
 | "Authorization with the MCP server failed" immediately | Hostname in the connector URL ≠ `PUBLIC_URL`, or a stale authorize page (>5 min). Fix `PUBLIC_URL`, restart, retry fresh. |
 | "Couldn't register with the sign-in service" | Hostname doesn't resolve (DNS caching after a rename), or `/register` rate-limited (200/h — restart resets it). |
-| Connector keeps asking you to sign in again | It was approved with a 1 day / 1 week / 1 month lifetime, or it's on a pre-2.2 image (1-hour tokens). Run `2.2.0_alpha` or later and reconnect with **Unlimited**. |
+| Connector keeps asking you to sign in again | It was approved with a 1 day / 1 week / 1 month lifetime, or it's on a 1.x image (1-hour tokens). Update to `2.4.0` and reconnect with **Unlimited**. |
+| "You have exceeded the rate limit for token requests" (`too_many_requests`) on every connect | A `2.2.0_alpha` build: some clients refreshed in a loop and drained the station-wide `/token` limit. Update to `2.4.0` and restart (a restart also clears the limit). |
 | Per-module token suddenly returns 401 | It was generated with an expiry that has passed — 🔑 Access shows "expired". Rotate it. |
 | Connectors die every redeploy | `/data` isn't a persistent volume — boot log says `0 client(s)`. Mount it. |
 | Tool calls error "not configured" | Module settings are blank — fill them in the UI (not env vars). |

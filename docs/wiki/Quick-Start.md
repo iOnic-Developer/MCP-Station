@@ -8,7 +8,7 @@ The shortest path to a running station and your first claude.ai connector.
 # docker-compose.yml
 services:
   mcp-station:
-    image: dbzocchi/mcp-station:latest     # or :2.2.0_alpha for the newest features
+    image: dbzocchi/mcp-station:latest     # or pin :2.4.0
     container_name: mcp-station
     restart: unless-stopped
     ports:
@@ -40,7 +40,7 @@ it reaches the real service.
 
 In claude.ai: **Settings → Connectors → Add custom connector** →
 `https://mcp.example.com/<module>/mcp` → a popup shows the station's consent page → enter your
-`APP_PASSWORD` → leave **Stay signed in for** on *Unlimited* (2.2.0+) → connected. The token is
+`APP_PASSWORD` → leave **Stay signed in for** on *Unlimited* → connected. The token is
 scoped to that one module.
 
 ## 4. (Optional) grab the skill

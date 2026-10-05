@@ -39,9 +39,9 @@ https://mcp.example.com/<anything>/mcp    → whatever you build next    🪄
 
 ---
 
-## What's new in 2.x (alpha)
+## What's new in 2.4
 
-The `2.2.0_alpha` image (branch `alpha/2.2.0`) is where new work lands before it becomes `latest`:
+v2.4.0 is the first stable 2.x release (`latest`):
 
 - **Sign-ins that don't expire.** The claude.ai consent page now asks *Stay signed in for* — 1 day,
   1 week, 1 month or **Unlimited** (the default). The access token lives for the whole period you
@@ -234,13 +234,13 @@ for `linux/amd64` and `linux/arm64`.
 
 | Tag | What it is | Branch |
 |---|---|---|
-| `latest` | Stable release (currently v1.8.0) | `main` |
-| `2.2.0_alpha` | Newest features, rebuilt on every push — see *What's new in 2.x* | `alpha/2.2.0` |
-| `2.2.0_alpha-<sha>` | A specific alpha build, pinned to one commit | `alpha/2.2.0` |
-| `1.x.y`, `2.0.0`, `2.1.0_alpha` | Older releases, kept for rollback | — |
+| `latest` | Newest stable release (currently **v2.4.0**) | `main` |
+| `2.4.0` | v2.4.0, fixed — pin this if you don't want `latest` to move | tag `v2.4.0` |
+| `<sha>` | The build of one specific commit on `main` | `main` |
+| `1.x.y`, `2.0.0`, `2.1.0_alpha`, `2.2.0_alpha` | Earlier releases and alphas, kept for rollback | — |
 
-Alpha tags never move `latest`. To try the alpha, swap the image line below for
-`dbzocchi/mcp-station:2.2.0_alpha` — `/data` and `/app/mcps` carry over unchanged.
+Upgrading from 1.x: change the tag, pull, recreate the container. `/data` and `/app/mcps` carry over
+unchanged, and existing connections become unlimited the next time they refresh.
 
 ## Quick start (Docker Compose)
 
@@ -456,7 +456,8 @@ Each module card shows 🧰 **Tools** (live capabilities inspection — what a c
 | Password page works, then "Couldn't connect" / auth failed; log ends at `token ISSUED` | Cloudflare blocking `Claude-User` — see the Cloudflare section / doc |
 | "Authorization with the MCP server failed" immediately | Hostname in the connector URL ≠ `PUBLIC_URL`, or a stale authorize page (>5 min old) — fix `PUBLIC_URL`/restart, retry fresh |
 | "Couldn't register with the sign-in service" | Hostname doesn't resolve (DNS caching after a rename), or `/register` rate-limited after very many attempts (200/h — restarting the container resets it) |
-| Connector keeps asking you to sign in again | It was approved with a 1 day / 1 week / 1 month lifetime, or on a pre-2.2 image (1-hour tokens that depended on the client refreshing). Reconnect on `2.2.0_alpha` and leave *Stay signed in for* on **Unlimited** |
+| "You have exceeded the rate limit for token requests" / `too_many_requests` on every connect | Fixed in v2.4.0: `2.2.0_alpha` builds made some clients refresh in a loop, and the SDK's `/token` limit (50 per 15 min) is shared by the whole station behind a proxy. Update to `2.4.0` and restart — a restart also clears the limit |
+| Connector keeps asking you to sign in again | It was approved with a 1 day / 1 week / 1 month lifetime, or on a 1.x image (1-hour tokens that depended on the client refreshing). Reconnect on `2.4.0` and leave *Stay signed in for* on **Unlimited** |
 | Connectors die whenever you redeploy | `/data` isn't on a persistent volume — boot log says `0 client(s)` |
 | Connector connects but every tool call errors "not configured" | Module settings are blank — set them in the station UI (not env vars) |
 | Connect flow 404s before the password page | Wrong module slug in the URL — the 404 body lists the hosted MCPs, and unknown slugs are refused at discovery on purpose |

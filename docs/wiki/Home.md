@@ -7,7 +7,7 @@ is the deeper reference.
 
 ## Pages
 
-- **[Versions & Images](Versions-and-Images)** — which Docker tag to run, what's in 2.2.0 alpha, upgrading.
+- **[Versions & Images](Versions-and-Images)** — which Docker tag to run, what's new in 2.4.0, upgrading.
 - **[Configuration](Configuration)** — every environment variable, volumes, and the ✦ assistant providers.
 - **[Bundled Modules](Bundled-Modules)** — the eleven modules that ship in the box.
 - **[Use Cases & Recipes](Use-Cases)** — what people actually do with it, with concrete examples.

@@ -13,9 +13,9 @@ approve (or **Deny**). The token is scoped to that single module.
 | **Unlimited** (default) | The connection never lapses. It ends only when you revoke it in 🔑 Access. |
 | 1 day / 1 week / 1 month | The connection works for that long, then claude.ai asks you to sign in again. Refreshing doesn't extend it. |
 
-> On images before 2.2.0 the access token lasted one hour and the connector relied on claude.ai
-> refreshing it in time — the cause of connectors that "kept expiring". Connections made on an older
-> image become unlimited the next time they refresh on 2.2.0.
+> On 1.x images the access token lasted one hour and the connector relied on claude.ai refreshing it
+> in time — the cause of connectors that "kept expiring". Connections made on an older image become
+> unlimited the next time they refresh on 2.4.0.
 
 - One connector per module URL. Add as many as you like.
 - Revoke any connection from the module's 🔑 **Access** panel.

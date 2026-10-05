@@ -2,10 +2,7 @@
  * Import / export / backup.
  *  - Export: portable JSON of instructions + module registry (+ optional secrets).
  *  - Import: apply an export (settings matched by module id; masked '••••••' skipped).
- *  - Backup: tar.gz of DATA_DIR (minus backups/ and trash/) + the whole mcps/
- *    folder, kept server-side in DATA_DIR/backups and downloadable. Restore
- *    accepts an uploaded archive or a server-side name, extracts to staging,
- *    then swaps in and reloads.
+ *  - Backup: tar.gz of DATA_DIR (minus backups/ and trash/) + the whole mcps/ folder.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -30,7 +27,6 @@ function run(cmd, args) {
   });
 }
 
-/* ── Config export / import ──────────────────────────────────────────── */
 export function exportConfig(includeSecrets = false) {
   const st = getState();
   const mods = [...getModules().values()].filter((m) => m.manifest);
@@ -41,8 +37,13 @@ export function exportConfig(includeSecrets = false) {
     station: cfg.version,
     instructions: st.instructions,
     global: {
+      provider: st.global.provider || '',
+      openaiModel: st.global.openaiModel || '',
       anthropicModel: st.global.anthropicModel || '',
-      ...(includeSecrets && st.global.anthropicApiKey ? { anthropicApiKey: decrypt(st.global.anthropicApiKey) } : {})
+      geminiModel: st.global.geminiModel || '',
+      ...(includeSecrets && st.global.openaiApiKey ? { openaiApiKey: decrypt(st.global.openaiApiKey) } : {}),
+      ...(includeSecrets && st.global.anthropicApiKey ? { anthropicApiKey: decrypt(st.global.anthropicApiKey) } : {}),
+      ...(includeSecrets && st.global.geminiApiKey ? { geminiApiKey: decrypt(st.global.geminiApiKey) } : {})
     },
     mcps: mods.map((m) => {
       const reg = st.mcps[m.id] || {};
@@ -68,10 +69,24 @@ export function importConfig(data) {
     st.instructions = data.instructions;
     report.applied.push('assistant instructions');
   }
+  if (['openai', 'anthropic', 'gemini'].includes(data.global?.provider)) {
+    st.global.provider = data.global.provider;
+    report.applied.push(`assistant provider ${data.global.provider}`);
+  }
+  if (data.global?.openaiModel) st.global.openaiModel = String(data.global.openaiModel);
   if (data.global?.anthropicModel) st.global.anthropicModel = String(data.global.anthropicModel);
+  if (data.global?.geminiModel) st.global.geminiModel = String(data.global.geminiModel);
+  if (data.global?.openaiApiKey) {
+    st.global.openaiApiKey = encrypt(String(data.global.openaiApiKey));
+    report.applied.push('openai api key');
+  }
   if (data.global?.anthropicApiKey) {
     st.global.anthropicApiKey = encrypt(String(data.global.anthropicApiKey));
     report.applied.push('anthropic api key');
+  }
+  if (data.global?.geminiApiKey) {
+    st.global.geminiApiKey = encrypt(String(data.global.geminiApiKey));
+    report.applied.push('gemini api key');
   }
 
   for (const entry of Array.isArray(data.mcps) ? data.mcps : []) {
@@ -95,13 +110,10 @@ export function importConfig(data) {
   return report;
 }
 
-/* ── Full backup / restore (tar.gz) ──────────────────────────────────── */
 export async function createBackup() {
   fs.mkdirSync(backupsDir(), { recursive: true });
   const name = `mcp-station-backup-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.tar.gz`;
   const file = path.join(backupsDir(), name);
-  // Stage with cp, then a single plain `tar -czf` — works with busybox tar
-  // (alpine base) and GNU tar alike; no --exclude / multi -C exotica.
   const staging = fs.mkdtempSync(path.join(os.tmpdir(), 'station-bk-'));
   const skip = [path.resolve(backupsDir()), path.resolve(cfg.dataDir, 'trash')];
   fs.cpSync(cfg.dataDir, staging, {
@@ -114,7 +126,6 @@ export async function createBackup() {
   } finally {
     fs.rmSync(staging, { recursive: true, force: true });
   }
-  // prune old backups
   const all = listBackups();
   for (const b of all.slice(KEEP)) fs.rmSync(path.join(backupsDir(), b.name), { force: true });
   log('backup', `Created ${name} (${fs.statSync(file).size} bytes)`);
@@ -139,7 +150,6 @@ export function backupPath(name) {
   return p;
 }
 
-/** Restore from a tar.gz buffer (uploaded) or a server-side backup name. */
 export async function restoreBackup({ buffer = null, name = null }) {
   const staging = fs.mkdtempSync(path.join(os.tmpdir(), 'station-restore-'));
   const archive = buffer ? path.join(staging, 'upload.tar.gz') : backupPath(name);
@@ -154,7 +164,6 @@ export async function restoreBackup({ buffer = null, name = null }) {
     throw new Error('Archive does not look like an MCP Station backup (missing station.json)');
   }
 
-  // 1) mcps/ → MCPS_DIR (replace module folders present in the archive)
   const mcpsSrc = path.join(extract, path.basename(cfg.mcpsDir));
   if (fs.existsSync(mcpsSrc)) {
     for (const entry of fs.readdirSync(mcpsSrc)) {
@@ -164,7 +173,6 @@ export async function restoreBackup({ buffer = null, name = null }) {
     }
     fs.rmSync(mcpsSrc, { recursive: true, force: true });
   }
-  // 2) everything else → DATA_DIR (station.json, secret.key, …)
   fs.cpSync(extract, cfg.dataDir, { recursive: true });
   fs.rmSync(staging, { recursive: true, force: true });
 

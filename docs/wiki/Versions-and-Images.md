@@ -7,17 +7,14 @@ MCP Station ships as one multi-arch image (`linux/amd64`, `linux/arm64`) on Dock
 
 | Tag | What it is | Built from |
 |---|---|---|
-| `latest` | Stable release (currently **v1.8.0**) | `main` |
-| `2.2.0_alpha` | Newest features. Rebuilt on every push to the branch | `alpha/2.2.0` |
-| `2.2.0_alpha-<sha>` | One specific alpha build, pinned to a commit | `alpha/2.2.0` |
-| `2.1.0_alpha`, `2.0.0`, `1.x.y` | Older releases, kept for rollback | — |
+| `latest` | Newest stable release (currently **v2.4.0**) | `main` |
+| `2.4.0` | v2.4.0, fixed — pin it if you don't want `latest` to move | tag `v2.4.0` |
+| `<sha>` | The build of one specific commit on `main` | `main` |
+| `1.x.y`, `2.0.0`, `2.1.0_alpha`, `2.2.0_alpha` | Earlier releases and alphas, kept for rollback | — |
 
-Alpha builds never move `latest`. If you want an alpha build that won't change under you, use the
-`-<sha>` tag.
+## What's new in 2.4.0
 
-## What's in 2.2.0 alpha
-
-Compared with v1.8.0 (`latest`):
+Compared with v1.8.0:
 
 **Sign-ins you control — Unlimited by default**
 - The OAuth consent page asks *Stay signed in for*: 1 day, 1 week, 1 month or **Unlimited**
@@ -41,11 +38,17 @@ Compared with v1.8.0 (`latest`):
 **Dashboard**
 - Module filters and tidier, uniform action rows.
 
-The full list is in [CHANGELOG.md](https://github.com/iOnic-Developer/MCP-Station/blob/alpha/2.2.0/CHANGELOG.md).
+**Fixed**
+- `2.2.0_alpha` builds told clients a token lasted 10 years; some clients then refreshed in a loop and
+  drained the station-wide `/token` limit ("You have exceeded the rate limit for token requests").
+  2.4.0 advertises at most 7 days (the token itself still lasts the whole sign-in) and raises the
+  limits.
 
-## Upgrading (or trying the alpha)
+The full list is in [CHANGELOG.md](https://github.com/iOnic-Developer/MCP-Station/blob/main/CHANGELOG.md).
 
-1. Change the image to `dbzocchi/mcp-station:2.2.0_alpha` (or back to `:latest`).
+## Upgrading
+
+1. Change the image to `dbzocchi/mcp-station:latest` or `:2.4.0` (or an older tag to roll back).
 2. Pull and recreate the container — on Unraid, edit the container and hit *Apply*.
 3. Keep the same `/data` and `/app/mcps` volumes. Settings, modules and connections carry over.
 
@@ -61,6 +64,6 @@ Things to know:
 
 ```bash
 git clone https://github.com/iOnic-Developer/MCP-Station.git
-cd MCP-Station && git checkout alpha/2.2.0
-docker build -t mcp-station:2.2.0_alpha .
+cd MCP-Station && git checkout v2.4.0
+docker build -t mcp-station:2.4.0 .
 ```

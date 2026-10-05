@@ -62,7 +62,7 @@ The assistant can use OpenAI, Claude or Gemini. Keys can be set here **or** save
 ```yaml
 services:
   mcp-station:
-    image: dbzocchi/mcp-station:2.2.0_alpha
+    image: dbzocchi/mcp-station:2.4.0
     restart: unless-stopped
     ports: ["8788:8788"]
     environment:

@@ -1,5 +1,55 @@
 # Changelog
 
+## v2.4.0 — 2026-10-05
+
+**2.x goes stable: sign-ins that don't expire, OpenAI as the assistant's default, a Debian image with
+the Proton Pass CLI.** Everything from the 2.0.0, 2.1.0 alpha and 2.2.0 alpha builds, plus the fix
+for the `/token` lockout below. `latest` now points here.
+
+**From 2.0.0 / 2.1.0 alpha**
+
+- ✦ assistant gains an **OpenAI provider** (Responses API, `previous_response_id` tool loop) and makes
+  it the default — `ASSISTANT_PROVIDER=openai`, `OPENAI_API_KEY`, `OPENAI_MODEL` (default
+  `gpt-6-astra`), `OPENAI_BASE_URL`. Keys can be saved encrypted in ⚙ Station; backups include them.
+- No fixed ceiling on assistant tool rounds.
+- Dashboard: module filters, uniform labelled action rows, polished controls.
+- Build: server and dashboard JavaScript are syntax-checked before the image is packaged; CI runs the
+  smoke, OpenAI and UI suites before every push to Docker Hub.
+
+
+**Image base moves from Alpine to Debian bookworm-slim and ships the Proton Pass CLI.**
+
+- `FROM node:22-bookworm-slim`; `bash`, `curl`, `jq`, `ca-certificates` installed via apt.
+- Proton Pass CLI (`pass-cli`) installed system-wide to `/usr/local/bin` from Proton's official
+  installer, verified at build time with `pass-cli --version`.
+- Healthcheck now uses `curl` (bookworm-slim has no `wget`). The backup engine is unchanged —
+  GNU tar+gzip in the base image accept the same `-czf`/`-xzf` flags busybox did.
+
+**Connections stop expiring: pick a lifetime when signing in or generating a token — Unlimited by default.**
+
+- The OAuth consent page has a *Stay signed in for* picker: 1 day / 1 week / 1 month / **Unlimited**
+  (preselected). The access token now lives as long as the chosen grant (Unlimited = a 10-year
+  horizon, the SDK needs a number) instead of 1 hour, so a connector no longer dies when the client
+  misses a refresh or two refreshes race on the rotated refresh token. Refreshing never extends a
+  limited grant; once it ends the client must sign in again. Connections made before this upgrade
+  carry no limit and become unlimited at their next refresh.
+- 🔑 Access → *Generate / Rotate token* has the same picker for the module's own bearer token
+  (default Unlimited); an expired token stops opening the MCP and the dialog says so.
+- 🔑 Access shows each connection's real end date ("expires never" for unlimited) rather than the
+  hourly access-token expiry.
+
+**Fix: "You have exceeded the rate limit for token requests" on every sign-in.**
+
+- The first cut advertised the real lifetime in `expires_in` (10 years for Unlimited, 30 days for
+  1 month). Clients that schedule their refresh with `setTimeout` overflow past 2³¹−1 ms (~24.8 days)
+  and fire at once, so they refreshed in a tight loop. `expires_in` is now capped at **7 days**; the
+  token itself stays valid for the whole grant, so a late refresh still costs nothing.
+- The SDK's `/token` limiter (50 per 15 min) — like `/register` before it — is one bucket for the
+  **whole station** behind a reverse proxy, so one looping client locked everyone out. Raised to
+  1000 per 15 min; `/authorize` and `/revoke` to 500.
+- A refresh now retires the access token it replaces (tokens carry a `grantId` across rotations),
+  and boot prunes the superseded long-lived tokens the loop left behind.
+
 ## v1.8.0 — 2026-09-06
 
 **The ✦ assistant stops going quiet and edits modules itself; the dashboard becomes two columns of one-line rows.**

@@ -1,5 +1,6 @@
 name: Build & push to Docker Hub
 
+# main → latest (+ a short-sha tag); a vX.Y.Z tag → X.Y.Z. Tests gate every push.
 on:
   push:
     branches: [main]
@@ -7,10 +8,27 @@ on:
   workflow_dispatch:
 
 jobs:
-  docker:
+  test-and-docker:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Legacy smoke suite
+        run: npm test
+
+      - name: OpenAI Responses smoke suite
+        run: npm run test:openai
+
+      - name: Dashboard syntax checks
+        run: npm run test:ui
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
@@ -26,6 +44,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/mcp-station
+          flavor: latest=false
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=semver,pattern={{version}}
