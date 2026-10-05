@@ -8,7 +8,7 @@ MCP Station ships as one multi-arch image (`linux/amd64`, `linux/arm64`) on Dock
 | Tag | What it is | Built from |
 |---|---|---|
 | `latest` | Newest stable release (currently **v2.4.0**) | `main` |
-| `2.4.0` | v2.4.0, fixed — pin it if you don't want `latest` to move | tag `v2.4.0` |
+| `2.4.0` | v2.4.0, fixed — pin it if you don't want `latest` to move | `main` at v2.4.0 |
 | `<sha>` | The build of one specific commit on `main` | `main` |
 | `1.x.y`, `2.0.0`, `2.1.0_alpha`, `2.2.0_alpha` | Earlier releases and alphas, kept for rollback | — |
 
@@ -64,6 +64,6 @@ Things to know:
 
 ```bash
 git clone https://github.com/iOnic-Developer/MCP-Station.git
-cd MCP-Station && git checkout v2.4.0
+cd MCP-Station && git checkout main
 docker build -t mcp-station:2.4.0 .
 ```

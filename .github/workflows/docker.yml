@@ -1,6 +1,7 @@
 name: Build & push to Docker Hub
 
-# main → latest (+ a short-sha tag); a vX.Y.Z tag → X.Y.Z. Tests gate every push.
+# main → latest, the package.json version (e.g. 2.4.0) and a short-sha tag; a vX.Y.Z git tag → X.Y.Z.
+# Tests gate every push.
 on:
   push:
     branches: [main]
@@ -39,6 +40,10 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Read version
+        id: ver
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v5
@@ -47,6 +52,7 @@ jobs:
           flavor: latest=false
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ steps.ver.outputs.version }},enable={{is_default_branch}}
             type=semver,pattern={{version}}
             type=sha,prefix=
 
