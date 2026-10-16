@@ -341,10 +341,22 @@ app.get('/f/:token', (req, res) => {
     .pipe(res);
 });
 
+// Root-scoped public-assets worker; must precede static files and module routes.
+app.get('/sw.js', (req, res) => {
+  res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Service-Worker-Allowed', '/');
+  res.sendFile(path.join(ROOT, 'public', 'sw.js'));
+});
+
 app.use(express.static(path.join(ROOT, 'public'), {
   index: 'index.html',
   etag: true,
-  setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache')
+  setHeaders: (res, filename) => {
+    // Public decoration can be revalidated; never retain admin documents or code.
+    res.setHeader('Cache-Control', /\.(?:html|js)$/.test(filename) ? 'no-store' : 'no-cache');
+  }
 }));
 
 app.all(['/:slug/mcp', '/:slug'], (req, res, next) => {

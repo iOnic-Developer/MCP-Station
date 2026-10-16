@@ -2,15 +2,26 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101622">
+  <meta name="description" content="Your self-hosted integration control plane. Configure modules, test tools and connect MCP clients.">
   <title>MCP Station</title>
-  <link rel="icon" type="image/svg+xml" href="/assets/mcp_station_logo_1024_canvas.svg">
+  <link rel="icon" type="image/svg+xml" href="/assets/brand/station-mark.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/brand/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/apple-touch-180.png">
+  <link rel="manifest" href="/assets/manifest.webmanifest">
+  <link rel="preload" href="/assets/fonts/manrope.ttf" as="font" type="font/ttf" crossorigin>
   <link rel="stylesheet" href="/assets/css/app.css">
   <link rel="stylesheet" href="/assets/css/v2.css">
+  <link rel="stylesheet" href="/assets/css/product.css">
+  <link rel="stylesheet" href="/assets/css/modules.css">
 </head>
 <body>
-  <div id="app" class="app"></div>
-  <div id="toasts" class="toasts"></div>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
+  <div id="app" class="app"><p role="status" style="padding:32px">Loading MCP Station…</p></div>
+  <div id="toasts" class="toasts" role="status" aria-live="polite" aria-atomic="false"></div>
+  <noscript>MCP Station requires JavaScript to manage modules. No configuration has been changed.</noscript>
+  <script type="module" src="/assets/js/theme.js"></script>
   <script type="module" src="/assets/js/app.js"></script>
 </body>
 </html>

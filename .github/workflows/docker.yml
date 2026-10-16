@@ -7,6 +7,12 @@ on:
     branches: [main]
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Optional beta tag (must end in _beta; never publishes latest)'
+        required: false
+        default: ''
+        type: string
 
 jobs:
   test-and-docker:
@@ -18,6 +24,19 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+
+      - name: Validate beta publication
+        id: beta
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          IMAGE_OWNER: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          if [ -n "$IMAGE_TAG" ]; then
+            [[ "$IMAGE_TAG" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*_beta$ ]] || { echo 'Beta tag must end in _beta'; exit 1; }
+            echo "tags=$IMAGE_OWNER/mcp-station:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+          elif [ "$GITHUB_REF" != refs/heads/main ] && [[ "$GITHUB_REF" != refs/tags/v* ]]; then
+            echo 'Non-main manual builds require an explicit _beta tag'; exit 1
+          fi
 
       - name: Install dependencies
         run: npm install
@@ -62,7 +81,7 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: ${{ steps.beta.outputs.tags || steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

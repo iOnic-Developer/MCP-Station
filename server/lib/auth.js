@@ -3,7 +3,7 @@ import { getState, save } from './state.js';
 import { randomToken, sign, unsign, timingEqual } from './crypto.js';
 
 const SESSION_TTL = 7 * 24 * 3600 * 1000; // 7 days, sliding
-const COOKIE = 'station_sid';
+const COOKIE = cfg.sessionCookieName;
 const attempts = new Map(); // ip -> { n, resetAt }
 
 /* ── Login rate limiting (8 fails / minute / ip) ─────────────────────── */

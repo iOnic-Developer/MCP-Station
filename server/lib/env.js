@@ -9,7 +9,7 @@ const trimSlash = (s) => String(s || '').replace(/\/+$/, '');
 const provider = String(process.env.ASSISTANT_PROVIDER || '').toLowerCase();
 
 export const cfg = {
-  version: '2.4.0',
+  version: '2.5.0_beta',
   port: parseInt(process.env.PORT || '8788', 10),
   /** Public https base URL, no trailing slash. Enables OAuth when set. */
   publicUrl: trimSlash(process.env.PUBLIC_URL),
@@ -19,6 +19,8 @@ export const cfg = {
   dataDir: process.env.DATA_DIR || path.join(ROOT, 'data'),
   mcpsDir: process.env.MCPS_DIR || path.join(ROOT, 'mcps'),
   cookieSecure: process.env.COOKIE_SECURE === '1',
+  // Parallel LAN preview instances must not overwrite the production session cookie.
+  sessionCookieName: /^[A-Za-z0-9_-]{1,64}$/.test(process.env.SESSION_COOKIE_NAME || '') ? process.env.SESSION_COOKIE_NAME : 'station_sid',
 
   openaiApiKey: process.env.OPENAI_API_KEY || '',
   openaiModel: process.env.OPENAI_MODEL || 'gpt-6-astra',

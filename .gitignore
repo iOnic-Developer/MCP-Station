@@ -7,3 +7,8 @@ volumes/
 npm-debug.log*
 mcps/*/.chat.json
 mcps/*/.config.json
+
+# Local browser-test output (never commit authenticated screenshots).
+test-artifacts/
+playwright-report/
+test-results/

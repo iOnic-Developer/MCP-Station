@@ -30,7 +30,7 @@ const shareStore = { createShare, listShares, revokeShare, parseTtl };
 // difference between the two servers once headers and metadata match.
 export const RESERVED_SLUGS = new Set([
   'api', 'assets', 'authorize', 'backups', 'favicon.ico', 'healthz', 'index.html',
-  'login', 'logout', 'oauth', 'register', 'revoke', 'token', '.well-known'
+  'login', 'logout', 'oauth', 'register', 'revoke', 'token', '.well-known', 'sw.js'
 ]);
 
 export const ManifestSchema = z.object({

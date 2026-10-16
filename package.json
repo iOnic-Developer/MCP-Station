@@ -1,7 +1,7 @@
 {
   "name": "mcp-station",
-  "version": "2.4.0",
-  "description": "Self-hosted hub that serves, configures and builds MCP servers — each hosted at its own path, with OAuth 2.1, a built-in multi-provider assistant, and import/export/backup.",
+  "version": "2.5.0-beta.1",
+  "description": "Self-hosted hub that serves, configures and builds MCP servers \u2014 each hosted at its own path, with OAuth 2.1, a built-in multi-provider assistant, and import/export/backup.",
   "type": "module",
   "main": "server/index.js",
   "scripts": {
@@ -12,7 +12,9 @@
     "test:ui": "node --check public/assets/js/views/list.js && node --check public/assets/js/views/station.js",
     "test:oauth": "bash scripts/smoke-oauth.sh",
     "test:scoping": "bash scripts/smoke-scoping.sh",
-    "test:selfcontained": "bash scripts/smoke-selfcontained.sh"
+    "test:selfcontained": "bash scripts/smoke-selfcontained.sh",
+    "test:browser": "node --test --test-concurrency=1 tests/browser/*.test.mjs",
+    "test:contracts": "node --test tests/contracts.test.mjs"
   },
   "engines": {
     "node": ">=20"
@@ -22,5 +24,9 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "express": "^4.21.2",
     "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.11.1",
+    "playwright": "1.64.0"
   }
 }

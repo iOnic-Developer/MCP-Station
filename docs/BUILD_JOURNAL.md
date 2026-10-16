@@ -138,3 +138,10 @@ Straight from the MCP builder guide, enforced by the seed instructions:
 - [x] SiYuan project doc, Todoist closure
 - [ ] David: `docker compose up -d --build`, set `APP_PASSWORD`/`PUBLIC_URL`/`SESSION_SECRET`/`MCP_TOKEN`, point the dbzocchi.app reverse proxy at :8788, add connectors in claude.ai
 - [ ] Later ideas: per-MCP OAuth scopes, scheduled backups, Monaco editor, module marketplace/import-from-zip
+
+
+## 2026-10-16 — Product redesign beta
+
+Ground-up vanilla-JS product architecture and branding, progressive module actions, labelled and guarded configuration, native dialog keyboard containment, session-safe async response/body processing, draft-safe snapshot editor and assistant Stop/Clear/disposal. Static-only PWA excludes authenticated HTML, JavaScript, API, OAuth and module responses. Original module/auth contracts retained. Independent reviews and limited local Tiel_Coder review informed fixes; local review hit its token limit and is not claimed complete.
+
+Validation: 43 browser, 3 server contracts, smoke36, OAuth44, scoping15, self-contained10, assistant57 and OpenAI10 passed. Beta image requested as `2.5.0_beta`; no production replacement or latest update. A prior isolated preview failed startup because an HTTP LAN PUBLIC_URL is not a valid OAuth issuer; that failure does not imply the published image was deployed successfully.

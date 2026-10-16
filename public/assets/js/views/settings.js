@@ -1,121 +1,90 @@
+import { confirmAction as confirmModal } from './access.js';
 import { api } from '../api.js';
-import { esc, toast, drawer, confirmModal } from '../ui.js';
+import { esc, toast, drawer } from '../ui.js';
+import { icon } from '../product.js';
+let settingsSequence = 0;
 
 export function openSettings(m, ctx) {
-  // A module whose manifest failed to load has nothing to configure — but it still needs a way out.
-  if (!m.manifest) return openBroken(m, ctx);
-  const fields = (m.manifest.settings || []).map((s) => {
-    const cur = m.settings?.[s.key] ?? '';
+  const prefix = `settings-${++settingsSequence}`;
+  const specs = m.manifest?.settings || [];
+  const fields = specs.map((s, i) => {
+    const cur = m.settings?.[s.key] ?? ''; const id = `${prefix}-${i}`;
+    const attrs = `id="${id}" name="${esc(s.key)}" ${s.help ? `aria-describedby="${id}-help"` : ''} ${s.required ? 'aria-required="true"' : ''}`;
     let control;
-    if (s.type === 'select') {
-      control = `<select class="input" name="${esc(s.key)}">${(s.options || []).map((o) =>
-        `<option value="${esc(o)}" ${o === cur ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
-    } else if (s.type === 'textarea') {
-      control = `<textarea class="input" rows="4" name="${esc(s.key)}">${esc(cur)}</textarea>`;
-    } else if (s.type === 'secret') {
-      control = `<div class="row">
-        <input class="input" type="password" name="${esc(s.key)}" placeholder="${cur ? '•••••• (saved — leave blank to keep)' : 'not set'}" autocomplete="new-password">
-        ${cur ? `<button type="button" class="btn sm danger" data-clear="${esc(s.key)}" title="Remove saved value">Clear</button>` : ''}
-      </div>`;
-    } else {
-      control = `<input class="input" type="text" name="${esc(s.key)}" value="${esc(cur)}">`;
-    }
-    return `<div class="field">
-      <label>${esc(s.label)}${s.required ? ' *' : ''}</label>
-      ${control}
-      ${s.help ? `<div class="help">${esc(s.help)}</div>` : ''}
-    </div>`;
-  }).join('') || '<p class="desc">This module declares no settings in its manifest.</p>';
-
+    if (s.type === 'select') control = `<select class="input" ${attrs}>${(s.options || []).map((o) => `<option value="${esc(o)}" ${o === cur ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
+    else if (s.type === 'textarea') control = `<textarea class="input" rows="4" ${attrs}>${esc(cur)}</textarea>`;
+    else if (s.type === 'secret') control = `<div class="row"><input class="input" type="password" ${attrs} placeholder="${cur ? 'Saved — leave blank to keep' : 'Not set'}" autocomplete="new-password">${`<button type="button" class="btn sm danger" data-clear="${i}" ${cur ? '' : 'disabled'} aria-label="Clear saved ${esc(s.label || s.key)}">Clear saved value</button>`}</div><div class="help">Blank keeps a saved secret. Clear saved value removes it. Typing a replacement overrides Clear.</div>`;
+    else control = `<input class="input" type="text" ${attrs} value="${esc(cur)}">`;
+    return `<div class="field"><label for="${id}">${esc(s.label || s.key)}${s.required ? ' *' : ''}</label>${control}${s.help ? `<div class="help" id="${id}-help">${esc(s.help)}</div>` : ''}</div>`;
+  }).join('');
   const d = drawer({
-    title: `${m.manifest.icon} ${m.manifest.name} — settings`,
-    body: `${m.error ? `<div class="banner">⚠️ This module currently fails to load: ${esc(m.error)} — fix it in ‹/› Code (the ✦ chat there sees the error), or delete it below.</div>` : ''}
-      <form id="setForm">${fields}</form>
-      <div class="field" style="margin-top:18px">
-        <label>Endpoint</label>
-        <div class="endpoint"><span class="url mono">${esc(m.url)}</span></div>
-        <div class="help">Add this URL in claude.ai → Settings → Connectors → Add custom connector.</div>
-      </div>`,
-    foot: `<button class="btn" data-cancel>Cancel</button>
-           <button class="btn danger" data-del title="Delete this module (a copy is kept in data/trash)">🗑 Delete</button>
-           <div class="spacer"></div>
-           <button class="btn" data-test>▶ Save &amp; test</button>
-           <button class="btn primary" data-save>Save</button>`
+    title: `${m.manifest?.name || m.id} — configuration`,
+    body: `${!m.manifest || m.error ? `<div class="banner">Load error: ${esc(m.error || 'Manifest unavailable')}. Open Edit code in the library to repair this module, or delete it below.</div>` : ''}<form id="${prefix}-form">${fields || '<p>This module declares no configurable settings.</p>'}</form><div class="field"><label for="${prefix}-endpoint">MCP endpoint</label><input class="input mono" readonly id="${prefix}-endpoint" value="${esc(m.url)}"><div class="help">Use this endpoint in your MCP client. Saving configuration does not prove service connectivity.</div></div><p class="error-text" data-error role="alert"></p><p class="help" data-result role="status"></p>`,
+    foot: `<button class="btn" data-cancel>Cancel</button><button class="btn danger" data-del>${icon('logout')}Delete module</button><div class="spacer"></div>${m.manifest ? `<button class="btn" data-test>${icon('arrow')}Save &amp; test</button><button class="btn primary" data-save>Save configuration</button>` : ''}`
   });
-  wireDelete(d, m, ctx);
-
-  const cleared = new Set();
-  d.el.querySelectorAll('[data-clear]').forEach((b) => {
-    b.onclick = () => {
-      cleared.add(b.dataset.clear);
-      b.closest('.row').querySelector('input').placeholder = 'will be cleared on save';
-      b.disabled = true;
-    };
-  });
-
-  async function collectAndSave() {
-    const form = d.el.querySelector('#setForm');
+  const form = d.el.querySelector('form'); const cleared = new Set(); const savedSecrets = new Set(specs.filter((s) => s.type === 'secret' && m.settings?.[s.key]).map((s) => s.key));
+  let dirty = false; let pending = false;
+  const error = d.el.querySelector('[data-error]'); const result = d.el.querySelector('[data-result]');
+  d.guardClose = () => pending ? false : (!dirty || confirmModal('Discard unsaved settings?', 'Your changes have not been saved.', { confirmLabel: 'Discard changes', danger: true }));
+  const closeSaved = () => { dirty = false; (d.forceClose || d.close)(); };
+  form.oninput = (e) => {
+    dirty = true;
+    if (e.target.name && e.target.value !== '') {
+      cleared.delete(e.target.name);
+      const index = specs.findIndex((s) => s.key === e.target.name);
+      const b = d.el.querySelector(`[data-clear="${index}"]`); if (b) b.disabled = false;
+    }
+  };
+  form.onchange = () => { dirty = true; };
+  d.el.querySelectorAll('[data-clear]').forEach((b) => { b.onclick = () => {
+    const s = specs[Number(b.dataset.clear)]; const input = form.elements.namedItem(s.key);
+    input.value = ''; input.placeholder = 'Will be cleared on save'; cleared.add(s.key); dirty = true; b.disabled = true; input.focus();
+  }; });
+  const setBusy = (busy) => {
+    pending = busy; d.el.setAttribute('aria-busy', String(busy));
+    d.el.querySelectorAll('button,input,textarea,select').forEach((el) => { if (busy) { el.dataset.savedDisabled = String(el.disabled); el.disabled = true; } else el.disabled = el.dataset.savedDisabled === 'true'; });
+  };
+  async function save(test) {
+    if (pending) return;
+    error.textContent = ''; result.textContent = '';
     const values = {};
-    for (const s of m.manifest.settings || []) {
-      const el = form.elements[s.key];
-      if (!el) continue;
-      const v = el.value;
-      if (s.type === 'secret') {
-        if (cleared.has(s.key)) values[s.key] = '';
-        else if (v === '') { if (m.settings?.[s.key]) values[s.key] = '••••••'; else values[s.key] = ''; }
-        else values[s.key] = v;
-      } else {
-        values[s.key] = v;
-      }
+    for (const s of specs) {
+      const input = form.elements.namedItem(s.key); const value = input?.value ?? '';
+      values[s.key] = s.type !== 'secret' ? value : value || (cleared.has(s.key) ? '' : savedSecrets.has(s.key) ? '••••••' : '');
+      if (s.required && !values[s.key].trim() && !(s.type === 'secret' && cleared.has(s.key))) { error.textContent = `${s.label || s.key} is required.`; input?.focus(); return; }
     }
-    await api(`/mcps/${m.id}`, { method: 'PATCH', body: { settings: values } });
+    setBusy(true); let saved = false;
+    try {
+      await api(`/mcps/${encodeURIComponent(m.id)}`, { method: 'PATCH', body: { settings: values } });
+      saved = true; dirty = false;
+      // Rebase saved secret state after every successful save, including Save & test.
+      specs.filter((s) => s.type === 'secret').forEach((s) => {
+        const input = form.elements.namedItem(s.key);
+        if (values[s.key]) savedSecrets.add(s.key); else savedSecrets.delete(s.key);
+        input.value = ''; input.placeholder = savedSecrets.has(s.key) ? 'Saved — leave blank to keep' : 'Not set';
+        const b = d.el.querySelector(`[data-clear="${specs.indexOf(s)}"]`); if (b) b.dataset.savedDisabled = String(!savedSecrets.has(s.key));
+      });
+      cleared.clear();
+      if (test) {
+        result.textContent = 'Configuration saved. Running test…';
+        const r = await api(`/mcps/${encodeURIComponent(m.id)}/test`, { method: 'POST' });
+        if (r.ok) result.textContent = `Configuration saved. Test passed: ${r.message}`;
+        else { result.textContent = ''; error.textContent = `Configuration saved, but the test failed: ${r.message}`; }
+      } else { toast('Configuration saved'); closeSaved(); }
+    } catch (e) { result.textContent = ''; error.textContent = `${saved ? 'Configuration saved, but the test could not complete: ' : 'Configuration was not saved: '}${e.message}`; }
+    finally { setBusy(false); if (saved) await ctx.refresh(); }
   }
-
-  d.el.querySelector('[data-cancel]').onclick = d.close;
-  d.el.querySelector('[data-save]').onclick = async () => {
-    try {
-      await collectAndSave();
-      toast('Settings saved');
-      d.close();
-      ctx.refresh();
-    } catch (ex) { toast(ex.message, 'err'); }
-  };
-  d.el.querySelector('[data-test]').onclick = async (e) => {
-    e.target.disabled = true;
-    try {
-      await collectAndSave();
-      const r = await api(`/mcps/${m.id}/test`, { method: 'POST' });
-      toast(r.message, r.ok ? 'ok' : 'err', 6000);
-      ctx.refresh();
-    } catch (ex) { toast(ex.message, 'err'); }
-    e.target.disabled = false;
-  };
-}
-
-/** The delete button lives in the settings drawer (it used to sit on every card). */
-function wireDelete(d, m, ctx) {
+  d.el.querySelector('[data-cancel]').onclick = () => d.close();
+  d.el.querySelector('[data-save]')?.addEventListener('click', () => save(false));
+  d.el.querySelector('[data-test]')?.addEventListener('click', () => save(true));
+  form.onsubmit = (e) => { e.preventDefault(); save(false); };
   d.el.querySelector('[data-del]').onclick = async () => {
-    const name = m.manifest?.name || m.id;
-    if (!await confirmModal('Delete module?', `'${name}' will be moved to data/trash and its settings removed. The endpoint /${m.manifest?.slug || m.id} goes away immediately.`)) return;
+    if (pending) return;
+    setBusy(true); error.textContent = '';
     try {
-      await api(`/mcps/${m.id}`, { method: 'DELETE' });
-      toast('Module deleted (copy kept in data/trash)');
-      d.close();
-      ctx.refresh();
-    } catch (ex) { toast(ex.message, 'err'); }
+      if (!await confirmModal('Delete module?', `Delete '${m.manifest?.name || m.id}' and its settings? Its endpoint stops immediately; a code copy is kept in data/trash.`, { confirmLabel: 'Delete module', danger: true })) return;
+      await api(`/mcps/${encodeURIComponent(m.id)}`, { method: 'DELETE' }); closeSaved(); toast('Module deleted'); await ctx.refresh();
+    } catch (e) { error.textContent = e.message; }
+    finally { setBusy(false); }
   };
-}
-
-/** Settings drawer for a module that failed to load: the error, and the way out. */
-function openBroken(m, ctx) {
-  const d = drawer({
-    title: `⚠️ ${m.id} — failed to load`,
-    body: `<div class="banner">${esc(m.error || 'Unknown load error')}</div>
-      <p class="desc">Fix the file in <b>‹/› Code</b> (the ✦ chat there can see the error and edit the module), or delete the module.</p>`,
-    foot: `<button class="btn" data-cancel>Close</button>
-           <button class="btn danger" data-del>🗑 Delete</button>
-           <div class="spacer"></div>`
-  });
-  d.el.querySelector('[data-cancel]').onclick = d.close;
-  wireDelete(d, m, ctx);
 }
