@@ -5,15 +5,14 @@ when browsing the repository folder, open the corresponding `.md` file.
 
 ## Current boundary
 
-This branch contains a dual-channel documentation draft: stable 2.4 alongside clearly marked beta
-and later branch-preview behavior. The published wiki may still contain older stable pages. Editing
-this folder does not itself publish anything, and the public main README remains stable until an
-approved merge. Do not manually sync or merge as part of the product-copy task.
+The owner-requested wiki overhaul is published from this branch: stable 2.4 alongside clearly
+marked beta and later source-preview behavior. Editing this folder does not itself publish;
+manual sync is required until merge. The public main README remains stable until an approved merge.
 
 ## Existing workflow
 
 `.github/workflows/wiki.yml` mirrors `docs/wiki/` into `MCP-Station.wiki.git` on matching pushes to
-`main` or manual dispatch. It deletes wiki pages absent from source and excludes `_PUBLISHING.md`.
+`main` or manual dispatch. It updates matching pages, preserves unrelated existing wiki pages, and excludes `_PUBLISHING.md`.
 A manual dispatch is a publication action too: obtain approval and select the intended source.
 
 Before publication, verify image/build/channel statements, local links, screenshots, and the parent

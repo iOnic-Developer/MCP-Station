@@ -197,9 +197,8 @@ Full backups do not include external Files storage. [Backup and restore guide](d
 ## Documentation and contributing
 
 - [Documentation home](docs/wiki/Home.md): setup, accounts, usage, Assistant, and troubleshooting.
-- [Product page source](docs/site/index.html): repository page, not an announced hosted website.
-- [GitHub Wiki](https://github.com/iOnic-Developer/MCP-Station/wiki): may still show older stable
-  pages until an approved source sync; this branch does not publish it automatically.
+- [Product page](https://ionic-developer.github.io/MCP-Station/site/): public product story, screenshots and setup links.
+- [GitHub Wiki](https://github.com/iOnic-Developer/MCP-Station/wiki): published setup, account and client guides with stable/preview labels.
 - [Historical 2.4 technical archive](docs/REFERENCE_2_4.md), [OAuth](docs/OAUTH.md), and [Cloudflare](docs/CLOUDFLARE.md).
 - [Contributing](CONTRIBUTING.md), [Security](SECURITY.md), and [MIT license](LICENSE).
 

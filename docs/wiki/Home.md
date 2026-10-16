@@ -12,7 +12,7 @@ The upcoming source includes 18 integrations; websites without APIs need authori
 > **Channel guide:** **stable 2.4.0** is `main` / Docker `latest`. **Published beta `2.7.0_beta`**
 > was built from `7945275` and reports `2.6.0-beta` internally. **Branch preview** means later
 > `redesign/public-product` work, not a claim that every screen is in that image.
-> These source pages await approved wiki synchronization; the public wiki may still be older.
+> These guides are published from the review branch and label stable, image-beta and upcoming-source behavior separately.
 
 ## Start here
 

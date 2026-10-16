@@ -38,8 +38,8 @@ configuration with actionable guidance before service I/O. The existing loader c
 for discovery on a fresh install: discovered does not mean authenticated. Additional beta accounts
 start blank, disabled, and untested, separately from fresh-install default-module discovery.
 
-Gmail and Drive accept alternative auth setups, which the host's simple required-field badge may
-not represent correctly. Use Test and a real read-only call, not that badge alone. Gmail's cache is
+Gmail and Drive declare alternative auth setups for the host readiness check. Disabled Drive
+slots do not count. Use Test and a real read-only call to verify upstream access, not readiness alone. Gmail's cache is
 keyed by its complete OAuth credential tuple; Drive uses bounded, credential-hashed cache keys.
 The offline audit checks distinct credential tuples cannot reuse another account's cached token;
 this is not a claim of process isolation or a live Google auth test.

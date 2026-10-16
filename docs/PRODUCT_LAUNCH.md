@@ -89,3 +89,5 @@ The Pages site is API-configured; publication success must be verified after the
 Wiki publication updates matching pages without deleting unrelated existing pages. Docker Hub
 copy is sourced from DOCKERHUB.md after the source/screenshots are committed. Main README still
 requires the existing PR to be approved and merged; no merge is implicit in documentation work.
+
+Verified publication on 16 October 2026: product page HTTP200 with the new headline; wiki workflow succeeded; Docker Hub description updated. Public main README still awaits PR approval. No image or running container was changed.

@@ -109,8 +109,8 @@ Pushover · Radarr · Sonarr · Gemini · OpenProject · Xero · Proton Pass · 
 The eight additions contribute **185 tools**, with **274 offline checks recorded in the bundle
 audit**, not live-service certification. They ship with empty credentials and actionable preflight
 errors. Fresh installs may discover modules before they are authenticated; disable what you do not
-need. Gmail/Drive accept access-token or refresh-token setups; run Test rather than relying on the
-optional-field configuration badge. Existing source folders are not overwritten on startup.
+need. Gmail/Drive declare access-token or complete refresh-token alternatives for readiness;
+run Test and a read-only call to verify actual service access. Existing source folders are not overwritten on startup.
 
 The expanded bundle covers 18 of 30 supplied NAS service modules. Private business adapters,
 Unraid host-control/execution modules, and unreviewed agent packages remain deferred. `_template`
@@ -151,6 +151,6 @@ review them for manually embedded secrets before sharing.
 [MIT license](https://github.com/iOnic-Developer/MCP-Station/blob/main/LICENSE)
 
 The public main README stays stable until an approved merge. The
-[GitHub Wiki](https://github.com/iOnic-Developer/MCP-Station/wiki) may still show older stable pages
-until an approved sync. This copy does not announce a hosted website or stable redesign release.
+[GitHub Wiki](https://github.com/iOnic-Developer/MCP-Station/wiki) and product page are published
+with explicit stable/preview labels. This does not announce a stable redesign release.
 Original Ribbon S artwork belongs to the project; third-party names imply no affiliation.

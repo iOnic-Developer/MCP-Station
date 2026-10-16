@@ -48,9 +48,9 @@ contract. Prefer this wiki and the current module source.
 
 ## Public documentation
 
-The public `main` README remains stable until an approved merge. Wiki source in this branch is a
-review draft; the published GitHub Wiki may still have older stable pages until an approved sync.
-No merge, image push, wiki sync, hosted-site launch, or Docker Hub page update is implied here.
+The public `main` README remains stable until an approved merge. The product page, Docker Hub
+description and GitHub Wiki are published with explicit channel labels. Publishing documentation
+does not update an image, change the stable branch, or deploy the application.
 
 [Review branch](https://github.com/iOnic-Developer/MCP-Station/tree/redesign/public-product) ·
 [Docker Hub](https://hub.docker.com/r/dbzocchi/mcp-station) · [Backups](Backups)
