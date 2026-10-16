@@ -126,3 +126,12 @@ All six main routes were checked in dark mode with reduced motion at 375, 768 an
 ## Existing protocol suites
 
 Final local results: smoke 36/36, OAuth 44/44, scoping 15/15, self-contained configuration 10/10, OpenAI mock 10/10 and Anthropic/Gemini assistant mock 57/57. The OpenAI suite was rerun independently after a concurrent run inherited conflicting provider test state; no product change was required. CI runs these suites sequentially. No live provider billing or service credentials are used.
+
+## CI entry-point compatibility
+
+The first GitHub run stopped before browser startup because the pinned Playwright package's
+CommonJS entry did not expose `chromium` as a synthetic named ESM export. The harness now accepts
+the named or default CommonJS export and asserts that a launcher exists. Reproduced locally using
+CI-pinned Playwright 1.55.0 / axe 4.10.2: 68/68 checks and 19 audits pass. This local compatibility
+run used the workspace's installed Chromium via QA_BROWSER_EXECUTABLE; GitHub installs the pinned
+package's own browser and is the authoritative CI result.

@@ -18,7 +18,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const require = createRequire(import.meta.url);
 const load = (name) => import(path.isAbsolute(name) ? pathToFileURL(name).href : require.resolve(name));
-const { chromium } = await load(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const playwright = await load(process.env.PLAYWRIGHT_MODULE || 'playwright');
+// require.resolve may select the CommonJS entry; its named exports vary by version.
+const chromium = playwright.chromium || playwright.default?.chromium;
+assert(chromium?.launch, 'Playwright Chromium launcher is unavailable');
 const axe = await load(process.env.AXE_MODULE || '@axe-core/playwright');
 const AxeBuilder = axe.default?.default || axe.default || axe.AxeBuilder;
 const output = path.resolve(process.env.QA_SCREENSHOT_DIR || path.join(tmpdir(), 'station-workflow-qa'));
