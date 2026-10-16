@@ -39,6 +39,8 @@ let routeVersion = 0;
 let renderedRoute = '';
 let acceptedHash = location.hash;
 let navigating = false;
+let sidebarCollapsed = false;
+try { sidebarCollapsed = localStorage.getItem('station.sidebar.collapsed') === '1'; } catch { /* Storage is optional. */ }
 try { document.documentElement.dataset.theme = localStorage.getItem('station.theme') || 'light'; } catch { document.documentElement.dataset.theme = 'light'; }
 initPwa();
 window.addEventListener('station:unauthed', () => {
@@ -75,7 +77,7 @@ function routeDetails() {
   } catch { return { key: 'invalid' }; }
 }
 function navLink(key, mobile = false) {
-  return `<a class="nav-link" href="#/${key}" data-route="${key}">${icon(routes[key][2])}<span>${key === 'backups' ? 'Backups' : mobile && key === 'integrations' ? 'Integrations' : routes[key][0]}</span></a>`;
+  return `<a class="nav-link" href="#/${key}" data-route="${key}" aria-label="${routes[key][0]}">${icon(routes[key][2])}<span class="nav-label">${key === 'backups' ? 'Backups' : mobile && key === 'integrations' ? 'Integrations' : routes[key][0]}</span><span class="nav-tooltip" aria-hidden="true">${routes[key][0]}</span></a>`;
 }
 async function boot() {
   const version = ++bootVersion;
@@ -84,7 +86,7 @@ async function boot() {
     if (version !== bootVersion) return;
     ctx.me = me;
     if (!me.authed) {
-      document.body.classList.remove('assistant-workspace');
+      document.body.classList.remove('assistant-workspace', 'station-authenticated', 'sidebar-collapsed');
       resetAssistant();
       root.querySelectorAll('.page-surface').forEach((el) => el.dispatchEvent(new Event('station:dispose')));
       document.querySelectorAll('dialog').forEach((d) => d.close());
@@ -104,20 +106,53 @@ async function boot() {
     await renderRoute(false);
   } catch {
     if (version !== bootVersion) return;
+    document.body.classList.remove('assistant-workspace', 'station-authenticated', 'sidebar-collapsed');
     root.innerHTML = `<main id="main-content" class="login-wrap" tabindex="-1"><section class="login"><img class="login-mark" src="/assets/brand/station-mark.svg" alt=""><h1>We couldn’t reach your station</h1><p>Check your connection and that MCP Station is running, then try again.</p><button class="btn primary" id="retryBoot">Try again</button></section></main>`;
     root.querySelector('#retryBoot').onclick = boot;
   }
 }
 function renderShell() {
+  document.body.classList.add('station-authenticated');
+  document.body.classList.toggle('sidebar-collapsed', sidebarCollapsed);
   root.innerHTML = `<div class="app-shell">
-    <aside class="sidebar" aria-label="Primary navigation"><a href="#/overview" class="brand"><img src="/assets/brand/station-mark.svg" alt="" width="32" height="32"><span>MCP Station<small>Your connection workspace</small></span></a>
+    <aside class="sidebar" id="station-sidebar" aria-label="Primary navigation"><a href="#/overview" class="brand" aria-label="MCP Station overview"><img src="/assets/brand/station-mark.svg" alt="" width="32" height="32"><span>MCP Station<small>Your connection workspace</small></span></a>
+      <button class="nav-link sidebar-toggle" type="button" data-sidebar-toggle aria-controls="station-sidebar" aria-expanded="true" aria-label="Collapse navigation">${icon('panel')}<span class="nav-label">Collapse navigation</span><span class="nav-tooltip" aria-hidden="true">Collapse navigation</span></button>
       <div class="nav-caption">Workspace</div><nav>${['overview', 'integrations', 'connect', 'assistant'].map((k) => navLink(k)).join('')}</nav>
       <div class="nav-caption">Manage</div><nav>${['settings', 'backups'].map((k) => navLink(k)).join('')}</nav>
-      <div class="sidebar-foot"><span class="sidebar-version">Self-hosted · v${esc(ctx.me.version)}</span><button class="nav-link" data-logout>${icon('logout')}<span>Sign out</span></button></div>
+      <div class="sidebar-foot"><span class="sidebar-version">Self-hosted · v${esc(ctx.me.version)}</span><button class="nav-link" data-logout aria-label="Sign out">${icon('logout')}<span class="nav-label">Sign out</span><span class="nav-tooltip" aria-hidden="true">Sign out</span></button></div>
     </aside>
     <div class="workspace"><header class="workspace-bar"><button class="btn icon-btn mobile-menu" data-menu aria-label="Open navigation">${icon('menu')}</button><div class="breadcrumbs"><span>Workspace</span>${icon('chevron')}<span id="crumb">Overview</span></div><div class="spacer"></div><button class="btn icon-btn" data-theme aria-label="Switch color theme"></button><button class="btn primary" data-add>${icon('plus')}<span>Add integration</span></button></header>
       <main id="main-content" class="main" tabindex="-1"><div id="routeRoot"></div></main>
     </div><nav class="bottom-nav" aria-label="Mobile navigation">${['overview', 'integrations', 'connect', 'assistant'].map((k) => navLink(k, true)).join('')}</nav></div>`;
+  const toggle = root.querySelector('[data-sidebar-toggle]');
+  const updateSidebar = () => {
+    document.body.classList.toggle('sidebar-collapsed', sidebarCollapsed);
+    const label = sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation';
+    toggle.setAttribute('aria-expanded', String(!sidebarCollapsed));
+    toggle.setAttribute('aria-label', label);
+    toggle.querySelector('.nav-label').textContent = label;
+    toggle.querySelector('.nav-tooltip').textContent = label;
+  };
+  updateSidebar();
+  toggle.onclick = () => {
+    sidebarCollapsed = !sidebarCollapsed;
+    try { localStorage.setItem('station.sidebar.collapsed', sidebarCollapsed ? '1' : '0'); } catch { /* Storage is optional. */ }
+    updateSidebar();
+  };
+  // Fixed-position tips escape the scrollable rail, including keyboard focus.
+  root.querySelectorAll('.sidebar .nav-link').forEach((control) => {
+    const positionTip = () => {
+      control.classList.remove('tooltip-dismissed');
+      const bounds = control.getBoundingClientRect();
+      control.style.setProperty('--nav-tooltip-top', `${Math.max(8, Math.min(bounds.top, window.innerHeight - 48))}px`);
+    };
+    control.addEventListener('focus', positionTip);
+    control.addEventListener('mouseenter', positionTip);
+    control.addEventListener('keydown', (event) => { if (event.key === 'Escape') control.classList.add('tooltip-dismissed'); });
+  });
+  root.querySelector('.sidebar').addEventListener('scroll', () => {
+    root.querySelectorAll('.sidebar .nav-link').forEach((control) => control.classList.add('tooltip-dismissed'));
+  });
   root.querySelector('[data-add]').onclick = () => { location.hash = '/integrations/new'; };
   root.querySelector('[data-logout]').onclick = logout;
   const theme = root.querySelector('[data-theme]');

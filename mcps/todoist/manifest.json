@@ -1,0 +1,18 @@
+{
+  "id": "todoist",
+  "slug": "todoist_mcp",
+  "name": "Todoist",
+  "description": "Manage Todoist tasks, projects, filters, and sections.",
+  "icon": "✅",
+  "version": "1.0.2",
+  "settings": [
+    {
+      "key": "api_key",
+      "label": "API Token",
+      "type": "secret",
+      "required": true,
+      "help": "Todoist API token from Settings → Integrations → Developer → API token.",
+      "default": ""
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 /** Isolated real-server workflow regression. No production modules/state/credentials.
  * PLAYWRIGHT_MODULE=/path/playwright/index.mjs AXE_MODULE=/path/@axe-core/playwright/dist/index.js
  * QA_SCREENSHOT_DIR=/workspace/scratch/station-workflow-qa node scripts/test-workflows.mjs
+ * PRODUCT_SCREENSHOT_DIR=/explicit/product/output enables labelled sample captures after all main checks.
  * Optional QA_BROWSER_EXECUTABLE; otherwise Playwright's installed Chromium is used.
  * Both browser dependencies are required: a missing axe installation must not silently skip audits.
  * Nonzero exit on failed checks. Only sanitized, credential-free evidence is persisted.
@@ -332,7 +333,7 @@ try {
     await page.locator('#routeRoot h1').waitFor();
   });
   await check('Setup tests and rejected MCP requests do not count as tool usage', async () => { assert.equal((await api('/usage')).totals.calls, 0); });
-  // Generate only local ephemeral tokens. No screenshots or raw error payloads below this point.
+  // Generate only local ephemeral tokens. Never capture a revealed token or emit raw error payloads.
   let privateToken;
   await check('Private token generation is scoped and one-time output can be copied', async () => {
     await go(work('connect', accountA.id), '[data-connections]'); await page.locator('.provider-settings summary').click();
@@ -457,7 +458,186 @@ try {
   await check('Refinement: numbered setup strip removed from new account page',async()=>{
     await go('#/integrations/new','#accountName');assert.equal(await page.locator('.account-progress').count(),0);
   });
+  // Real served-app navigation regressions. No intercepted API responses or injected PWA state.
+  const navigationRoutes = [...Object.keys(routes).map((r) => '#/' + r), work('settings', accountA.id)];
+  async function keyboardReach(target) {
+    const limit = await page.locator('a[href],button,input,select,textarea,[tabindex]').count() + 3;
+    for (let i = 0; i < limit; i++) {
+      if (await target.evaluate((el) => el === document.activeElement)) return;
+      await page.keyboard.press('Tab');
+    }
+    assert.fail('Control is not reachable with Tab');
+  }
+  async function railState(collapsed) {
+    const toggle = page.locator('[data-sidebar-toggle]');
+    if (await page.evaluate(() => localStorage.getItem('station.sidebar.collapsed') === null)) { await toggle.click(); await toggle.click(); }
+    if ((await toggle.getAttribute('aria-expanded')) !== String(!collapsed)) await toggle.click();
+    await pause(100);
+    assert.equal(await toggle.getAttribute('aria-expanded'), String(!collapsed));
+    assert.equal(await toggle.getAttribute('aria-label'), collapsed ? 'Expand navigation' : 'Collapse navigation');
+    assert.equal(await toggle.getAttribute('aria-controls'), 'station-sidebar');
+    const box = await toggle.boundingBox(); assert(box.width >= 44 && box.height >= 44);
+    assert.equal(Math.round((await page.locator('.sidebar').boundingBox()).width), collapsed ? 72 : 216);
+    assert.equal(await page.evaluate(() => localStorage.getItem('station.sidebar.collapsed')), collapsed ? '1' : '0');
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.evaluate(() => { document.documentElement.dataset.theme = 'light'; localStorage.setItem('station.theme', 'light'); });
+  for (const collapsed of [false, true]) {
+    for (const hash of navigationRoutes) {
+      await check(`Navigation ${collapsed ? 'collapsed' : 'expanded'} ${hash}: Not now geometry, hit target, keyboard and real dismissal`, async () => {
+        // Dismissal is session-scoped; a genuine reload remounts the real PWA module.
+        await page.evaluate(() => sessionStorage.removeItem('mcp-station-pwa-install-dismissed'));
+        await page.goto(base + '/' + hash); await page.reload();
+        await page.locator('#routeRoot h1').first().waitFor(); await railState(collapsed);
+        const dismiss = page.locator('.station-pwa [data-dismiss]'); await dismiss.waitFor();
+        await dismiss.scrollIntoViewIfNeeded(); await pause(100);
+        const rail = await page.locator('.sidebar').boundingBox(), button = await dismiss.boundingBox();
+        assert(button && button.x >= rail.x + rail.width, 'Not now must be right of the actual sidebar');
+        assert(await dismiss.evaluate((el) => { const r = el.getBoundingClientRect(); const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return hit === el || el.contains(hit); }));
+        await keyboardReach(dismiss); assert.equal(await dismiss.getAttribute('aria-label'), 'Dismiss installation suggestion');
+        // Exercise pointer activation after keyboard reachability, not a DOM .click().
+        await dismiss.click(); assert(await dismiss.evaluate((el) => el.hidden));
+        assert.equal(await page.evaluate(() => sessionStorage.getItem('mcp-station-pwa-install-dismissed')), '1');
+        await page.reload(); await page.locator('#routeRoot h1').first().waitFor();
+        assert(await page.locator('.station-pwa [data-dismiss]').evaluate((el) => el.hidden));
+        assert.equal(await page.locator('[data-sidebar-toggle]').getAttribute('aria-expanded'), String(!collapsed));
+        assert.equal(Math.round((await page.locator('.sidebar').boundingBox()).width), collapsed ? 72 : 216);
+        evidence[`navigation:${collapsed}:${hash}`] = { sidebarWidth: rail.width, dismissLeft: button.x, centerHit: true, keyboardReachable: true, hiddenAfterClickAndReload: true };
+      });
+    }
+  }
+  await check('Navigation: keyboard toggle, remembered states, unclipped focus tooltip and Escape', async () => {
+    await railState(false); const toggle = page.locator('[data-sidebar-toggle]');
+    await keyboardReach(toggle); await page.keyboard.press('Enter'); await railState(true);
+    const link = page.locator('.sidebar [data-route=overview]');
+    await keyboardReach(link); const tip = link.locator('.nav-tooltip'); await tip.waitFor({ state: 'visible' });
+    assert.equal(await link.getAttribute('aria-label'), 'Overview'); assert.equal(await tip.innerText(), 'Overview');
+    assert(await tip.evaluate((el) => { const r = el.getBoundingClientRect(), rail = document.querySelector('.sidebar').getBoundingClientRect(), hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return r.left >= rail.right && r.right <= innerWidth && (hit === el || el.contains(hit)); }));
+    await page.keyboard.press('Escape'); assert(!(await tip.isVisible()));
+    assert.equal(await toggle.getAttribute('aria-expanded'), 'false');
+    await page.keyboard.press('Tab'); await page.keyboard.press('Shift+Tab'); assert(await tip.isVisible());
+    await page.keyboard.press('Escape'); await keyboardReach(toggle); await page.keyboard.press('Space'); await railState(false);
+    await page.reload(); await page.locator('[data-sidebar-toggle]').waitFor(); await railState(false);
+    await railState(true);
+  });
+  for (const width of [375, 720]) {
+    await check(`Navigation mobile ${width}px: saved collapse reflows all routes and full menu works`, async () => {
+      await page.setViewportSize({ width, height: 900 });
+      for (const hash of navigationRoutes) {
+        await go(hash); await page.locator('#routeRoot h1').first().waitFor();
+        assert(!(await page.locator('.sidebar').isVisible())); assert(!(await page.locator('[data-sidebar-toggle]').isVisible()));
+        assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+        assert.equal(await page.locator('.workspace').evaluate((el) => parseFloat(getComputedStyle(el).marginInlineStart)), 0);
+      }
+      for (const [route, title] of Object.entries(routes)) {
+        await page.getByRole('button', { name: 'Open navigation', exact: true }).click();
+        const menu = page.locator('dialog[open] .mobile-nav'); await menu.waitFor();
+        assert.equal(await menu.locator('a').count(), 6);
+        for (const label of Object.values(routes)) assert(await menu.getByRole('link', { name: label, exact: true }).isVisible());
+        await menu.getByRole('link', { name: title, exact: true }).click(); await noDialog();
+        await until(() => page.evaluate((h) => location.hash === h, '#/' + route));
+      }
+      await audit('navigation-mobile-' + width);
+    });
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await check('Identity: source category, tone and monogram survive account, enablement, test and theme changes', async () => {
+    await go('#/integrations', '[data-id]'); await page.locator('[data-filter=all]').click(); await page.locator('[data-search-clear]').click();
+    const identity = async () => card().evaluate((el) => ({ tone: el.dataset.serviceTone, category: el.querySelector('.service-category').textContent, monogram: el.querySelector('.service-monogram').textContent }));
+    const baseline = await identity();
+    assert.equal(baseline.category, 'Work & automation'); assert.equal(baseline.monogram, 'QW');
+    let hash = 0; for (const char of sourceId) hash = (Math.imul(hash, 31) + char.charCodeAt(0)) >>> 0;
+    assert.equal(baseline.tone, ['forest', 'ocean', 'plum', 'slate'][hash % 4]);
+    assert.equal(await page.locator('[data-id="qa-card-01"] .service-category').innerText(), 'Custom integration');
+    assert.equal(await page.locator('[data-id="qa-card-01"] .service-monogram').innerText(), 'QC');
+    await card().locator('[data-account]').selectOption(accountB.id); assert.deepEqual(await identity(), baseline);
+    const enabled = (await api('/mcps')).mcps.find((m) => m.id === sourceId).instances.find((a) => a.id === accountB.id).enabled;
+    try {
+      const patched = page.waitForResponse((r) => r.request().method() === 'PATCH' && r.url().endsWith(`/api/mcps/${accountB.id}`));
+      await card().locator('[data-toggle]').click(); assert((await patched).ok()); await pause(180); assert.deepEqual(await identity(), baseline);
+      const tested = page.waitForResponse((r) => r.url().endsWith(`/api/mcps/${accountB.id}/test`));
+      await card().locator('[data-test]').click(); assert((await tested).ok()); await pause(180); assert.deepEqual(await identity(), baseline);
+      for (const theme of ['dark', 'light']) {
+        await page.evaluate((t) => { document.documentElement.dataset.theme = t; }, theme);
+        for (const width of [375, 768, 1440]) {
+          await page.setViewportSize({ width, height: 1000 }); await pause(100);
+          const heights = await page.locator('.integration-card:visible').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().height));
+          assert.equal(heights.length, 12); assert(Math.max(...heights) - Math.min(...heights) <= 1); assert.deepEqual(await identity(), baseline);
+          assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+        }
+      }
+    } finally { await api(`/mcps/${accountB.id}`, 'PATCH', { enabled }); }
+  });
+  for (const theme of ['light', 'dark']) await check(`Navigation collapsed ${theme}: axe serious/critical`, async () => {
+    await page.setViewportSize({ width: 1440, height: 1000 }); await page.evaluate((t) => { document.documentElement.dataset.theme = t; }, theme);
+    await go('#/integrations', '[data-id]'); await railState(true); await audit('navigation-collapsed-' + theme);
+  });
+  await check('Navigation: logout removes authenticated rail reservation and assistant layout', async () => {
+    await page.evaluate(() => sessionStorage.removeItem('mcp-station-pwa-install-dismissed'));
+    await page.goto(base + '/#/assistant'); await page.reload(); await page.locator('.assistant-page').waitFor(); await railState(true);
+    await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+    await page.getByLabel('Station password', { exact: true }).waitFor();
+    for (const cls of ['station-authenticated', 'sidebar-collapsed', 'assistant-workspace']) assert(!(await page.locator('body').evaluate((el, c) => el.classList.contains(c), cls)));
+    assert.equal(await page.locator('.sidebar').count(), 0);
+    assert.equal(await page.locator('.station-pwa').evaluate((el) => parseFloat(getComputedStyle(el).marginInlineStart)), 16);
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.getByLabel('Station password', { exact: true }).fill(password); await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await page.locator('.assistant-page').waitFor(); await railState(true);
+  });
   await check('Runtime: no uncaught browser errors or external requests', async () => { assert.deepEqual(pageErrors, []); assert.deepEqual(externalRequests, []); });
+  // Optional publication phase only AFTER canonical assertions, including QA-name expectations.
+  // These are illustrative custom fixtures, not bundled integrations or external service health.
+  if (process.env.PRODUCT_SCREENSHOT_DIR && results.every((r) => r.ok)) {
+    await check('Product screenshots: actual served app, sample manifests only, no revealed credentials', async () => {
+      const productOutput = path.resolve(process.env.PRODUCT_SCREENSHOT_DIR); await mkdir(productOutput, { recursive: true });
+      const samples = [
+        ['Files', 'Organise documents and work with files in a self-hosted workspace.'],
+        ['Gemini', 'Explore an AI service integration and its account settings.'],
+        ['Telegram', 'Connect messaging tools to a personal or team workflow.'],
+        ['SiYuan', 'Bring notes and knowledge into an assistant workflow.'],
+        ['n8n', 'Connect automation workflows through a service integration.'],
+        ['Radarr', 'Manage a movie library through a media integration.'],
+        ['Sonarr', 'Explore television library tools in your workspace.'],
+        ['OpenProject', 'Keep project work connected to assistant workflows.'],
+        ['Xero', 'Explore a custom accounting integration.'],
+        ['Station', 'Manage tools and accounts from one workspace.'],
+        ['Weather', 'An illustrative custom service for weather tools.'],
+        ['Calendar', 'An illustrative custom service for calendar workflows.']
+      ];
+      const sources = (await api('/mcps')).mcps;
+      for (let i = 0; i < samples.length; i++) {
+        const id = i === 0 ? sourceId : `qa-card-${String(i).padStart(2, '0')}`;
+        const manifest = structuredClone(sources.find((m) => m.id === id).manifest);
+        [manifest.name, manifest.description] = samples[i];
+        await api(`/mcps/${id}/file`, 'PUT', { path: 'manifest.json', content: JSON.stringify(manifest, null, 2) });
+      }
+      await api('/reload', 'POST', {});
+      await page.evaluate(() => { localStorage.setItem('station.theme', 'light'); sessionStorage.setItem('mcp-station-pwa-install-dismissed', '1'); });
+      await page.setViewportSize({ width: 1440, height: 1000 }); await page.goto(base + '/#/integrations'); await page.reload(); await page.locator('[data-id]').first().waitFor(); await railState(false);
+      async function captureProduct(name) {
+        assert.equal(await page.locator('[data-copy-token]').count(), 0);
+        assert.equal(await page.locator('input[type=password]:visible').count(), 0);
+        const text = await page.locator('body').innerText();
+        for (const value of [password, secret, privateToken].filter(Boolean)) assert(!text.includes(value));
+        await page.evaluate(() => {
+          document.querySelector('[data-qa-sample-caption]')?.remove();
+          const caption = document.createElement('div'); caption.dataset.qaSampleCaption = '';
+          caption.textContent = 'Illustrative workspace · sample integrations';
+          caption.style.cssText = 'position:fixed;top:0;right:0;z-index:9999;padding:5px 10px;background:#f0f4f3;color:#243e38;font:11px/16px sans-serif;border:1px solid #cad7d2;border-radius:0 0 0 8px;pointer-events:none';
+          document.body.append(caption);
+        });
+        await page.mouse.move(0, 0); await pause(250);
+        await page.screenshot({ path: path.join(productOutput, `${name}.png`), fullPage: false });
+      }
+      await captureProduct('integrations');
+      await go('#/assistant', '.assistant-page textarea'); await captureProduct('assistant');
+      await go(work('connect', accountA.id), '[data-connections]'); await captureProduct('workspace');
+      await page.setViewportSize({ width: 390, height: 844 }); await go('#/integrations', '[data-id]');
+      assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)); await captureProduct('mobile');
+      assert.deepEqual(pageErrors, []); assert.deepEqual(externalRequests, []);
+      evidence.productScreenshots = { files: ['integrations.png', 'assistant.png', 'workspace.png', 'mobile.png'], sampleCaption: true, realServer: true, semanticSourceIdsUnchanged: true };
+    });
+  }
 } catch (error) {
   results.push({ name: 'Fixture prerequisite or suite execution', ok: false, errorType: error.name,
     source: error.stack?.split('\n').find((line) => /test-workflows\.mjs:\d/.test(line))?.trim() });

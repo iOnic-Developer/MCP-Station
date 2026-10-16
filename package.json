@@ -16,7 +16,10 @@
     "test:pwa": "node scripts/test-pwa.mjs",
     "test:instances": "node scripts/test-instances.mjs",
     "test:usage": "node scripts/test-usage.mjs",
-    "test:workflows": "node scripts/test-workflows.mjs"
+    "test:workflows": "node scripts/test-workflows.mjs",
+    "test:bundled": "node scripts/test-bundled.mjs",
+    "test:configuration": "node scripts/test-configuration.mjs",
+    "test:product-page": "REQUIRE_PRODUCT_SCREENSHOT=1 node scripts/test-product-page.mjs"
   },
   "engines": {
     "node": ">=20"

@@ -1,58 +1,70 @@
 # Quick Start
 
-The shortest path to a running station and your first claude.ai connector.
+**Stable 2.4.0 first.** The account-aware workflow below is labeled beta where it differs.
+Use separate volumes when evaluating `2.7.0_beta`; see [Versions and Images](Versions-and-Images).
+The expanded 18-module bundle belongs to upcoming source, not this stable image or the published
+`2.7.0_beta` image. Choose the source/image channel before expecting those integrations.
 
-## 1. Run it
+## 1. Keep the first run local
+
+Create a private `.env` with a strong `APP_PASSWORD`; exclude it from Git and restrict permissions.
+Save the following as `compose.yaml` in the same directory:
 
 ```yaml
-# docker-compose.yml
 services:
   mcp-station:
-    image: dbzocchi/mcp-station:latest     # or pin :2.4.0
-    container_name: mcp-station
+    image: dbzocchi/mcp-station:2.4.0
     restart: unless-stopped
     ports:
-      - "8788:8788"
+      - "127.0.0.1:8788:8788"
     environment:
-      APP_PASSWORD: change-me-to-something-strong
-      PUBLIC_URL: https://mcp.example.com   # your public HTTPS hostname
-      COOKIE_SECURE: "1"
+      APP_PASSWORD: ${APP_PASSWORD:?set APP_PASSWORD in .env}
+      PUBLIC_URL: ${PUBLIC_URL:-}
+      COOKIE_SECURE: ${COOKIE_SECURE:-0}
+      MCP_TOKEN: ${MCP_TOKEN:-}
     volumes:
       - ./data:/data
       - ./mcps:/app/mcps
+      - ./files:/files
 ```
 
-```bash
+```sh
 docker compose up -d
-curl http://localhost:8788/healthz    # → {"ok":true,"version":"…","modules":10,"oauth":true}
+curl --fail http://127.0.0.1:8788/healthz
 ```
 
-Not exposing it yet? Leave `PUBLIC_URL` unset to run local-only (OAuth off; the `MCP_TOKEN` bearer
-still works). To expose a home box, a [Cloudflare Tunnel](https://github.com/iOnic-Developer/MCP-Station/blob/main/docs/CLOUDFLARE.md) is the easiest route.
+Open `http://127.0.0.1:8788` and sign in. The health response describes the running app, not
+proof that any upstream API or client connection works. OAuth is off with `PUBLIC_URL` unset.
 
-## 2. Log in & configure
+## 2. Configure, inspect, and test
 
-Open `http://<host>:8788`, log in with `APP_PASSWORD`. Each module needs its settings (API keys,
-service URLs) filled in from its ⚙ **Settings** panel — **not** env vars. Hit ▶ **Test** to confirm
-it reaches the real service.
+**Stable:** use the module settings and capabilities controls.
+**Beta/branch:** open Integrations → choose the account → Configure; inspect Tools in its workspace.
 
-## 3. Connect claude.ai
+Enter required service URLs and credentials in the manifest-generated settings fields, not
+arbitrary environment variables. Save and run Test. A source without `test()` may only verify that
+it loads. Review tools before enabling the endpoint; passing Test does not imply a connected client.
 
-In claude.ai: **Settings → Connectors → Add custom connector** →
-`https://mcp.example.com/<module>/mcp` → a popup shows the station's consent page → enter your
-`APP_PASSWORD` → leave **Stay signed in for** on *Unlimited* → connected. The token is
-scoped to that one module.
+**Beta:** an additional account is blank, disabled, and untested. Configure and enable it explicitly;
+existing credentials, tokens, and tests are not copied. See [Accounts](Accounts).
 
-## 4. (Optional) grab the skill
+## 3. Add remote HTTPS only when needed
 
-On the module card, 📄 **Skill** downloads a Claude skill `.zip` (about + live tool list). Upload it
-in claude.ai → Settings → Capabilities → Skills so Claude knows how to use the module well.
+Configure a reverse proxy or tunnel to the station. Set `PUBLIC_URL` to the exact externally
+reachable HTTPS origin (no path), set `COOKIE_SECURE=1`, and recreate the container. Remove any
+intervening login wall from the connector path. Match the connector hostname to the issuer.
 
-## 5. Add your own MCP
+The loopback port above is for a host-local proxy/browser. A proxy in a different container or on
+another host needs deliberate networking; do not assume it can access that binding.
 
-➕ **Add MCP** → describe what you want or paste an API's docs → the ✦ assistant reads the docs,
-writes the module straight onto the station and reloads it → ▶ Test → toggle on. It's live at
-`/<your-slug>/mcp`.
+## 4. Connect a client
 
-That's it. See [Use Cases](Use-Cases) for ideas and [Building a Module](Building-a-Module) for the
-contract.
+Copy `https://your-station.example/<slug>/mcp` into a compatible connector. Approve OAuth consent,
+or configure a bearer token in the client. Prefer endpoint-scoped access over the master token.
+In beta, copy the selected account's endpoint. [ChatGPT, Claude, Claude Code, and LibreChat](Connecting-AI-Clients).
+
+## 5. Protect the state
+
+Persist `/data` and `/app/mcps`. Keep the generated `secret.key`, or preserve your fixed
+`SESSION_SECRET` separately if you set one. Back up Files storage separately.
+Use a full station backup before upgrading: [Backups](Backups).

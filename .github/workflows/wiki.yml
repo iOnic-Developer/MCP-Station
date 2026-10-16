@@ -1,7 +1,7 @@
 name: Publish wiki
 
 # docs/wiki/ is the source of the GitHub wiki: edit pages here, merge to main, and this
-# mirrors them into the <repo>.wiki.git repository (pages removed here are removed there too).
+# mirrors them into the <repo>.wiki.git repository (unrelated public wiki pages are retained).
 on:
   push:
     branches: [main]
@@ -22,7 +22,7 @@ jobs:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git clone "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" wiki
-          rsync -a --delete --exclude .git --exclude _PUBLISHING.md docs/wiki/ wiki/
+          rsync -a --exclude .git --exclude _PUBLISHING.md docs/wiki/ wiki/
           cd wiki
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

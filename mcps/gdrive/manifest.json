@@ -1,0 +1,167 @@
+{
+  "id": "gdrive",
+  "slug": "gdrive_mcp",
+  "name": "Google Drive",
+  "description": "Search, read, upload, manage files, folders, permissions, and export Google Docs/Sheets/Slides via the Google Drive API v3 across up to 3 Google accounts.",
+  "icon": "📁",
+  "version": "1.1.0",
+  "settings": [
+    {
+      "key": "client_id",
+      "label": "OAuth Client ID",
+      "type": "text",
+      "required": false,
+      "help": "Google Cloud OAuth 2.0 Client ID (shared across accounts).",
+      "default": ""
+    },
+    {
+      "key": "client_secret",
+      "label": "OAuth Client Secret",
+      "type": "secret",
+      "required": false,
+      "help": "Google Cloud OAuth 2.0 Client Secret (shared across accounts).",
+      "default": ""
+    },
+    {
+      "key": "account1_name",
+      "label": "Account 1 Name",
+      "type": "text",
+      "required": false,
+      "default": "",
+      "help": "Optional account label. Leave blank to use Account 1, Account 2 or Account 3."
+    },
+    {
+      "key": "account1_enabled",
+      "label": "Account 1 Status",
+      "type": "select",
+      "options": [
+        "enabled",
+        "disabled"
+      ],
+      "default": "enabled",
+      "help": "Enable or disable Account 1."
+    },
+    {
+      "key": "account1_refresh_token",
+      "label": "Account 1 Refresh Token",
+      "type": "secret",
+      "required": false,
+      "help": "OAuth 2.0 Refresh Token for Account 1.",
+      "default": ""
+    },
+    {
+      "key": "account2_name",
+      "label": "Account 2 Name",
+      "type": "text",
+      "required": false,
+      "default": "",
+      "help": "Optional account label. Leave blank to use Account 1, Account 2 or Account 3."
+    },
+    {
+      "key": "account2_enabled",
+      "label": "Account 2 Status",
+      "type": "select",
+      "options": [
+        "enabled",
+        "disabled"
+      ],
+      "default": "disabled",
+      "help": "Enable or disable Account 2."
+    },
+    {
+      "key": "account2_refresh_token",
+      "label": "Account 2 Refresh Token",
+      "type": "secret",
+      "required": false,
+      "help": "OAuth 2.0 Refresh Token for Account 2.",
+      "default": ""
+    },
+    {
+      "key": "account3_name",
+      "label": "Account 3 Name",
+      "type": "text",
+      "required": false,
+      "default": "",
+      "help": "Optional account label. Leave blank to use Account 1, Account 2 or Account 3."
+    },
+    {
+      "key": "account3_enabled",
+      "label": "Account 3 Status",
+      "type": "select",
+      "options": [
+        "enabled",
+        "disabled"
+      ],
+      "default": "disabled",
+      "help": "Enable or disable Account 3."
+    },
+    {
+      "key": "account3_refresh_token",
+      "label": "Account 3 Refresh Token",
+      "type": "secret",
+      "required": false,
+      "help": "OAuth 2.0 Refresh Token for Account 3.",
+      "default": ""
+    },
+    {
+      "key": "access_token",
+      "label": "Direct Access Token (Fallback)",
+      "type": "secret",
+      "required": false,
+      "help": "Optional direct Bearer access token fallback if not using refresh tokens.",
+      "default": ""
+    }
+  ],
+  "configurationAlternatives": [
+    [
+      {
+        "key": "access_token"
+      }
+    ],
+    [
+      {
+        "key": "client_id"
+      },
+      {
+        "key": "client_secret"
+      },
+      {
+        "key": "account1_refresh_token"
+      },
+      {
+        "key": "account1_enabled",
+        "value": "enabled"
+      }
+    ],
+    [
+      {
+        "key": "client_id"
+      },
+      {
+        "key": "client_secret"
+      },
+      {
+        "key": "account2_refresh_token"
+      },
+      {
+        "key": "account2_enabled",
+        "value": "enabled"
+      }
+    ],
+    [
+      {
+        "key": "client_id"
+      },
+      {
+        "key": "client_secret"
+      },
+      {
+        "key": "account3_refresh_token"
+      },
+      {
+        "key": "account3_enabled",
+        "value": "enabled"
+      }
+    ]
+  ]
+}

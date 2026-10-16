@@ -1,21 +1,25 @@
-**[🏠 Home](Home)**
+**[MCP Station](Home)**
 
-**Get going**
-- [Quick Start](Quick-Start)
-- [Versions & Images](Versions-and-Images)
+**Start**
+- [Quick Start · stable first](Quick-Start)
+- [Versions and Images](Versions-and-Images)
 - [Configuration](Configuration)
-- [Connecting Claude](Connecting-Claude)
+- [Connecting AI Clients](Connecting-AI-Clients)
+- [Claude connection details](Connecting-Claude)
 
-**Modules**
+**Beta workflows**
+- [Service Accounts](Accounts)
+- [Usage](Usage)
+- [Assistant · stable and beta](Assistant)
+
+**Build and operate**
 - [Bundled Modules](Bundled-Modules)
 - [Building a Module](Building-a-Module)
-- [Use Cases & Recipes](Use-Cases)
-
-**Help**
+- [Use Cases](Use-Cases)
+- [Backups and Exports](Backups)
 - [Troubleshooting](Troubleshooting)
 - [FAQ](FAQ)
-- [Cloudflare](https://github.com/iOnic-Developer/MCP-Station/blob/main/docs/CLOUDFLARE.md)
-- [Roadmap](https://github.com/iOnic-Developer/MCP-Station/blob/main/docs/ROADMAP.md)
 
----
-[README](https://github.com/iOnic-Developer/MCP-Station#readme) · [Docker Hub](https://hub.docker.com/r/dbzocchi/mcp-station)
+[Repository](https://github.com/iOnic-Developer/MCP-Station) ·
+[Review branch](https://github.com/iOnic-Developer/MCP-Station/tree/redesign/public-product) ·
+[Docker Hub](https://hub.docker.com/r/dbzocchi/mcp-station)

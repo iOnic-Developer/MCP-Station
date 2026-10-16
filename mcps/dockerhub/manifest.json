@@ -1,0 +1,26 @@
+{
+  "id": "dockerhub",
+  "slug": "dockerhub_mcp",
+  "name": "Docker Hub",
+  "description": "Full-featured MCP module to interact with Docker Hub API.",
+  "icon": "🐳",
+  "version": "1.0.0",
+  "settings": [
+    {
+      "key": "username",
+      "label": "Docker Hub Username",
+      "type": "text",
+      "required": true,
+      "help": "Your Docker Hub username",
+      "default": ""
+    },
+    {
+      "key": "pat",
+      "label": "Personal Access Token or Password",
+      "type": "secret",
+      "required": true,
+      "help": "Docker Hub PAT (for repos/tags/builds/webhooks) or account password (required if you want API-based PAT creation/management)",
+      "default": ""
+    }
+  ]
+}

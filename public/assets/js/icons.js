@@ -8,6 +8,7 @@ const paths = {
   backup: '<path d="M4 8h16v13H4zM3 3h18v5H3zM9 12h6"/>',
   plus: '<path d="M12 5v14M5 12h14"/>', close: '<path d="m6 6 12 12M6 18 18 6"/>',
   arrow: '<path d="M4 12h16m-6-6 6 6-6 6"/>', chevron: '<path d="m9 5 7 7-7 7"/>',
+  panel: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18m5-12-3 3 3 3"/>',
   menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
   search: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/>',
   reload: '<path d="M20 7v5h-5M4 17v-5h5M6 6a8 8 0 0 1 13 3M5 15a8 8 0 0 0 13 3"/>',
@@ -34,8 +35,27 @@ const paths = {
 export function icon(name, cls = '') {
   return `<svg class="icon ${cls}" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${paths[name] || paths.plug}</svg>`;
 }
-export function serviceIcon(id) {
+/** Local category symbols, not official service logos. Identity never follows status. */
+export function serviceIdentity(id, name = id) {
   const value = String(id).toLowerCase();
-  const name = /sonarr|radarr|media/.test(value) ? 'media' : /files|drive/.test(value) ? 'folder' : /telegram|slack|gmail/.test(value) ? 'message' : /n8n|openproject/.test(value) ? 'workflow' : /siyuan|xero/.test(value) ? 'database' : /gemini|openai|anthropic/.test(value) ? 'assistant' : 'plug';
-  return icon(name);
+  const categories = [
+    [/sonarr|radarr|plex|jellyfin|media/, 'media', 'Media'],
+    [/files|drive|dropbox|storage/, 'folder', 'Files & storage'],
+    [/telegram|slack|gmail|pushover|mail|message/, 'message', 'Messaging'],
+    [/github|gitlab|docker|unraid|forge/, 'code', 'Development'],
+    [/n8n|openproject|todoist|workflow/, 'workflow', 'Work & automation'],
+    [/siyuan|notes|notion|xero|booker|pos-companion/, 'database', 'Knowledge & data'],
+    [/gemini|openai|anthropic|assistant/, 'assistant', 'AI services'],
+    [/proton|password|vault/, 'key', 'Security']
+  ];
+  const match = categories.find(([pattern]) => pattern.test(value));
+  // Four restrained, theme-aware identity tones. Source ID is stable across account/state changes.
+  let hash = 0;
+  for (const char of value) hash = (Math.imul(hash, 31) + char.charCodeAt(0)) >>> 0;
+  const words = String(name).trim().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  const monogram = (words.length > 1 ? words[0][0] + words[1][0] : (words[0] || 'IN').slice(0, 2)).toUpperCase();
+  return { icon: match?.[1] || 'plug', category: match?.[2] || 'Custom integration', tone: ['forest', 'ocean', 'plum', 'slate'][hash % 4], monogram };
+}
+export function serviceIcon(id) {
+  return icon(serviceIdentity(id).icon);
 }

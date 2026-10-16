@@ -1,2 +1,4 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+docs/site/assets/plus-jakarta-sans-OFL.txt whitespace=-blank-at-eol

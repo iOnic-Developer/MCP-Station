@@ -42,6 +42,10 @@ export const ManifestSchema = z.object({
   description: z.string().default(''),
   icon: z.string().default('🔌'),
   version: z.string().default('1.0.0'),
+  configurationAlternatives: z.array(z.array(z.object({
+    key: z.string().regex(/^[a-zA-Z0-9_]+$/),
+    value: z.string().min(1).optional()
+  }).strict()).min(1)).min(1).optional(),
   settings: z.array(z.object({
     key: z.string().regex(/^[a-zA-Z0-9_]+$/),
     label: z.string(),
@@ -51,6 +55,19 @@ export const ManifestSchema = z.object({
     options: z.array(z.string()).optional(),
     help: z.string().optional()
   })).default([])
+}).superRefine((manifest, ctx) => {
+  for (const [i, group] of (manifest.configurationAlternatives || []).entries()) {
+    for (const [j, condition] of group.entries()) {
+      const setting = manifest.settings.find((s) => s.key === condition.key);
+      if (!setting) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['configurationAlternatives', i, j, 'key'],
+          message: 'Configuration conditions must reference declared settings' });
+      } else if (condition.value !== undefined && (setting.type === 'secret' || !condition.value.trim())) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['configurationAlternatives', i, j, 'value'],
+          message: 'Equality guards must be nonblank and must not contain secret values' });
+      }
+    }
+  }
 });
 
 const registeredToolNames = new WeakMap();
@@ -255,12 +272,14 @@ export function getSettingsFor(id) {
   return out;
 }
 
-/** True when every required setting has a value. */
+/** Required settings AND, when declared, at least one complete configuration alternative. */
 export function isConfigured(id) {
   const mod = getModuleById(id);
   if (!mod?.manifest) return false;
   const vals = getSettingsFor(id);
-  return mod.manifest.settings.filter((s) => s.required).every((s) => vals[s.key]);
+  if (!mod.manifest.settings.filter((s) => s.required).every((s) => vals[s.key])) return false;
+  return mod.manifest.configurationAlternatives === undefined || mod.manifest.configurationAlternatives.some((group) =>
+    group.every(({ key, value }) => value === undefined ? Boolean(vals[key]?.trim()) : vals[key] === value));
 }
 
 /** Store settings (secrets encrypted). '••••••' means "leave unchanged". */

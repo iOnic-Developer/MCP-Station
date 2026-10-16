@@ -1,0 +1,34 @@
+{
+  "id": "protonpass",
+  "slug": "protonpass_mcp",
+  "name": "Proton Pass",
+  "description": "Manage Proton Pass vaults, logins, 2FA/TOTP tokens, SSH keys, and password generation via pass-cli.",
+  "icon": "🔐",
+  "version": "1.0.0",
+  "settings": [
+    {
+      "key": "personal_access_token",
+      "label": "Personal Access Token (PAT)",
+      "type": "secret",
+      "required": true,
+      "help": "Required. This bundle does not use ambient CLI authentication sessions.",
+      "default": ""
+    },
+    {
+      "key": "cli_path",
+      "label": "pass-cli executable path",
+      "type": "text",
+      "required": false,
+      "default": "pass-cli",
+      "help": "Allowed: pass-cli or /usr/local/bin/pass-cli. Arbitrary executables are not allowed."
+    },
+    {
+      "key": "default_vault",
+      "label": "Default Vault Name",
+      "type": "text",
+      "required": false,
+      "help": "Optional default vault name for item queries (e.g. 'Personal')",
+      "default": ""
+    }
+  ]
+}

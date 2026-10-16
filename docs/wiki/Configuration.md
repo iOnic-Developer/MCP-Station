@@ -1,79 +1,62 @@
 # Configuration
 
-Everything about the station itself is set with environment variables. **Module settings** (API keys,
-service URLs) are not — they live in each module's ⚙ Settings panel, encrypted in `/data`.
+**Applies to stable 2.4 and beta unless marked.** Service credentials belong in the module/account
+settings form. Station and Assistant configuration use environment variables or Station settings.
 
-## Required
+## Deployment settings
 
-| Variable | Notes |
-|---|---|
-| `APP_PASSWORD` | Admin login **and** the password on the OAuth consent page. Use a strong one. |
-| `PUBLIC_URL` | The exact public HTTPS origin, e.g. `https://mcp.example.com`. It's the OAuth issuer — needed for claude.ai. Leave unset for local-only use (OAuth off, bearer tokens still work). |
+| Variable | Behavior |
+| --- | --- |
+| `APP_PASSWORD` | Admin and OAuth consent password. Use a strong private value. |
+| `PUBLIC_URL` | Optional exact public HTTPS origin; unset disables OAuth, not bearer transport. |
+| `COOKIE_SECURE` | Set `1` behind HTTPS; leave `0` for the local HTTP quick start. |
+| `PORT` | Default `8788`; match the container mapping. |
+| `MCP_TOKEN` | Optional station-wide bearer with access to all endpoints; prefer narrower tokens. |
+| `SESSION_SECRET` | Optional fixed encryption/signing secret; otherwise generated into `/data/secret.key`. |
+| `DATA_DIR` | Docker default `/data`. |
+| `MCPS_DIR` | Docker default `/app/mcps`. |
+| `FILES_DIR` | Files module root, default `/files`; its `root_dir` setting can override it. |
 
-### The `PUBLIC_URL` rules
+Use `${APP_PASSWORD:?set APP_PASSWORD in .env}` in Compose, not a committed password. Changing
+`SESSION_SECRET` after storing settings can make them unreadable. If supplied through the environment,
+it is not magically included in a filesystem backup: preserve it securely yourself.
 
-1. Scheme + hostname only, no path. It must match the host in your connector URLs.
-2. Change the hostname → change `PUBLIC_URL` and restart.
-3. It must reach the station **directly** — no auth wall or redirect (no Cloudflare Access) in front.
-   The station checks this at boot and logs a warning.
+## Public origin
 
-## Recommended
+The hostname must match the client URL and reach the station directly, without redirects to another
+service or an upstream login wall. Update `PUBLIC_URL` and recreate the container when changing it.
+The startup self-check is useful, but split-horizon DNS may require an external check too.
 
-| Variable | Default | Notes |
-|---|---|---|
-| `COOKIE_SECURE` | off | Set `1` when served over HTTPS. |
-| `MCP_TOKEN` | — | Station-wide bearer that opens every module (Claude Code, scripts). Unset = OAuth and per-module tokens only. |
-| `SESSION_SECRET` | generated | Leave unset and a key is generated in `/data/secret.key`. If you set it, choose the final value **before** configuring modules — changing it later makes encrypted settings unreadable. |
-| `FILES_DIR` | `/files` | Folder the 📁 Files module is jailed to. Map a host folder here. |
+## Assistant
 
-## ✦ assistant
+Choose `openai`, `anthropic`, or `gemini` with `ASSISTANT_PROVIDER` or Station settings.
+Keys can be saved encrypted in the UI; a nonempty environment key takes precedence. The UI's
+provider selection overrides the environment default.
 
-The assistant can use OpenAI, Claude or Gemini. Keys can be set here **or** saved (encrypted) in
-⚙ Station settings; an env var wins when both are set. The UI provider toggle overrides
-`ASSISTANT_PROVIDER`.
+| Variables | Purpose |
+| --- | --- |
+| `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_BASE_URL` | OpenAI Responses API / compatible configured gateway. |
+| `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `ANTHROPIC_BASE_URL` | Anthropic messages API / configured gateway. |
+| `GEMINI_API_KEY`, `GEMINI_MODEL`, `GEMINI_BASE_URL` | Gemini API / configured gateway. |
+| `ASSISTANT_HEARTBEAT_MS` | Streaming keep-alive, default `15000` ms. |
 
-| Variable | Default | Notes |
-|---|---|---|
-| `ASSISTANT_PROVIDER` | `openai` (2.x) | `openai`, `anthropic` or `gemini`. |
-| `OPENAI_API_KEY` / `OPENAI_MODEL` | — / `gpt-6-astra` | OpenAI, via the Responses API. |
-| `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | — / `claude-sonnet-4-6` | Claude. |
-| `GEMINI_API_KEY` / `GEMINI_MODEL` | — / `gemini-2.5-flash` | Gemini. |
-| `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL` / `GEMINI_BASE_URL` | vendor APIs | Origin only, no path — route through a gateway such as OmniRoute or LiteLLM. |
-| `ASSISTANT_HEARTBEAT_MS` | `15000` | Keep-alive interval for the streaming reply. Lower it if a proxy closes idle responses sooner. |
+Set a model your provider or gateway actually supports. The checked-in defaults are configuration
+strings, not a guarantee of model availability or provider entitlement. Base URL overrides are
+origins without endpoint paths. See [Assistant](Assistant) before sending private context.
 
-## Tuning
+## Persistent storage
 
-| Variable | Default | Notes |
-|---|---|---|
-| `PORT` | `8788` | Match your port mapping. |
-| `DATA_DIR` | `/data` | State, OAuth store, encryption key, backups, trash. |
-| `MCPS_DIR` | `/app/mcps` | Module folders. |
+| Path | Content |
+| --- | --- |
+| `/data` | State, OAuth store, persisted key, backups, trash; beta also stores bounded `usage.json`. |
+| `/app/mcps` | Shared source folders and default-account encrypted configuration mirrors. |
+| `/files` or configured Files root | User files; back up separately. |
 
-## Volumes
+New bundled folders are seeded if absent on start; existing folders are not overwritten.
+Disable unwanted bundled modules rather than relying on deletion to survive a restart.
+Secret-type fields are encrypted at rest; ordinary fields and source are not secret storage.
+Modules still send credentials and request data to configured services. Assistant conversation,
+context, source, and relevant tool output can go to the selected provider/gateway. Some privileged
+service tools intentionally return secrets; protect those results too.
 
-| Container path | Holds | Must persist? |
-|---|---|---|
-| `/data` | `station.json` (state + OAuth store), `secret.key`, `backups/`, `trash/` | **Yes** — or every connector dies on redeploy |
-| `/app/mcps` | Module folders (seeded on first boot) | Yes, to keep your own modules and edits |
-| `/files` | The 📁 Files module's storage | If you use it |
-
-## Example
-
-```yaml
-services:
-  mcp-station:
-    image: dbzocchi/mcp-station:2.4.0
-    restart: unless-stopped
-    ports: ["8788:8788"]
-    environment:
-      APP_PASSWORD: change-me
-      PUBLIC_URL: https://mcp.example.com
-      COOKIE_SECURE: "1"
-      MCP_TOKEN: ""
-      ASSISTANT_PROVIDER: openai
-      OPENAI_API_KEY: ""
-    volumes:
-      - ./data:/data
-      - ./mcps:/app/mcps
-      - ./files:/files
-```
+[Quick Start](Quick-Start) · [Backups](Backups) · [Accounts](Accounts)

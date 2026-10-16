@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — navigation, product launch and expanded defaults
+
+- Keep installation controls outside the fixed rail; add remembered icon-only navigation and keyboard labels.
+- Add stable service identities and clear visual divisions to uniform integration cards.
+- Bundle eight reviewed general-purpose modules, bringing the default inventory to 18; no live credentials imported.
+- Validate alternative Google authentication configurations before labelling an account configured.
+- Overhaul README/wiki/Docker Hub copy; add a static product page, sample screenshots and original social artwork.
+- Published 2.7.0_beta does not yet include this source-only pass.
+
 ## Unreleased — interaction density and assistant workspace
 
 - Give station chat the available viewport with an internally scrolling transcript and reachable composer.

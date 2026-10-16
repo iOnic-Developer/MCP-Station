@@ -1,0 +1,26 @@
+{
+  "id": "github",
+  "slug": "github_mcp",
+  "name": "GitHub",
+  "description": "Interact with GitHub repositories, issues, pull requests, and files.",
+  "icon": "🐙",
+  "version": "1.0.0",
+  "settings": [
+    {
+      "key": "pat",
+      "label": "Personal Access Token (PAT)",
+      "type": "secret",
+      "required": true,
+      "help": "GitHub PAT with appropriate scopes.",
+      "default": ""
+    },
+    {
+      "key": "default_owner",
+      "label": "Default Owner",
+      "type": "text",
+      "required": false,
+      "help": "Default organization or username to use when not specified.",
+      "default": ""
+    }
+  ]
+}

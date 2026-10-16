@@ -1,19 +1,20 @@
 # Building a Module
 
-A module is a folder in `mcps/` — two required files, one optional.
+**Stable and beta:** modules are source folders. **Beta:** one source can serve several accounts;
+source changes affect all of them.
 
-```
+```text
 mcps/my-module/
-├── manifest.json     # id, slug, name, icon, description, version, settings[]
-├── index.js          # export function register({ server, z, getSettings, log, fetchJson })
-└── instructions.md   # optional — served to every client as MCP instructions at initialize
+├── manifest.json
+├── index.js
+└── instructions.md     optional client instructions
 ```
 
-The full contract (with a worked example) is in
-[docs/BUILDING_MCPS.md](https://github.com/iOnic-Developer/MCP-Station/blob/main/docs/BUILDING_MCPS.md).
-The essentials:
+Copy `_template` or ask the [Assistant](Assistant) to scaffold a source from sanitized API docs.
+The detailed [module contract](https://github.com/iOnic-Developer/MCP-Station/blob/redesign/public-product/docs/BUILDING_MCPS.md)
+remains the implementation reference.
 
-## manifest.json
+## Minimal manifest
 
 ```json
 {
@@ -21,65 +22,51 @@ The essentials:
   "slug": "weather_mcp",
   "name": "Weather",
   "icon": "⛅",
-  "description": "Current conditions and forecast",
+  "description": "Weather service tools",
   "version": "1.0.0",
   "settings": [
-    { "key": "api_key", "label": "API key", "type": "secret", "required": true },
-    { "key": "units", "label": "Units", "type": "select", "options": ["metric", "imperial"], "default": "metric" }
+    { "key": "api_key", "label": "API key", "type": "secret", "required": true }
   ]
 }
 ```
 
-Setting types: `text`, `secret` (encrypted at rest, masked in the UI), `select`, `textarea`. The
-`slug` is the URL path; keep it out of `RESERVED_SLUGS`.
+Supported form types are `text`, `secret`, `select`, and `textarea`. Use secret fields for credentials;
+ordinary source files are not encrypted secret storage. Keep IDs/slugs unique and non-reserved.
 
-## index.js
+## Registration shape
 
 ```js
-export function register({ server, z, getSettings, log, fetchJson }) {
-  server.registerTool(
-    'get_current',
-    {
-      title: 'Current weather',
-      description: 'Current conditions for a city.',
-      inputSchema: { city: z.string().describe('City name') }  // a PLAIN object of zod fields
-    },
-    async ({ city }) => {
-      const { api_key, units } = getSettings();               // live, decrypted config
-      if (!api_key) return { content: [{ type: 'text', text: 'Error: set an API key in Settings.' }] };
-      const data = await fetchJson(`https://api.example.com/weather?q=${encodeURIComponent(city)}&units=${units}&key=${api_key}`);
-      return { content: [{ type: 'text', text: `${city}: ${data.temp}° ${data.summary}` }] };
-    }
-  );
-}
-
-// optional connectivity check for the ▶ Test button
-export async function test(settings, { fetchJson }) {
-  if (!settings.api_key) return { ok: false, message: 'No API key set.' };
-  await fetchJson(`https://api.example.com/ping?key=${settings.api_key}`);
-  return { ok: true, message: 'Reached the API.' };
+export function register({ server, z, getSettings }) {
+  server.registerTool('check_configuration', {
+    title: 'Check configuration',
+    description: 'Check whether this account has an API key; does not test the service.',
+    inputSchema: {}
+  }, async () => {
+    const configured = Boolean(getSettings().api_key);
+    return {
+      content: [{ type: 'text', text: configured ? 'API key supplied.' : 'Set an API key in Settings.' }],
+      isError: !configured
+    };
+  });
 }
 ```
 
-## The rules that bite
+Use a plain object of Zod fields for `inputSchema`, not `z.object()`. Platform helpers include
+`fetchJson` and global `fetch`; do not assume arbitrary npm dependencies are installed. Add an
+optional `test(settings, {fetchJson})` export for a meaningful upstream connectivity check.
+The example above checks configuration only and never validates an upstream key.
 
-- **`inputSchema` is a plain object of zod fields**, never `z.object()` — the SDK wraps the raw shape.
-- **No npm dependencies inside a module.** You get `fetchJson` (and global `fetch`) injected; that's
-  the HTTP surface.
-- **Return actionable errors** ("set the API key in Settings") rather than throwing — Claude relays
-  them to the user.
-- **Hot reload:** save in the editor → ⟳ Reload modules. No restart.
+## Account-safe source
 
-## The easy way
+Get per-request settings from the injected `getSettings()` closure. Do not store credentials in
+module-global variables. Account snapshots prevent ordinary cross-request settings mutation,
+not malicious module access: JavaScript runs in the trusted station process.
 
-Open ➕ **Add MCP** and describe what you want, or paste the API's docs URL / an OpenAPI spec /
-example `curl` calls. The ✦ assistant knows this contract: it reads the docs page by page, lists every
-endpoint, writes `manifest.json` + `index.js` **straight onto the station** with its file tools and
-hot-reloads the module, fixing its own load errors. Hit ▶ Test, toggle it on, done.
+Return actionable errors without secrets. Make destructive actions explicit and require appropriate
+confirmation. Review generated code, inspect Tools, test, and reload before enabling access.
+The Station management module is another privileged way to create/edit source remotely.
 
-To change a module later, open its **‹/› Code** drawer — the chat there is pinned to that module and
-edits its files in place (exact find/replace), so even a very large module is a quick change. Then
-📦 **Export** it to share.
+## Share source, not state
 
-You can also build modules from Claude itself: connect the bundled ⛽ **MCP Station** module
-(`/station/mcp`) and Claude gets tools to create, write, configure and reload modules over MCP.
+Module ZIP export excludes managed configuration/chat, not arbitrary embedded secrets. Review it
+before sharing. Account records and usage require a full private backup. [Backups](Backups).

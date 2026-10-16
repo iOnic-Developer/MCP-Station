@@ -1,69 +1,56 @@
-# Versions & Images
+# Versions and Images
 
-MCP Station ships as one multi-arch image (`linux/amd64`, `linux/arm64`) on Docker Hub:
-**[`dbzocchi/mcp-station`](https://hub.docker.com/r/dbzocchi/mcp-station)**.
+**Publication snapshot: 2026-10-16.** These labels distinguish image tags, source, and the app's
+internal version. A Docker tag is not a GitHub release announcement.
 
-## Which tag?
+| Channel | Tag/source | Status |
+| --- | --- | --- |
+| Stable | `dbzocchi/mcp-station:2.4.0`; moving `:latest`; `main` | Stable 2.4 interface. |
+| Published beta | `dbzocchi/mcp-station:2.7.0_beta` | Built from `7945275`, internal version `2.6.0-beta`. |
+| Branch preview | `redesign/public-product` | Upcoming 18-module bundle, newer workspace, site source and product documentation; not in the published beta image. |
 
-| Tag | What it is | Built from |
-|---|---|---|
-| `latest` | Newest stable release (currently **v2.4.0**) | `main` |
-| `2.4.0` | v2.4.0, fixed — pin it if you don't want `latest` to move | `main` at v2.4.0 |
-| `<sha>` | The build of one specific commit on `main` | `main` |
-| `1.x.y`, `2.0.0`, `2.1.0_alpha`, `2.2.0_alpha` | Earlier releases and alphas, kept for rollback | — |
+The beta adds account-aware workspaces and Connections, real bounded tool-usage metadata,
+full-page Assistant work, and installable PWA support. Installation depends on browser/device and
+HTTPS; it is not offline access to private station content. Later navigation, card, and action-layout
+changes are branch-preview work until a subsequent image is explicitly built and verified.
 
-## What's new in 2.4.0
+`latest` is moving, not a reproducibility guarantee. Version-looking tags can also be republished;
+use a verified image digest when exact reproducibility matters. The app's `2.6.0-beta` display does
+not mean the Docker `2.7.0_beta` tag is wrong: those version labels have not been aligned in code.
 
-Compared with v1.8.0:
+## Safe evaluation
 
-**Sign-ins you control — Unlimited by default**
-- The OAuth consent page asks *Stay signed in for*: 1 day, 1 week, 1 month or **Unlimited**
-  (preselected).
-- The access token lasts for the whole period you choose instead of one hour, so a connector no
-  longer drops out when the client misses a refresh. Refreshing never extends a limited sign-in.
-- Generating or rotating a per-module token offers the same choice.
-- 🔑 Access shows each connection's real end date ("never" for unlimited).
-- Connections made on an older image become unlimited the next time they refresh.
+1. Take a full backup and preserve any externally set `SESSION_SECRET`.
+2. Use a separate deployment with separate `/data`, `/app/mcps`, and Files storage for beta.
+3. Record the selected image/digest and test accounts, tools, access, and restoration.
+4. Do not assume an older image can consume beta state safely; restore a matching validated backup.
 
-**✦ assistant**
-- OpenAI is the default provider (GPT-6 Astra over the Responses API). Claude and Gemini remain
-  available — see [Configuration](Configuration).
-- No fixed limit on tool rounds, so long build sessions don't stop part-way.
+Existing default account settings/endpoints are preserved by the beta model. Additional accounts
+are blank/disabled and reuse shared source. Bundled folders absent from the module volume are
+seeded on start; existing source folders are not replaced by a new image.
 
-**Image**
-- Based on `node:22-bookworm-slim` (Debian) instead of Alpine.
-- Ships the **Proton Pass CLI** (`pass-cli`) plus `bash`, `curl` and `jq`.
-- Healthcheck uses `curl`.
+## Build the review source
 
-**Dashboard**
-- Module filters and tidier, uniform action rows.
-
-**Fixed**
-- `2.2.0_alpha` builds told clients a token lasted 10 years; some clients then refreshed in a loop and
-  drained the station-wide `/token` limit ("You have exceeded the rate limit for token requests").
-  2.4.0 advertises at most 7 days (the token itself still lasts the whole sign-in) and raises the
-  limits.
-
-The full list is in [CHANGELOG.md](https://github.com/iOnic-Developer/MCP-Station/blob/main/CHANGELOG.md).
-
-## Upgrading
-
-1. Change the image to `dbzocchi/mcp-station:latest` or `:2.4.0` (or an older tag to roll back).
-2. Pull and recreate the container — on Unraid, edit the container and hit *Apply*.
-3. Keep the same `/data` and `/app/mcps` volumes. Settings, modules and connections carry over.
-
-Things to know:
-
-- **Keep `/data` persistent.** It holds the OAuth store and the encryption key; without it every
-  connector dies on redeploy.
-- **Don't change `SESSION_SECRET`** between versions if you set one — encrypted settings won't decrypt.
-- On every start, any bundled module missing from `/app/mcps` is copied in — so new bundled modules
-  appear after an upgrade. Folders already there, including your edits, are never overwritten.
-
-## Building it yourself
-
-```bash
-git clone https://github.com/iOnic-Developer/MCP-Station.git
-cd MCP-Station && git checkout main
-docker build -t mcp-station:2.4.0 .
+```sh
+git clone --branch redesign/public-product https://github.com/iOnic-Developer/MCP-Station.git
+cd MCP-Station
+docker build -t mcp-station:local-preview .
 ```
+
+Build from the approved, published source commit to reproduce the upcoming preview. The checked-in Compose file can lag image labels; choose your image
+explicitly using the [Quick Start](Quick-Start) rather than assuming its label proves publication.
+
+## Historical material
+
+`docs/REFERENCE_2_4.md` preserves the old technical reference for historical context. It may contain
+outdated capability, model, or operational claims; it is not the current product or deployment
+contract. Prefer this wiki and the current module source.
+
+## Public documentation
+
+The public `main` README remains stable until an approved merge. Wiki source in this branch is a
+review draft; the published GitHub Wiki may still have older stable pages until an approved sync.
+No merge, image push, wiki sync, hosted-site launch, or Docker Hub page update is implied here.
+
+[Review branch](https://github.com/iOnic-Developer/MCP-Station/tree/redesign/public-product) ·
+[Docker Hub](https://hub.docker.com/r/dbzocchi/mcp-station) · [Backups](Backups)

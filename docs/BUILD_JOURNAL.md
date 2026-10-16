@@ -149,3 +149,14 @@ Verification and reproducible commands: QA_WORKFLOWS.md; no release version is c
 - [x] SiYuan project doc, Todoist closure
 - [ ] David: `docker compose up -d --build`, set `APP_PASSWORD`/`PUBLIC_URL`/`SESSION_SECRET`/`MCP_TOKEN`, point the dbzocchi.app reverse proxy at :8788, add connectors in claude.ai
 - [ ] Later ideas: per-MCP OAuth scopes, scheduled backups, Monaco editor, module marketplace/import-from-zip
+
+## 2026-10-16 — Public product surface and bundle follow-up
+
+Fix install-rail occlusion with shared layout width; remember desktop collapse, preserve
+keyboard-accessible icon names, add source identities to equal cards. New sample captures,
+product site, README/Docker Hub/wiki copy and launch artwork make the API-to-MCP, account and
+local/cloud-client story explicit without promising arbitrary website conversion. Eight
+source-only NAS adapters join ten existing modules; private/business and dependency-heavy
+adapters are deferred, with provenance and offline test limits documented in MODULE_BUNDLE_AUDIT.md.
+Alternative credential metadata prevents blank Google adapters appearing configured.
+No live credentials or production container are changed. PR remains the application merge gate.

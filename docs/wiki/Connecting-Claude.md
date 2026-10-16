@@ -1,56 +1,48 @@
-# Connecting Claude (and other clients)
+# Connecting Claude
 
-MCP Station speaks MCP over streamable HTTP, with three ways to authenticate.
+For ChatGPT, Claude Code, LibreChat, and the client matrix, see [Connecting AI Clients](Connecting-AI-Clients).
 
-## claude.ai (web / mobile / desktop) — OAuth, permanent
+**Stable 2.4:** module endpoints. **Beta:** each service account has its own endpoint.
+MCP Station serves stateless streamable HTTP; client compatibility, connector menus, and access
+availability depend on the client. This is not a provider endorsement.
 
-**Settings → Connectors → Add custom connector** → `https://mcp.example.com/<module>/mcp`. A popup
-shows the station's consent page; enter your `APP_PASSWORD`, choose **Stay signed in for**, and
-approve (or **Deny**). The token is scoped to that single module.
+## OAuth connector
 
-| Stay signed in for | What happens |
-|---|---|
-| **Unlimited** (default) | The connection never lapses. It ends only when you revoke it in 🔑 Access. |
-| 1 day / 1 week / 1 month | The connection works for that long, then claude.ai asks you to sign in again. Refreshing doesn't extend it. |
+Use the client's custom remote connector flow and paste the copied HTTPS endpoint, for example
+`https://your-station.example/siyuan/mcp`. The station provides discovery, registration, PKCE,
+and password-gated approval. Verify the requested scope, choose a sign-in lifetime, and approve
+or deny. Revoke a connection through Access (beta: the selected account's Connect workspace).
 
-> On 1.x images the access token lasted one hour and the connector relied on claude.ai refreshing it
-> in time — the cause of connectors that "kept expiring". Connections made on an older image become
-> unlimited the next time they refresh on 2.4.0.
+`PUBLIC_URL` must match that public origin, and the endpoint must be reachable without another
+login wall. A hostname change requires configuration changes and often reconnection.
 
-- One connector per module URL. Add as many as you like.
-- Revoke any connection from the module's 🔑 **Access** panel.
-- The bare `/<module>` path (no `/mcp`) also works, for older connector URLs.
+| Lifetime | Meaning |
+| --- | --- |
+| Unlimited | No configured sign-in expiry; access can still end through revocation, lost state, credential changes, or client/provider behavior. |
+| 1 day / 1 week / 1 month | Fixed sign-in lifetime; refreshing does not extend that deadline. |
 
-## Claude Code CLI — static bearer
+Do not describe an unlimited token as a guarantee that a third-party connection never fails.
 
-```bash
-claude mcp add --transport http siyuan https://mcp.example.com/siyuan/mcp \
-  --header "Authorization: Bearer <MCP_TOKEN or per-module token>"
+## Bearer clients and scripts
+
+Configure the same endpoint with `Authorization: Bearer <token>` using your client's secret
+storage. Prefer its module/account token. `MCP_TOKEN` is optional and grants station-wide access.
+Do not paste real tokens into shared shell history, screenshots, issues, or example commands.
+
+For Claude Code, a command shape is:
+
+```sh
+claude mcp add --transport http siyuan https://your-station.example/siyuan/mcp   --header "Authorization: Bearer <endpoint-scoped-token>"
 ```
 
-Use the station-wide `MCP_TOKEN` (opens every module) or a **per-module token** (from 🔑 Access —
-opens only that one), so a script gets one endpoint without the keys to the whole station. When you
-generate a per-module token you pick its lifetime the same way (Unlimited by default); an expired
-token stops working and the Access panel says so.
+This is a syntax example, not a real credential or an instruction to expose one. Confirm your
+installed client's help and use its protected credential mechanism where available.
 
-## Any other MCP client
+## Scope and account selection
 
-Same URL, same `Authorization: Bearer <token>` header. If it speaks MCP streamable HTTP, it works.
+New scoped OAuth grants and per-account tokens are bound to the selected endpoint. A token for
+one beta account cannot be used at its sibling endpoint. The master bearer and legacy unscoped
+OAuth grants remain intentionally broader. Copy the account URL instead of editing slugs by hand.
+The legacy bare `/<slug>` endpoint remains an alias; prefer canonical `/<slug>/mcp`.
 
-## The three auth lanes, in order
-
-1. **Station `MCP_TOKEN`** — master key, opens every MCP. For your own scripts / Claude Code.
-2. **Per-module token** — opens only its module. Hand it out without exposing the rest.
-3. **OAuth token** — what claude.ai gets. Scoped to the module you connected (via the RFC 8707
-   `resource`); a token for `/siyuan` is refused at `/gemini_mcp` with a 403.
-
-## Testing the whole flow without claude.ai
-
-```bash
-node scripts/claude-flow-sim.mjs https://mcp.example.com /siyuan/mcp '<APP_PASSWORD>'
-# discovery → registration → PKCE → consent → token → initialize → tools/list → refresh
-# FLOW OK — server + transport are healthy end to end
-```
-
-If a connector misbehaves, this tells you whether the server side is healthy before you blame
-claude.ai or the network. See [Troubleshooting](Troubleshooting).
+[Accounts](Accounts) · [Troubleshooting](Troubleshooting)
