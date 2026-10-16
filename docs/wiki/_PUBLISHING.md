@@ -1,18 +1,12 @@
-# Publishing these pages to the GitHub Wiki
+# Wiki source and publication
 
-These Markdown files are the source of the GitHub Wiki. Internal links use bare page names like
-`[Use Cases](Use-Cases)`, which is how the wiki resolves them, so they don't work when browsing this
-folder on GitHub — read them on the wiki instead.
+These files target **MCP Station 2.7.0 stable**. Internal links use extensionless wiki page names;
+repository browsing uses the corresponding `.md` files. Historical version context is in Versions
+and Images, not current feature caveats.
 
-## How it publishes
-
-`.github/workflows/wiki.yml` mirrors this folder into `MCP-Station.wiki.git` whenever a change to
-`docs/wiki/` lands on `main` (or when you run the workflow by hand from the Actions tab). Pages
-deleted here are deleted from the wiki. This file is excluded.
-
-- `_Sidebar.md` is the wiki's sidebar.
-- A page's file name is its URL: `Quick-Start.md` → `/wiki/Quick-Start`.
-
-## Don't edit in the web UI
-
-The next sync overwrites wiki-side edits. Change the files here and merge to `main`.
+`.github/workflows/wiki.yml` mirrors `docs/wiki/` into `MCP-Station.wiki.git` on matching pushes to
+`main` or manual dispatch. It preserves unrelated pages and excludes `_PUBLISHING.md`.
+Source preparation alone is not a publication. The approved parent release process owns sync and
+verification. Review CI, actual registry tags/digests, link targets, and sample-data captions first.
+`_Sidebar.md` owns navigation; filenames define wiki URLs. Edit source rather than web-UI copies,
+which the next sync overwrites.

@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { esc, toast, modal } from '../ui.js';
+import { esc, toast, surface } from '../ui.js';
 
 /** Renders one tool's arguments straight from its JSON Schema. */
 function args(schema) {
@@ -16,28 +16,30 @@ function args(schema) {
 }
 
 /** 🧰 Capabilities: the tools, prompts and house rules this MCP actually exposes. */
-export async function openCapabilities(m) {
+export async function openCapabilities(m, target) {
   let cap;
   try {
     cap = await api(`/mcps/${m.id}/capabilities`);
   } catch (e) {
+    if (target?.isConnected) target.innerHTML = `<p class="error-text" role="alert">Could not load tools: ${esc(e.message)}. Reopen this tab to retry.</p>`;
     return toast(e.message, 'err', 6000);
   }
 
   const { tools = [], prompts = [], instructions = '' } = cap;
-  const dlg = modal({
-    title: `🧰 ${m.manifest?.icon || ''} ${cap.name} — capabilities`,
+  if (target && !target.isConnected) return;
+  const dlg = surface({ target,
+    title: `${cap.name} · Tools & capabilities`,
     body: `
       <div class="help" style="margin-bottom:14px">
-        Read live from the running module — this is exactly what a connected client sees.
+        These are the tools this integration exposes to your AI client. Review each tool’s behavior and arguments before using it.
         <b>${tools.length}</b> tool${tools.length === 1 ? '' : 's'} ·
         <b>${prompts.length}</b> prompt${prompts.length === 1 ? '' : 's'} ·
         ${instructions ? `<b>ships house instructions</b> (${instructions.length} chars)` : 'no instructions file'}
       </div>
 
-      <input class="input" id="capFilter" placeholder="Filter tools…" style="margin-bottom:12px">
+      <label class="sr-only" for="capFilter">Search tools by name or description</label><input class="input" id="capFilter" placeholder="Filter tools…" style="margin-bottom:12px">
 
-      <div id="toolList">${tools.map((t) => `
+      <p class="help" data-cap-count role="status">${tools.length} tools</p><div id="toolList">${tools.map((t) => `
         <details class="tool" data-name="${esc(t.name.toLowerCase())} ${esc((t.description || '').toLowerCase())}">
           <summary><span class="mono">${esc(t.name)}</span>${annotate(t)}</summary>
           <div class="tool-body">
@@ -66,9 +68,12 @@ export async function openCapabilities(m) {
   const filter = dlg.querySelector('#capFilter');
   filter.oninput = () => {
     const q = filter.value.trim().toLowerCase();
+    let shown = 0;
     for (const el of dlg.querySelectorAll('#toolList .tool')) {
-      el.hidden = q && !el.dataset.name.includes(q);
+      el.hidden = Boolean(q && !el.dataset.name.includes(q));
+      if (!el.hidden) shown++;
     }
+    dlg.querySelector('[data-cap-count]').textContent = shown ? `${shown} tool${shown === 1 ? '' : 's'}` : 'No tools match your search.';
   };
   dlg.querySelector('[data-cancel]').onclick = () => dlg.close();
 }

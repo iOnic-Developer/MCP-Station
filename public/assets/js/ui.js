@@ -1,61 +1,88 @@
-/** Tiny shared UI helpers: escaping, toasts, modals, markdown-lite. */
+import { icon } from './icons.js';
 export function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
-
-export function toast(msg, kind = 'ok', ms = 3200) {
+export function toast(msg, kind = 'ok', ms = 5000) {
   const t = document.createElement('div');
   t.className = `toast ${kind}`;
+  t.setAttribute('role', kind === 'err' ? 'alert' : 'status');
   t.textContent = msg;
-  document.getElementById('toasts').appendChild(t);
+  const global = document.getElementById('toasts') || document.body;
+  const activeDialog = [...document.querySelectorAll('dialog[open]')].at(-1);
+  if (activeDialog) {
+    let local = activeDialog.querySelector(':scope > .dialog-toasts');
+    if (!local) { local = document.createElement('div'); local.className = 'toasts dialog-toasts'; activeDialog.appendChild(local); }
+    local.appendChild(t);
+    activeDialog.addEventListener('close', () => { if (t.parentNode) global.appendChild(t); }, { once: true });
+  } else global.appendChild(t);
   setTimeout(() => t.remove(), ms);
 }
-
-/** Open a modal from HTML. Returns the <dialog>; wire events on it, then dlg.close(). */
-export function modal({ title, body, foot = '' }) {
+let sequence = 0;
+/** Native dialogs supply focus trapping, Escape and nested top-layer semantics. */
+function dialog({ title, body, foot = '', kind }) {
+  const previous = document.activeElement;
+  const rowId = previous?.closest('[data-id]')?.dataset.id;
+  const action = previous?.getAttributeNames?.().find((name) => /^data-[a-z-]+$/.test(name));
   const dlg = document.createElement('dialog');
-  dlg.className = 'modal';
-  dlg.innerHTML = `
-    <div class="m-head">${esc(title)}<button class="btn sm x" data-x>✕</button></div>
-    <div class="m-body">${body}</div>
-    ${foot ? `<div class="m-foot">${foot}</div>` : ''}`;
+  const id = `station-dialog-${++sequence}`;
+  dlg.className = kind;
+  dlg.setAttribute('aria-labelledby', id);
+  const prefix = kind === 'drawer' ? 'd' : 'm';
+  dlg.innerHTML = `<div class="${prefix}-head"><h2 id="${id}">${esc(title)}</h2><button type="button" class="btn icon-btn" data-x aria-label="Close ${esc(title)}">${icon('close')}</button></div><div class="${prefix}-body">${body}</div>${foot ? `<div class="${prefix}-foot">${foot}</div>` : ''}`;
   document.body.appendChild(dlg);
-  dlg.querySelector('[data-x]').onclick = () => dlg.close();
-  dlg.addEventListener('close', () => dlg.remove());
+  labelFields(dlg);
+  dlg.stationRequestClose = async () => { if (!dlg.stationBeforeClose || await dlg.stationBeforeClose()) dlg.close(); };
+  dlg.querySelector('[data-x]').onclick = () => dlg.stationRequestClose();
+  dlg.addEventListener('cancel', (e) => { if (dlg.stationBeforeClose) { e.preventDefault(); void dlg.stationRequestClose(); } });
+  dlg.addEventListener('close', () => {
+    dlg.dispatchEvent(new Event('station:dispose'));
+    dlg.remove();
+    const replacement = rowId && action ? document.querySelector(`[data-id="${CSS.escape(rowId)}"] [${action}]`) : null;
+    const fallback = [...document.querySelectorAll('dialog[open]')].at(-1)?.querySelector('[data-x]') || document.getElementById('main-content');
+    (previous?.isConnected ? previous : replacement || fallback)?.focus({ preventScroll: true });
+  }, { once: true });
   dlg.showModal();
   return dlg;
 }
-
-export function confirmModal(title, text) {
+/** Wire legacy manifest controls to their visible labels without changing names/contracts. */
+export function labelFields(root) {
+  for (const label of root.querySelectorAll('.field > label')) {
+    if (label.htmlFor) continue;
+    const field = label.parentElement.querySelector('input:not([type=hidden]), select, textarea');
+    if (!field) continue;
+    field.id ||= `station-field-${++sequence}`;
+    label.htmlFor = field.id;
+    const help = label.parentElement.querySelector('.help');
+    if (help) { help.id ||= `station-hint-${++sequence}`; field.setAttribute('aria-describedby', help.id); }
+  }
+}
+export function modal(options) { return dialog({ ...options, kind: 'modal' }); }
+export function drawer(options) {
+  const el = dialog({ ...options, kind: 'drawer' });
+  return { el, close: () => el.stationRequestClose() };
+}
+/** Functional controls can render directly into a routed page without an overlay. */
+export function surface({ target, ...options }) {
+  if (!target) return modal(options);
+  target.innerHTML = `<section class="page-surface"><div class="m-body">${options.body}</div><div class="m-foot">${options.foot || ''}</div></section>`;
+  labelFields(target);
+  const el = target.firstElementChild;
+  el.close = () => { location.hash = target.dataset.back || '/overview'; };
+  el.stationRequestClose = async () => { if (!el.stationBeforeClose || await el.stationBeforeClose()) el.close(); };
+  return el;
+}
+export function confirmModal(title, text, action = 'Confirm') {
   return new Promise((resolve) => {
-    const dlg = modal({
-      title,
-      body: `<p style="margin:0">${esc(text)}</p>`,
-      foot: `<button class="btn" data-no>Cancel</button><button class="btn danger" data-yes>Yes, do it</button>`
-    });
-    dlg.querySelector('[data-no]').onclick = () => { resolve(false); dlg.close(); };
+    const dlg = modal({ title, body: `<p>${esc(text)}</p>`, foot: `<button class="btn" data-no autofocus>Cancel</button><button class="btn danger" data-yes>${esc(action)}</button>` });
+    dlg.querySelector('[data-no]').onclick = () => dlg.close();
     dlg.querySelector('[data-yes]').onclick = () => { resolve(true); dlg.close(); };
     dlg.addEventListener('close', () => resolve(false), { once: true });
   });
 }
-
-/** Drawer (right panel). Returns { el, close }. */
-export function drawer({ title, body, foot = '' }) {
-  const back = document.createElement('div');
-  back.className = 'drawer-backdrop';
-  const d = document.createElement('div');
-  d.className = 'drawer';
-  d.innerHTML = `
-    <div class="d-head"><h2>${esc(title)}</h2><button class="btn sm" data-x>✕</button></div>
-    <div class="d-body">${body}</div>
-    ${foot ? `<div class="d-foot">${foot}</div>` : ''}`;
-  const close = () => { back.remove(); d.remove(); };
-  back.onclick = close;
-  d.querySelector('[data-x]').onclick = close;
-  document.body.append(back, d);
-  return { el: d, close };
+export async function copyText(text, message = 'Copied to clipboard') {
+  try { await navigator.clipboard.writeText(text); toast(message); return true; }
+  catch { modal({ title: 'Copy manually', body: `<p>Your browser could not access the clipboard. Select and copy this value.</p><textarea class="input mono" aria-label="Value to copy" readonly>${esc(text)}</textarea>` }); return false; }
 }
-
 /** Markdown-lite for assistant messages: code fences, inline code, bold, links, newlines. */
 export function md(text) {
   let out = '';
@@ -77,4 +104,11 @@ export function md(text) {
       .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
       .replace(/\n/g, '<br>');
   }
+}
+
+/** Page-backed equivalent of a drawer; legacy callers can still opt into a dialog. */
+export function workspaceSurface(options) {
+  if (!options.target) return drawer(options);
+  const el = surface(options);
+  return { el, close: () => el.close() };
 }

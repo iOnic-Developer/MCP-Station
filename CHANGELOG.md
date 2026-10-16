@@ -1,5 +1,35 @@
 # Changelog
 
+## 2.7.0 — 2026-10-16
+
+Stable release of the account-aware product workspace, including all **18 bundled service modules**.
+
+- One shared module source with independent account configurations, endpoints, tests and scoped access.
+- Full-page Settings, Connect, Tools, Code, Activity and Assistant workspaces; direct module chat.
+- Screen-filling station chat, compact action bars, uniform mobile tabs, source identities and collapsible navigation.
+- Fix installation controls hidden behind navigation; preserve drafts and one-time token reveals.
+- Real bounded tool-call usage charts and accessible tables; no argument/result logging.
+- Add Gmail, Google Drive, GitHub, Docker Hub, Todoist, Pushover, Proton Pass and Cloudflare to the original ten defaults.
+- Validate alternative Google credential configurations; import no live credentials or personal defaults.
+- Original branding, PWA installation/update/offline handling, refreshed README/wiki/product site and release screenshots.
+- Single administrator and trusted in-process modules, not human multi-user hosting or tenant isolation.
+- Full backups preserve additional accounts; portable JSON remains default-account-only. Existing source folders are never overwritten.
+
+## 2.6.0-beta — account-aware product workspace
+
+Docker preview tag: `dbzocchi/mcp-station:2.6.0_beta`. Published independently from the redesign branch; does not update `latest`.
+
+- Replace routine configuration drawers with deep-linkable Settings, Connect, Tools, Code and Activity pages.
+- Equal-height service cards with upfront endpoint copy, configuration, tests and named-account selection.
+- Reuse one module codebase across independently configured account endpoints; preserve existing default endpoints.
+- Turn Connections into a working quick-control hub; guide new account setup without asking for endpoint slugs.
+- Add bounded, real tool-call usage charts, error rates, response times and per-account activity; no payload logging.
+- Introduce original Ribbon S branding, local typography, favicons and install/update/offline PWA support.
+- Guard unsaved settings, code and one-time token displays. Add real-browser accessibility and workflow regression CI.
+- This remains a single-admin product; multiple human users and tenant isolation are not implemented.
+- Additional accounts require a full station backup for portability; legacy JSON exports cover default accounts only.
+
+
 ## v2.4.0 — 2026-10-05
 
 **2.x goes stable: sign-ins that don't expire, OpenAI as the assistant's default, a Debian image with

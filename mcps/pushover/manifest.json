@@ -1,0 +1,42 @@
+{
+  "id": "pushover",
+  "slug": "pushover_mcp",
+  "name": "Pushover",
+  "description": "Send push notifications to your devices via Pushover: messages, priorities, emergency receipts, glances and sounds.",
+  "icon": "🔔",
+  "version": "1.0.0",
+  "settings": [
+    {
+      "key": "api_token",
+      "label": "Application API token",
+      "type": "secret",
+      "required": true,
+      "default": "",
+      "help": "Token of your Pushover application (pushover.net → Your Applications)."
+    },
+    {
+      "key": "user_key",
+      "label": "Default user/group key",
+      "type": "secret",
+      "required": true,
+      "default": "",
+      "help": "Your 30-char user key (or a delivery group key). Used when a tool call omits 'user'."
+    },
+    {
+      "key": "default_device",
+      "label": "Default device",
+      "type": "text",
+      "required": false,
+      "help": "Optional device name to target by default (blank = all devices).",
+      "default": ""
+    },
+    {
+      "key": "default_sound",
+      "label": "Default sound",
+      "type": "text",
+      "required": false,
+      "help": "Optional default sound name, e.g. pushover, magic, none.",
+      "default": ""
+    }
+  ]
+}

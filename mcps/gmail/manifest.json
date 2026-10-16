@@ -1,0 +1,68 @@
+{
+  "id": "gmail",
+  "slug": "gmail_mcp",
+  "name": "Gmail",
+  "description": "Search, read, send, draft, reply, label, and manage emails, threads, and attachments via Google Gmail API v1.",
+  "icon": "✉️",
+  "version": "1.0.0",
+  "settings": [
+    {
+      "key": "access_token",
+      "label": "OAuth Access Token",
+      "type": "secret",
+      "required": false,
+      "help": "Direct Google OAuth 2.0 Bearer access token (for short-term use or external token management).",
+      "default": ""
+    },
+    {
+      "key": "client_id",
+      "label": "OAuth Client ID",
+      "type": "text",
+      "required": false,
+      "help": "Google Cloud OAuth 2.0 Client ID (used with client_secret & refresh_token for automatic token renewal).",
+      "default": ""
+    },
+    {
+      "key": "client_secret",
+      "label": "OAuth Client Secret",
+      "type": "secret",
+      "required": false,
+      "help": "Google Cloud OAuth 2.0 Client Secret.",
+      "default": ""
+    },
+    {
+      "key": "refresh_token",
+      "label": "OAuth Refresh Token",
+      "type": "secret",
+      "required": false,
+      "help": "Long-lived Google OAuth 2.0 refresh token.",
+      "default": ""
+    },
+    {
+      "key": "default_from_email",
+      "label": "Default From Email (Optional)",
+      "type": "text",
+      "required": false,
+      "help": "Optional default From header address if using SendAs aliases.",
+      "default": ""
+    }
+  ],
+  "configurationAlternatives": [
+    [
+      {
+        "key": "access_token"
+      }
+    ],
+    [
+      {
+        "key": "client_id"
+      },
+      {
+        "key": "client_secret"
+      },
+      {
+        "key": "refresh_token"
+      }
+    ]
+  ]
+}

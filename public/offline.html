@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#116859">
+  <meta name="robots" content="noindex">
+  <title>Station unreachable · MCP Station</title>
+  <link rel="icon" type="image/svg+xml" href="/assets/brand/favicon.svg">
+  <link rel="stylesheet" href="/assets/css/pwa.css">
+  <style>
+    .station-offline { --pwa-accent: #116859; color: #172c25; }
+    .station-offline-main .station-offline-eyebrow { color: #116859; }
+    .station-offline .station-pwa-button:focus-visible,
+    .station-offline .station-skip-link:focus-visible { outline-color: #116859; }
+    .station-offline .station-skip-link { border-color: #116859; }
+  </style>
+</head>
+<body class="station-offline">
+  <a class="station-skip-link" href="#main-content">Skip to main content</a>
+  <header class="station-offline-brand"><img src="/assets/brand/station-wordmark.svg" width="260" height="48" alt="MCP Station"></header>
+  <main id="main-content" class="station-offline-main" tabindex="-1">
+    <p class="station-offline-eyebrow">CONNECTION PAUSED</p>
+    <h1>Your station is<br>out of reach.</h1>
+    <p>Your device may be offline, or the server may be unavailable. Check your connection and make sure your station is running.</p>
+    <a class="station-pwa-button station-pwa-primary" href="/">Try connecting again <span aria-hidden="true">↗</span></a>
+    <p class="station-offline-note">This is a public offline page, not your dashboard. Modules, settings, conversations and credentials are not saved here. Sign-in is checked by your server when you reconnect.</p>
+  </main>
+  <footer class="station-offline-footer">YOUR TOOLS. ONE STATION.</footer>
+</body>
+</html>

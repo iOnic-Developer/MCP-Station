@@ -1,29 +1,42 @@
-# MCP Station Wiki
+# MCP Station documentation
 
-**Turn any API into an MCP server that claude.ai can use — self-hosted, in one container.**
+**Turn your APIs and services into MCP tools.**
 
-New here? Start with the [README](https://github.com/iOnic-Developer/MCP-Station#readme). This wiki
-is the deeper reference.
+**One integration. Multiple accounts. Your local and cloud AI clients.**
 
-## Pages
+Self-host the bridge between your services and ChatGPT, Claude, Claude Code, LibreChat, and other
+compatible MCP clients. Build from API docs, reuse source across accounts, and manage tool access
+in one workspace. Local and cloud models connect through an MCP-capable client, not on their own.
+The 2.7.0 release includes 18 integrations; websites without APIs need authorized adapters.
 
-- **[Versions & Images](Versions-and-Images)** — which Docker tag to run, what's new in 2.4.0, upgrading.
-- **[Configuration](Configuration)** — every environment variable, volumes, and the ✦ assistant providers.
-- **[Bundled Modules](Bundled-Modules)** — the eleven modules that ship in the box.
-- **[Use Cases & Recipes](Use-Cases)** — what people actually do with it, with concrete examples.
-- **[Quick Start](Quick-Start)** — the shortest path to a running station + first connector.
-- **[Building a Module](Building-a-Module)** — the module contract, by hand or via the ✦ assistant.
-- **[Connecting Claude](Connecting-Claude)** — claude.ai, Claude Code, and other MCP clients.
-- **[Cloudflare](https://github.com/iOnic-Developer/MCP-Station/blob/main/docs/CLOUDFLARE.md)** —
-  tunnels, the AI-bot gotcha, Station vs Workers-hosted MCPs.
-- **[Troubleshooting](Troubleshooting)** — when a connector won't connect.
-- **[FAQ](FAQ)** — the questions people ask first.
-- **[Roadmap](https://github.com/iOnic-Developer/MCP-Station/blob/main/docs/ROADMAP.md)** — where it's going.
+> **MCP Station 2.7.0 stable:** 18 modules, account-aware workspaces, Connections, Usage,
+> Assistant, and PWA support. Pin `:2.7.0`; `:latest` and `:2.7` follow stable updates.
 
-## The one-paragraph pitch
+## Start here
 
-Every service you use has an API; almost none ship an MCP, and the few that do only expose what the
-vendor built. MCP Station hosts each folder in `mcps/` as a remote MCP endpoint with OAuth 2.1 so
-claude.ai connects by URL alone. Describe an API to the built-in assistant — or paste its docs — and
-it writes the module; toggle it on and Claude can call it thirty seconds later. Your keys and data
-never leave your box.
+| Task | Guide |
+| --- | --- |
+| Run a private local station | [Quick Start](Quick-Start) |
+| Choose image tags | [Versions and Images](Versions-and-Images) |
+| Set volumes, HTTPS, keys, and providers | [Configuration](Configuration) |
+| Connect a client | [Connecting AI Clients](Connecting-AI-Clients) |
+| Configure another service account | [Accounts](Accounts) |
+| Understand activity | [Usage](Usage) |
+| Build with AI assistance | [Assistant](Assistant) |
+| Recover or share safely | [Backups](Backups) |
+
+## Modules and operations
+
+[Bundled Modules](Bundled-Modules) · [Building a Module](Building-a-Module) ·
+[Use Cases](Use-Cases) · [Troubleshooting](Troubleshooting) · [FAQ](FAQ)
+
+## Boundaries worth reading first
+
+One administrator controls all service accounts. Module JavaScript runs as trusted in-process
+code, not in a tenant sandbox. Secret fields are encrypted at rest, but service calls are outbound
+and Assistant context/source is sent to the selected provider. Use full backups for additional accounts;
+portable JSON is default-account only. No built-in job scheduler or module marketplace is promised.
+
+[Repository](https://github.com/iOnic-Developer/MCP-Station) ·
+[Source](https://github.com/iOnic-Developer/MCP-Station/tree/main) ·
+[Docker Hub](https://hub.docker.com/r/dbzocchi/mcp-station)

@@ -145,7 +145,7 @@ nothing else. Destructure just what you use.
 ## Workflow
 
 1. **➕ Add MCP** (name + slug) → module scaffolds from `_template`, enabled but empty.
-2. Open **‹/› Code** → **✦ Chat** and describe the module (or paste the docs URL) — the assistant writes `manifest.json` + `index.js` onto the station and reloads it; later changes are edits in place, the open tab refreshes. You can still edit by hand in the same drawer.
+2. In the product-preview interface, choose **Ask assistant** on the integration card or the module’s **Assistant** section. Describe the module or supply its API docs. Review changes in **Code**, then save/test and reload as needed. Source is shared by every account of the module. Stable 2.4 retains the older editor/popup workflow.
 3. **Save & reload modules** — load errors show on the card.
 4. **⚙ Settings** → fill credentials → **▶ Test**.
 5. Connect `PUBLIC_URL/<slug>` in claude.ai (Settings → Connectors → Add custom connector) or Claude Code (`--header "Authorization: Bearer $MCP_TOKEN"`).
@@ -156,3 +156,7 @@ nothing else. Destructure just what you use.
 - Tools misbehaving → add `log()` lines, watch the Logs panel while calling.
 - `test()` failing → check credentials, then the endpoint URL in a browser.
 - After every code change: **Reload modules** (imports are cache-busted, restarts never needed).
+
+## Alternative credential configurations (product preview)
+
+Optional `configurationAlternatives` can express access-token OR OAuth-tuple requirements. Existing required settings remain mandatory. See [configuration schema](MODULE_CONFIGURATION.md). Unknown setting names and malformed conditions are rejected. This metadata drives readiness, not authorization or upstream credential verification.

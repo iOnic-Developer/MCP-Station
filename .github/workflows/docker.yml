@@ -7,6 +7,12 @@ on:
     branches: [main]
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Optional beta image tag; must end in _beta. Never updates latest.'
+        required: false
+        default: ''
+        type: string
 
 jobs:
   test-and-docker:
@@ -19,8 +25,15 @@ jobs:
           node-version: '22'
           cache: npm
 
+      - name: Validate manual beta tag
+        if: inputs.image_tag != ''
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          [[ "$IMAGE_TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+_beta$ ]] || exit 1
+
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Legacy smoke suite
         run: npm test
@@ -30,6 +43,15 @@ jobs:
 
       - name: Dashboard syntax checks
         run: npm run test:ui
+
+      - name: PWA and account regressions
+        run: npm run test:pwa && npm run test:instances && npm run test:usage
+
+      - name: OAuth and assistant regressions
+        run: npm run test:oauth && npm run test:scoping && npm run test:selfcontained && ASSISTANT_PROVIDER=anthropic bash scripts/smoke-assistant.sh
+
+      - name: Expanded default module regressions
+        run: npm run test:configuration && npm run test:bundled
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
@@ -51,10 +73,13 @@ jobs:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/mcp-station
           flavor: latest=false
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=${{ steps.ver.outputs.version }},enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' && inputs.image_tag == '' }}
+            type=raw,value=${{ steps.ver.outputs.version }},enable=${{ github.ref == 'refs/heads/main' && inputs.image_tag == '' }}
             type=semver,pattern={{version}}
-            type=sha,prefix=
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=2.7,enable=${{ github.ref == 'refs/heads/main' && inputs.image_tag == '' }}
+            type=sha,prefix=,enable=${{ inputs.image_tag == '' }}
+            type=raw,value=${{ inputs.image_tag }},enable=${{ inputs.image_tag != '' }}
 
       - name: Build and push
         uses: docker/build-push-action@v6

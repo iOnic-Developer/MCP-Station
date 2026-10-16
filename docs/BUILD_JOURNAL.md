@@ -123,6 +123,17 @@ Straight from the MCP builder guide, enforced by the seed instructions:
 | 17 | **Token-endpoint lockout fixed** — David hit `too_many_requests` ("exceeded the rate limit for token requests") on every connect, from every location. Two causes stacked: (1) row 16 advertised the full grant in `expires_in` (10 y / 30 d), past `setTimeout`'s 2³¹−1 ms ceiling, so clients refreshed immediately and forever; (2) the SDK's `/token` limiter, 50/15 min, is a single station-wide bucket without `trust proxy` (same trap as `/register` in v1.7.0). Now `expires_in` is capped at 7 days while the token stays valid server-side, `/token` 1000 / `/authorize` 500 / `/revoke` 500 per 15 min, refresh retires the superseded access token via a per-sign-in `grantId`, and boot prunes the loop's leftovers. The new burst check reproduced the lockout (28/60 → 429) on the SDK default and passes with the fix. Verified: oauth 44/44, smoke 36/36, scoping 15/15, self-contained 10/10, openai 10/10 | — |
 | 18 | **v2.4.0 — 2.x released as stable.** `alpha/2.2.0` merged into `main` (2.0.0 OpenAI provider, 2.1.0 dashboard, 2.2.0 Debian image + Proton Pass CLI, sign-in lifetimes, `/token` lockout fix). `main`'s Docker workflow keeps the alpha line's test gate (smoke, OpenAI, UI) and goes back to `latest` + semver + sha tags; each push to `main` also publishes the `package.json` version as a tag (`2.4.0`) — git tags can't be pushed from the build sandbox. README, wiki and Docker Hub overview switched from alpha to stable wording | — |
 
+### 2026-10-16 — Account-aware product workspace (unreleased)
+
+Built independently from stable main `9088321` on `redesign/public-product`; the older
+`feat-product-redesign` branch was not incorporated. User feedback changed the objective from
+visual polish to workflows: equal cards with upfront endpoint copy; full-page account workspaces;
+practical Connections controls; one source with independent configurations; real bounded usage.
+Original Ribbon S branding and an installable PWA accompany the workflow changes. No production
+container was changed. Existing endpoints/default credentials are preserved. Human multi-user
+permissions remain out of scope; see ACCOUNT_INSTANCES.md before considering shared hosting.
+Verification and reproducible commands: QA_WORKFLOWS.md; no release version is claimed.
+
 ## 7. Deliberate trade-offs
 
 - **No per-MCP OAuth scoping** — any valid token reaches every enabled MCP. Fine for a single-operator homelab; revisit if the station ever serves multiple users.
@@ -138,3 +149,14 @@ Straight from the MCP builder guide, enforced by the seed instructions:
 - [x] SiYuan project doc, Todoist closure
 - [ ] David: `docker compose up -d --build`, set `APP_PASSWORD`/`PUBLIC_URL`/`SESSION_SECRET`/`MCP_TOKEN`, point the dbzocchi.app reverse proxy at :8788, add connectors in claude.ai
 - [ ] Later ideas: per-MCP OAuth scopes, scheduled backups, Monaco editor, module marketplace/import-from-zip
+
+## 2026-10-16 — Public product surface and bundle follow-up
+
+Fix install-rail occlusion with shared layout width; remember desktop collapse, preserve
+keyboard-accessible icon names, add source identities to equal cards. New sample captures,
+product site, README/Docker Hub/wiki copy and launch artwork make the API-to-MCP, account and
+local/cloud-client story explicit without promising arbitrary website conversion. Eight
+source-only NAS adapters join ten existing modules; private/business and dependency-heavy
+adapters are deferred, with provenance and offline test limits documented in MODULE_BUNDLE_AUDIT.md.
+Alternative credential metadata prevents blank Google adapters appearing configured.
+No live credentials or production container are changed. PR remains the application merge gate.

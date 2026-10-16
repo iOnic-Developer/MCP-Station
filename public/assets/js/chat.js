@@ -1,4 +1,4 @@
-import { esc, toast, md } from './ui.js';
+import { esc, toast, md, copyText } from './ui.js';
 
 /**
  * Streaming chat pane, shared by the ✦ station popup and the per-MCP editor chat.
@@ -13,18 +13,24 @@ import { esc, toast, md } from './ui.js';
  * {done} was cut by something between here and the station — say so instead of going quiet.
  */
 export function chatPane({ el, greeting, history = [], persist = () => {}, extra = () => ({}), placeholder = 'Ask…', fields = [] }) {
+  let controller = null;
+  let disposed = false;
+  const saveHistory = async () => { if (disposed) return; try { await persist(history); } catch { toast('Conversation could not be saved. Your current messages are still visible.', 'err'); } };
   el.innerHTML = `
-    <div class="a-msgs"></div>
-    ${fields.length ? `<div class="a-fields" title="Optional — leave blank and the assistant finds what it needs">${fields
-      .map((f) => `<input class="input" data-field="${esc(f.key)}" placeholder="${esc(f.placeholder)}">`)
-      .join('')}</div>` : ''}
+    <div class="a-msgs" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions"></div>
+    ${fields.length ? `<details class="chat-options"><summary>Add API context (optional)</summary><div class="a-fields">${fields
+      .map((f) => `<label>${esc(f.label)}<input class="input" data-field="${esc(f.key)}" placeholder="${esc(f.placeholder)}"></label>`)
+      .join('')}</div></details>` : ''}
     <div class="a-input">
-      <textarea class="input" rows="2" placeholder="${esc(placeholder)}"></textarea>
-      <button class="btn primary">Send</button>
-    </div>`;
+      <textarea class="input" rows="2" aria-label="Message to the assistant" placeholder="${esc(placeholder)}"></textarea>
+      <button class="btn primary">Send</button><button class="btn" data-stop hidden>Stop</button>
+    </div><p class="chat-hint">Enter to send · Shift + Enter for a new line. Review changes before using them.</p><p class="chat-error" role="alert" hidden></p>`;
   const msgsEl = el.querySelector('.a-msgs');
   const input = el.querySelector('textarea');
   const sendBtn = el.querySelector('.a-input button');
+  const stopBtn = el.querySelector('[data-stop]');
+  const errorEl = el.querySelector('.chat-error');
+  stopBtn.onclick = () => controller?.abort();
   const fieldEls = [...el.querySelectorAll('.a-fields input')];
 
   function render() {
@@ -52,7 +58,10 @@ export function chatPane({ el, greeting, history = [], persist = () => {}, extra
 
   async function send() {
     const typed = input.value.trim();
-    if (!typed || sendBtn.disabled) return;
+    if (!typed || sendBtn.disabled || disposed) return;
+    errorEl.hidden = true;
+    controller = new AbortController();
+    stopBtn.hidden = false;
     // Optional context fields (API host / docs) ride along inside the message so they
     // persist in history and work identically on both providers.
     const hints = fields
@@ -67,7 +76,8 @@ export function chatPane({ el, greeting, history = [], persist = () => {}, extra
     sendBtn.disabled = true;
     const think = document.createElement('div');
     think.className = 'thinking';
-    think.textContent = 'thinking';
+    think.textContent = 'Working on your request…';
+    think.setAttribute('role', 'status');
     msgsEl.appendChild(think);
     msgsEl.scrollTop = msgsEl.scrollHeight;
 
@@ -82,16 +92,18 @@ export function chatPane({ el, greeting, history = [], persist = () => {}, extra
       history.push({ role: 'assistant', content: acc });
       acc = '';
       bubble = null;
-      persist(history);
+      void saveHistory();
     };
 
     try {
       const r = await fetch('/api/assistant', {
+        signal: controller.signal,
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-station-csrf': '1' },
         body: JSON.stringify({ messages: history, ...extra() })
       });
       if (!r.ok) {
+        if (r.status === 401) window.dispatchEvent(new Event('station:unauthed'));
         const e = await r.json().catch(() => ({}));
         throw new Error(e.error || `HTTP ${r.status}`);
       }
@@ -119,18 +131,18 @@ export function chatPane({ el, greeting, history = [], persist = () => {}, extra
             const t = ev.tool;
             if (t.status === 'running') {
               closeSegment();
-              addNote(`🛠 <code>${esc(t.name)}</code> …`);
+              addNote(`Running <code>${esc(t.name)}</code>…`);
             } else {
               const notes = msgsEl.querySelectorAll('.tool-note');
               const last = notes[notes.length - 1];
-              if (last) last.innerHTML = `${t.ok ? '✅' : '⚠️'} <code>${esc(t.name)}</code>${t.detail ? ` — ${esc(String(t.detail))}` : ''}`;
+              if (last) last.innerHTML = `${t.ok ? 'Completed:' : 'Failed:'} <code>${esc(t.name)}</code>${t.detail ? ` — ${esc(String(t.detail))}` : ''}`;
             }
             msgsEl.scrollTop = msgsEl.scrollHeight;
           }
           if (ev.notice) {
             closeSegment();
             think.remove();
-            addNote(`⚠️ ${esc(ev.notice)}`, 'notice');
+            addNote(`Notice: ${esc(ev.notice)}`, 'notice');
           }
           if (ev.file_changed) {
             window.dispatchEvent(new CustomEvent('station:module-file-changed', { detail: ev.file_changed }));
@@ -143,7 +155,8 @@ export function chatPane({ el, greeting, history = [], persist = () => {}, extra
       closeSegment();
       if (!gotDone) throw new Error('The connection dropped before the reply finished (a proxy timeout, usually) — try again.');
     } catch (e) {
-      toast(e.message, 'err', 8000);
+      const message = e.name === 'AbortError' ? 'Reply stopped. Any completed tool changes are kept.' : e.message;
+      if (!disposed) { errorEl.textContent = message; errorEl.hidden = false; }
       closeSegment();
       if (history[history.length - 1]?.role === 'user') {
         // Nothing came back: roll the turn back and hand the text back for a clean retry.
@@ -154,9 +167,10 @@ export function chatPane({ el, greeting, history = [], persist = () => {}, extra
     } finally {
       think.remove();
       sendBtn.disabled = false;
-      input.focus();
-      await persist(history);
-      if (modulesChanged) {
+      stopBtn.hidden = true;
+      if (input.isConnected && !disposed) input.focus();
+      if (!disposed) await saveHistory();
+      if (modulesChanged && !disposed) {
         toast('Modules updated — refreshing');
         window.dispatchEvent(new CustomEvent('station:mcps-changed'));
       }
@@ -171,8 +185,7 @@ export function chatPane({ el, greeting, history = [], persist = () => {}, extra
   msgsEl.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-copy-code]');
     if (!btn) return;
-    navigator.clipboard.writeText(codeOf(btn));
-    toast('Code copied');
+    void copyText(codeOf(btn), 'Code copied');
   });
 
   render();
@@ -180,7 +193,8 @@ export function chatPane({ el, greeting, history = [], persist = () => {}, extra
     msgsEl,
     input,
     render,
-    clear: async () => { history.length = 0; await persist(history); render(); }
+    dispose: () => { disposed = true; controller?.abort(); },
+    clear: async () => { if (sendBtn.disabled) return toast('Stop the current reply before clearing the conversation.', 'err'); history.length = 0; await saveHistory(); render(); }
   };
 }
 

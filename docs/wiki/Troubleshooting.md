@@ -1,41 +1,43 @@
 # Troubleshooting
 
-Most connector problems are one of a handful of things. Work top-down.
+Start with the running image tag/digest and health response. These guides target **2.7.0 stable**;
+older tags are historical. Back up state and source before any upgrade or restore.
 
-## The connector won't connect
+| Symptom | Check |
+| --- | --- |
+| OAuth unavailable | `PUBLIC_URL` is unset, incorrect, or not publicly reachable over HTTPS. |
+| Approval works but tools fail | Check enabled state, credentials, public proxy/WAF events, and endpoint scope; do not assume one cause. |
+| Authorization fails immediately | Match `PUBLIC_URL` and connector origin; retry a fresh consent flow. |
+| Connection disappears on redeploy | Verify persistent `/data`, the encryption key, and any fixed `SESSION_SECRET`. |
+| Service says not configured | Save required settings for the actual selected account, not a sibling/default. |
+| Valid bearer gets 403 | It may be scoped to another account/module; use the correct endpoint token. |
+| Valid endpoint returns 404 | Check the slug, account existence, and explicit enablement. |
+| Test passes but tools fail | A source without `test()` may only confirm load; test is not a client call. |
+| Usage is empty | Initialization, tool listing, setup Test, denied requests, and aborted calls do not count. |
+| Stable features missing | Verify the running image/digest is 2.7.0, recreate after pulling, and check browser cache and logs. |
+| Gmail/Drive badge says configured but calls fail | Alternative OAuth requirements need Test; save an access token or complete refresh-token configuration. |
+| ChatGPT app / Claude connector option missing | Check provider plan, workspace policy, and supported app features; see Connecting AI Clients. |
+| New bundled modules missing | 2.7.0 seeds all 18 on a fresh install and adds missing folders at startup; existing folders are not overwritten. Check image, mounts, logs, and filters before changing source. |
+| No install option | PWA installation depends on HTTPS, browser, and device; there is no private offline dashboard. |
 
-| Symptom | Cause → fix |
-|---|---|
-| Password page works, then "Couldn't connect" / auth failed; log ends at `token ISSUED` | **Cloudflare AI-bot blocking** eating `Claude-User` requests at the edge. See [Cloudflare](https://github.com/iOnic-Developer/MCP-Station/blob/main/docs/CLOUDFLARE.md). The #1 cause behind a proxy. |
-| "Authorization with the MCP server failed" immediately | Hostname in the connector URL ≠ `PUBLIC_URL`, or a stale authorize page (>5 min). Fix `PUBLIC_URL`, restart, retry fresh. |
-| "Couldn't register with the sign-in service" | Hostname doesn't resolve (DNS caching after a rename), or `/register` rate-limited (200/h — restart resets it). |
-| Connector keeps asking you to sign in again | It was approved with a 1 day / 1 week / 1 month lifetime, or it's on a 1.x image (1-hour tokens). Update to `2.4.0` and reconnect with **Unlimited**. |
-| "You have exceeded the rate limit for token requests" (`too_many_requests`) on every connect | A `2.2.0_alpha` build: some clients refreshed in a loop and drained the station-wide `/token` limit. Update to `2.4.0` and restart (a restart also clears the limit). |
-| Per-module token suddenly returns 401 | It was generated with an expiry that has passed — 🔑 Access shows "expired". Rotate it. |
-| Connectors die every redeploy | `/data` isn't a persistent volume — boot log says `0 client(s)`. Mount it. |
-| Tool calls error "not configured" | Module settings are blank — fill them in the UI (not env vars). |
-| Connect flow 404s before the password page | Wrong module slug in the URL — the 404 body lists the hosted MCPs. |
-| Module 404s with a valid token | Module is toggled off. Enable it. |
+## Network and access
 
-## Diagnosing from the inside
+Check `/healthz`, discovery reachability, station logs, and reverse-proxy/WAF logs. An external login
+wall can block connectors. Cloudflare bot policies can block client requests after OAuth succeeds;
+verify that in edge events rather than broadly disabling protections on suspicion.
 
-- **Logs panel** (admin UI) records every OAuth endpoint response and every MCP request with status,
-  auth mode and user-agent. Whatever a client does leaves a line — including the misses.
-- **Boot line** in the container log tells you if `/data` is persisting (`N client(s)` after you've
-  connected) and whether `PUBLIC_URL` actually reaches the station (a redirect is flagged loudly).
-- **`scripts/claude-flow-sim.mjs`** re-enacts the whole claude.ai flow against your instance — if it
-  says `FLOW OK`, the server side is healthy and the problem is upstream (DNS, proxy, Cloudflare).
-- **`scripts/diagnose-connector.sh`** runs external checks (CORS preflight, discovery, DCR) against a
-  live URL.
+The repository includes `scripts/claude-flow-sim.mjs` and `scripts/diagnose-connector.sh` for deeper
+checks. Review their invocation and handle passwords/tokens privately; never paste real credentials
+or raw sensitive traces into issue reports. A successful simulation narrows the problem, not proof
+that every third-party client works.
 
-## The `PUBLIC_URL` rules (cause of most silent failures)
+## Account and restore problems
 
-1. Exact public HTTPS origin clients connect to — scheme + host, no path.
-2. Change the hostname → change `PUBLIC_URL` and restart.
-3. It must reach the station **directly** — no auth wall / redirect (no Cloudflare Access) in front.
+Shared source edits affect all accounts; test them deliberately. Portable JSON and module ZIPs do
+not restore additional accounts or usage. Use a matching full backup in an isolated environment.
+An environment-provided `SESSION_SECRET` must be preserved separately from the archive.
 
-## Still stuck?
+Report the channel, image/build, deployment shape, sanitized error, and reproduction steps.
+Remove passwords, bearer tokens, provider keys, personal payloads, and private URLs first.
 
-Open an issue with the relevant **Logs panel** lines, your deployment shape (Docker / Unraid /
-TrueNAS, behind Cloudflare or not), and what `claude-flow-sim.mjs` reports. Security-sensitive?
-[SECURITY.md](https://github.com/iOnic-Developer/MCP-Station/blob/main/SECURITY.md).
+[Usage](Usage) · [Backups](Backups) · [Configuration](Configuration)

@@ -173,6 +173,11 @@ export async function restoreBackup({ buffer = null, name = null }) {
     }
     fs.rmSync(mcpsSrc, { recursive: true, force: true });
   }
+  // Pre-analytics backups intentionally restore an empty history, not destination activity.
+  // Write the empty file into staging so a failed validation/extraction never clears live data.
+  if (!fs.existsSync(path.join(extract, 'usage.json'))) {
+    fs.writeFileSync(path.join(extract, 'usage.json'), '[]');
+  }
   fs.cpSync(extract, cfg.dataDir, { recursive: true });
   fs.rmSync(staging, { recursive: true, force: true });
 

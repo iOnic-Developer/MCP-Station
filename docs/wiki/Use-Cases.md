@@ -1,90 +1,55 @@
-# Use Cases & Recipes
+# Use Cases
 
-MCP Station is a blank hub — its value is whatever you dock into it. Here's what people actually run,
-with the kind of thing you'd say to Claude once the module is connected.
+Examples below describe possible workflows with configured modules and suitable permissions—not
+promises of automatic results or bundled integrations beyond the [inventory](Bundled-Modules).
 
-## 🎬 Media library on voice command
+## Connect knowledge and files
 
-The `radarr_mcp` and `sonarr_mcp` modules put your whole download stack behind natural language.
+Use SiYuan to search and organize notes, then Files to save a report in a configured root.
+Review public-share controls before asking a client to distribute any file.
 
-> **You:** get spider man 2
->
-> **Claude:** Added *Spider-Man 2* (2004) to Radarr — monitored, searching now. If you meant *The
-> Amazing Spider-Man 2* (2014), say so and I'll swap it.
+> “Find the project decision and save a summary to my reports folder.”
 
-No app, no menus, no quality-profile hunting. And because you can tweak the downloaded **skill**, you
-can bake in standing rules — *"only grab releases under a set size, x265/HEVC"* — so every request
-follows them automatically. Ask "what's downloading?" and it reads the queue with warnings; "how much
-disk is left?" and it tells you.
+## Inspect home-lab services
 
-## 📓 A knowledge base Claude can read and write
+Use Radarr/Sonarr tools to inspect queues and disk state. Explicitly review monitoring, search,
+quality, and download decisions. Natural-language instructions do not override service settings
+or guarantee that a release follows your preferred size/codec rules.
 
-The `siyuan` module gives Claude 19 tools over a live [SiYuan](https://b3log.org/siyuan/) knowledge
-base — search, read, create, edit, move and audit docs, with your house style shipped as MCP
-instructions so new notes land tagged and linked correctly.
+> “Show the queue and flag items that need attention; don't start a search yet.”
 
-> "File this decision under the MCP Station project, tag it, and link it back to the hub page."
+## Work with business records
 
-## 💷 Your accounting, your tools
+Xero tools can access accounting/payroll operations when your Custom Connection, region, and
+subscription permit them. Inspect the live tool contract and confirmation behavior before writes.
 
-The `xero` module is the poster child for *build-your-own*: ~31 tools covering the exact operations a
-small business runs — invoices, quotes, payments, employee leave, **pay runs**, tracking categories,
-live P&L / balance-sheet reports — built straight from Xero's API docs, self-hosted with your own
-keys.
+> “Prepare an invoice draft for review.”
 
-> "Draft an invoice to the Thursday supplier for £240, net 14 days." · "How much holiday does Sam
-> have left?" · "Show me this month's P&L."
+## Keep automation in its execution system
 
-The point isn't that a hand-built module beats the vendor's on tool count — it's that it's shaped to
-*your* workflow, runs on *your* hardware, and you built it in an afternoon instead of waiting for
-anyone.
+The n8n module can manage workflows and executions through the n8n API, subject to permissions.
+Schedules, webhooks, and retries run in your separately configured n8n instance—not in Station.
 
-## 📁 Give Claude a place to put things
+> “Inspect the failed workflow execution and propose a fix before changing it.”
 
-The `files` module is jailed file storage: Claude can read, write, move and delete inside one folder,
-save images from base64, and mint public share links. Great as a scratch space, an export target, or
-a drop for generated reports and images.
+## Reuse a source with different credentials
 
-> "Save that chart as a PNG in exports/2026-07 and give me a share link."
+Add Personal and Work configurations for a suitable installed service, each with its own
+endpoint and grants. These are service accounts under one administrator, not human-user profiles.
+The bundled Gmail and Google Drive modules provide practical examples; each configuration needs
+its own credentials.
 
-## ✈️ Notifications & messaging
+## Move between AI clients
 
-The `telegram` module lets Claude send and read messages through a bot — wire it into a workflow so a
-long job pings your phone when it's done, or ask Claude to message the family chat.
+Authorize the same service-account endpoint in compatible clients rather than rebuilding the
+integration for each one. Use ChatGPT or Claude where custom MCP features are available, Claude
+Code for CLI workflows, or local/cloud models through LibreChat.
+[Client setup](Connecting-AI-Clients).
 
-## 🔀 Automations that outlive the chat
+## Build the missing integration
 
-The `n8n_mcp` module covers the whole n8n Public API (66 tools). Claude can build, run and fix n8n
-workflows — schedules, webhooks, retries — so anything a conversation can't do on its own becomes a
-workflow that keeps running after the chat ends.
+Use sanitized API docs and the Assistant to draft a narrow module. Review source, configure secret
+fields, test real behavior, and enable only what you need. Provider charges and service terms still
+apply; a useful integration is not guaranteed by having an HTTP API alone.
 
-> "Every morning at 7, check the queue and send me a Telegram summary."
-
-## ⛽ Let Claude build the next MCP
-
-Connect the `station` module and Claude can manage the station itself — list and inspect modules,
-scaffold a new one, write its files, set its settings and reload it — all over MCP, from any client.
-
-> "Make me an MCP for the Open-Meteo API with current conditions and a 7-day forecast."
-
-## 🪄 Anything with an API
-
-This is the real use case. A weather API, an RSS feed, your NAS, a smart-home hub, a POS system, a
-Postgres database, an internal microservice — paste its docs into the ✦ assistant and it writes the
-module. Some real-world "there's no official MCP for this, so I made one" examples:
-
-- **A point-of-sale system** → daily sales summaries and forecasting in chat.
-- **A home-automation hub** → "turn the shop sign off" from Claude.
-- **An RSS feed / news API** → "what's new in X since yesterday?"
-- **An internal ticketing API** → triage and answer from one place.
-
-If it speaks HTTP, it can be an MCP — and once it is, it's a `.zip` you can hand to anyone.
-
-## The pattern behind all of these
-
-1. Open the chat, paste the API docs (or endpoints), make a **temp key**.
-2. Have it build the module and **test** it with the temp key.
-3. Swap in a real key, toggle it on, **add the URL to Claude**, download the **skill**.
-4. Tell Claude to tweak the skill to match how you work.
-
-Minutes, not a project.
+[Assistant](Assistant) · [Accounts](Accounts) · [Building a Module](Building-a-Module)

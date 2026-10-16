@@ -1,0 +1,34 @@
+{
+  "id": "cloudflare",
+  "slug": "cloudflare_mcp",
+  "name": "Cloudflare Zero Trust & Tunnels",
+  "description": "Manage Cloudflare Tunnels (cloudflared), ingress rules, Zero Trust Access applications, access policies, groups, service tokens, and DNS routing.",
+  "icon": "☁️",
+  "version": "1.0.0",
+  "settings": [
+    {
+      "key": "api_token",
+      "label": "API Token",
+      "type": "secret",
+      "required": true,
+      "help": "Cloudflare API token with Account: Cloudflare Tunnel (Edit), Access Apps & Policies (Edit), Service Tokens (Edit), and Zone: DNS (Edit) permissions.",
+      "default": ""
+    },
+    {
+      "key": "account_id",
+      "label": "Account ID",
+      "type": "text",
+      "required": true,
+      "help": "Your 32-character Cloudflare Account ID (found in dashboard URL or domain overview sidebar).",
+      "default": ""
+    },
+    {
+      "key": "default_zone_id",
+      "label": "Default Zone ID",
+      "type": "text",
+      "required": false,
+      "help": "Optional default Cloudflare Zone ID for quickly creating DNS CNAME records.",
+      "default": ""
+    }
+  ]
+}

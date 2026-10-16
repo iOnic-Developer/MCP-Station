@@ -1,69 +1,50 @@
-# Versions & Images
+# Versions and Images
 
-MCP Station ships as one multi-arch image (`linux/amd64`, `linux/arm64`) on Docker Hub:
-**[`dbzocchi/mcp-station`](https://hub.docker.com/r/dbzocchi/mcp-station)**.
+## MCP Station 2.7.0 stable
 
-## Which tag?
+The 2.7.0 release includes all **18 service modules** plus `_template`, service-account workspaces,
+Connections, bounded Usage metadata, the full-page Assistant, and PWA installation where supported.
 
-| Tag | What it is | Built from |
-|---|---|---|
-| `latest` | Newest stable release (currently **v2.4.0**) | `main` |
-| `2.4.0` | v2.4.0, fixed — pin it if you don't want `latest` to move | `main` at v2.4.0 |
-| `<sha>` | The build of one specific commit on `main` | `main` |
-| `1.x.y`, `2.0.0`, `2.1.0_alpha`, `2.2.0_alpha` | Earlier releases and alphas, kept for rollback | — |
+| Image | Purpose |
+| --- | --- |
+| `dbzocchi/mcp-station:2.7.0` | Pin the stable release. |
+| `dbzocchi/mcp-station:2.7` | Follow stable 2.7 updates. |
+| `dbzocchi/mcp-station:latest` | Follow the current stable release. |
 
-## What's new in 2.4.0
+Moving tags are not reproducibility guarantees. Record a verified digest for exact reproduction.
+Release preparation does not prove registry publication: the parent release process verifies the
+GitHub release, registry tags/digests and CI before announcing publication.
 
-Compared with v1.8.0:
+## Persisted modules and safe upgrades
 
-**Sign-ins you control — Unlimited by default**
-- The OAuth consent page asks *Stay signed in for*: 1 day, 1 week, 1 month or **Unlimited**
-  (preselected).
-- The access token lasts for the whole period you choose instead of one hour, so a connector no
-  longer drops out when the client misses a refresh. Refreshing never extends a limited sign-in.
-- Generating or rotating a per-module token offers the same choice.
-- 🔑 Access shows each connection's real end date ("never" for unlimited).
-- Connections made on an older image become unlimited the next time they refresh.
+A fresh empty `/app/mcps` gets all 18 service modules. Startup seeds missing bundled folders only;
+existing folders, including edited sources, are never overwritten by image updates. Back up and
+review source updates deliberately. Disabling an unwanted module persists intent; deleting its
+bundled folder alone causes reseeding on restart. Additional accounts start blank and disabled.
 
-**✦ assistant**
-- OpenAI is the default provider (GPT-6 Astra over the Responses API). Claude and Gemini remain
-  available — see [Configuration](Configuration).
-- No fixed limit on tool rounds, so long build sessions don't stop part-way.
+1. Take a full backup; preserve externally supplied `SESSION_SECRET` and Files storage separately.
+2. Record the current image digest and volumes.
+3. Validate the new image, restored accounts, tools, scoped access and source in an isolated instance.
+4. Recreate production only after validation. See [Quick Start](Quick-Start) and [Backups](Backups).
 
-**Image**
-- Based on `node:22-bookworm-slim` (Debian) instead of Alpine.
-- Ships the **Proton Pass CLI** (`pass-cli`) plus `bash`, `curl` and `jq`.
-- Healthcheck uses `curl`.
+## Historical tags and rollback
 
-**Dashboard**
-- Module filters and tidier, uniform action rows.
+2.4.0 is the previous stable release, not the current installation recommendation. Older tags,
+including `2.7.0_beta` (built from `7945275`, internal label `2.6.0-beta`), are retained for historical
+reproduction and rollback. They do not contain the complete 2.7.0 release bundle. Do not assume an
+older image can read newer state: restore its matching validated full backup in separate volumes.
+`docs/REFERENCE_2_4.md` is a historical archive, not the current deployment contract.
 
-**Fixed**
-- `2.2.0_alpha` builds told clients a token lasted 10 years; some clients then refreshed in a loop and
-  drained the station-wide `/token` limit ("You have exceeded the rate limit for token requests").
-  2.4.0 advertises at most 7 days (the token itself still lasts the whole sign-in) and raises the
-  limits.
+## Source and documentation
 
-The full list is in [CHANGELOG.md](https://github.com/iOnic-Developer/MCP-Station/blob/main/CHANGELOG.md).
+Use the approved release tag/commit for reproducible source builds, or `main` for current source:
 
-## Upgrading
-
-1. Change the image to `dbzocchi/mcp-station:latest` or `:2.4.0` (or an older tag to roll back).
-2. Pull and recreate the container — on Unraid, edit the container and hit *Apply*.
-3. Keep the same `/data` and `/app/mcps` volumes. Settings, modules and connections carry over.
-
-Things to know:
-
-- **Keep `/data` persistent.** It holds the OAuth store and the encryption key; without it every
-  connector dies on redeploy.
-- **Don't change `SESSION_SECRET`** between versions if you set one — encrypted settings won't decrypt.
-- On every start, any bundled module missing from `/app/mcps` is copied in — so new bundled modules
-  appear after an upgrade. Folders already there, including your edits, are never overwritten.
-
-## Building it yourself
-
-```bash
-git clone https://github.com/iOnic-Developer/MCP-Station.git
-cd MCP-Station && git checkout main
-docker build -t mcp-station:2.4.0 .
+```sh
+git clone --branch main https://github.com/iOnic-Developer/MCP-Station.git
+cd MCP-Station
+docker build -t mcp-station:local .
 ```
+
+Publishing documentation does not publish an image or deploy the application.
+[Source](https://github.com/iOnic-Developer/MCP-Station/tree/main) ·
+[Docker Hub](https://hub.docker.com/r/dbzocchi/mcp-station)

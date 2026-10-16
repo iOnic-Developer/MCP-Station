@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f4ee">
+  <title>MCP Station — Turn your APIs and services into MCP tools.</title>
+  <meta name="description" content="Turn your APIs and services into MCP tools. One integration. Multiple accounts. Your local and cloud AI clients. Self-hosted, with explicit permissions.">
+  <link rel="canonical" href="https://ionic-developer.github.io/MCP-Station/site/">
+  <meta property="og:url" content="https://ionic-developer.github.io/MCP-Station/site/">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="MCP Station — Turn your APIs and services into MCP tools.">
+  <meta property="og:description" content="One integration. Multiple accounts. Your local and cloud AI clients. Turn APIs and services into MCP tools on your infrastructure.">
+  <meta property="og:image" content="https://ionic-developer.github.io/MCP-Station/site/assets/product/social-card.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="MCP Station. Turn your APIs and services into MCP tools. One integration. Multiple accounts. Your local and cloud AI clients.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="MCP Station — Turn your APIs and services into MCP tools.">
+  <meta name="twitter:description" content="Turn your APIs and services into MCP tools. One integration. Multiple accounts. Your local and cloud AI clients.">
+  <meta name="twitter:image" content="https://ionic-developer.github.io/MCP-Station/site/assets/product/social-card.png">
+  <meta name="twitter:image:alt" content="MCP Station. Turn your APIs and services into MCP tools.">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="assets/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="site.css">
+  <script src="site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header wrap">
+    <a class="brand" href="#" aria-label="MCP Station home"><img src="assets/station-wordmark.svg" alt="MCP Station" width="260" height="48"></a>
+    <nav aria-label="Main navigation">
+      <a href="#how-it-works">How it works</a>
+      <a href="#boundaries">Trust &amp; control</a>
+      <a class="nav-cta" href="#start">Get started <span aria-hidden="true">↗</span></a>
+    </nav>
+  </header>
+  <main id="main" tabindex="-1">
+    <section class="hero wrap" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="status-dot" aria-hidden="true"></span> Self-hosted MCP hub <span class="badge">2.7.0 stable</span></p>
+        <h1 id="hero-title">Turn your APIs and services<br><span>into MCP tools.</span></h1>
+        <p class="lead">One integration. Multiple accounts. Your local and cloud AI clients.</p>
+        <p class="hero-detail">Give your AI useful tools for the services you already use. Start with a bundled integration or build an API adapter with the assistant, then configure each account and connect your MCP-capable client.</p>
+        <div class="actions">
+          <a class="button primary" href="https://hub.docker.com/r/dbzocchi/mcp-station/tags?name=2.7.0">Get MCP Station 2.7.0 <span aria-hidden="true">↗</span></a>
+          <a class="button secondary" href="https://github.com/iOnic-Developer/MCP-Station/blob/main/docs/wiki/Home.md">Read the docs <span aria-hidden="true">→</span></a>
+        </div>
+        <p class="fine-print">Runs on your server. Connects through the Model Context Protocol.</p>
+      </div>
+      <aside class="connection-map" aria-label="From your services to your AI client through MCP Station">
+        <div class="map-heading"><span>From API to useful AI action.</span><span aria-hidden="true">API → MCP → client</span></div>
+        <div class="map-services"><span>Business tools</span><span>Files &amp; knowledge</span><span>Your own APIs</span></div>
+        <div class="map-line" aria-hidden="true"></div>
+        <div class="map-station"><img src="assets/station-mark.svg" alt="" width="56" height="56"><div><strong>MCP Station</strong><span>One integration · separate accounts</span></div></div>
+        <div class="map-line" aria-hidden="true"></div>
+        <div class="map-client"><span>Local &amp; cloud MCP clients</span><span aria-hidden="true">↗</span></div>
+        <p>Your services stay where they are.<br>Your client gets tools to work with them.</p>
+      </aside>
+    </section>
+
+    <section class="client-strip wrap" aria-labelledby="clients-title">
+      <p class="eyebrow" id="clients-title">Connect through an MCP-capable client</p>
+      <ul class="client-names" aria-label="Client examples"><li>ChatGPT</li><li>Claude</li><li>LibreChat</li><li>Other MCP clients</li></ul>
+      <p>Use compatible MCP connection features where available. ChatGPT custom MCP access and actions depend on plan, workspace permissions and supported connection options; Claude requires an available custom connector; LibreChat requires MCP server configuration. Each client must support the station’s transport and authentication, and be able to reach its endpoint. Local models require an MCP-capable client to call tools.</p>
+      <p class="client-disclaimer">Client names describe connection options, not endorsements or certification. Live end-to-end compatibility has not been verified for every client and tool.</p>
+    </section>
+
+    <section class="bundle wrap" aria-labelledby="bundle-title">
+      <div class="section-heading"><div><p class="eyebrow">Useful tools, from the start</p><h2 id="bundle-title">18 bundled modules.<br>Your next API, too.</h2></div><p>Read and send email. Work with files and repositories. Manage infrastructure, tasks and alerts—using the tools and permissions each integration exposes.</p></div>
+      <ul class="module-names" aria-label="Stable release module bundle"><li>Gmail</li><li>Google Drive</li><li>GitHub</li><li>Docker Hub</li><li>Todoist</li><li>Pushover</li><li>Proton Pass</li><li>Cloudflare</li><li>Files</li><li>Gemini</li><li>n8n</li><li>OpenProject</li><li>Radarr</li><li>SiYuan</li><li>Sonarr</li><li>Station</li><li>Telegram</li><li>Xero</li></ul>
+      <p class="bundle-note"><strong>Included in 2.7.0 stable.</strong> The release bundles 18 service modules, including eight additions: Gmail, Google Drive, GitHub, Docker Hub, Todoist, Pushover, Proton Pass and Cloudflare. Credentials and service permissions are required; bundled does not mean connected or live-tested. A fresh install seeds all 18; missing folders are added on startup, while existing module folders are never overwritten.</p>
+      <p class="bundle-note">For another service, you need a usable API or a purpose-built adapter, authentication and permission to perform each action. This is not universal website automation. Review generated adapters before running them.</p>
+    </section>
+
+    <section class="product-view wrap" aria-labelledby="product-title">
+      <div class="section-heading"><div><p class="eyebrow">A clearer working surface</p><h2 id="product-title">Know what you’re connecting.</h2></div><p>Choose an account. Check its settings and tools. Connect when you’re ready.</p></div>
+      <figure>
+        <div class="figure-bar"><span class="status-dot" aria-hidden="true"></span><span>Integrations workspace</span><span class="figure-label">Sample data</span></div>
+        <img class="product-screenshot" src="../assets/product/integrations.png" width="1440" height="1000" alt="MCP Station Integrations workspace showing service accounts, their configuration status, and workspace actions using sanitized sample data." loading="eager" decoding="async">
+        <figcaption>Real 2.7.0 application screenshot from the complete 18-module bundle, using blank example accounts. The viewport shows part of the scrollable library, not proof of connected services. Sample accounts do not represent live service connections.</figcaption>
+      </figure>
+    </section>
+
+    <section id="how-it-works" class="workflow wrap" aria-labelledby="workflow-title">
+      <div class="section-heading"><div><p class="eyebrow">From service to useful tool</p><h2 id="workflow-title">One source.<br>Room for each account.</h2></div><p>Keep the integration code together without mixing the configuration that makes each account yours.</p></div>
+      <ol class="steps">
+        <li><span class="step-number" aria-hidden="true">01</span><h3>Bring a service in.</h3><p>Start with a bundled integration or build a module for your API. Inspect the source and the tools it exposes.</p></li>
+        <li><span class="step-number" aria-hidden="true">02</span><h3>Make the account explicit.</h3><p>Reuse one source with separate settings and endpoints. New accounts start blank, disabled, and untested—not with copied credentials.</p></li>
+        <li><span class="step-number" aria-hidden="true">03</span><h3>Test. Enable. Connect.</h3><p>Review the configuration, run the available test, then enable the endpoint. Authorize your compatible client for the account you selected.</p></li>
+      </ol>
+      <p class="workflow-note"><strong>Shared source, shared responsibility.</strong> Editing or reloading integration code affects all of its accounts. Separate settings are not process isolation.</p>
+    </section>
+
+    <section class="capabilities wrap" aria-labelledby="capabilities-title">
+      <div class="capabilities-intro"><p class="eyebrow">A station to work from</p><h2 id="capabilities-title">Connect it.<br>Understand it.<br>Make it your own.</h2><p>Less switching between configuration, source code, and conversation. More context for the next useful step.</p></div>
+      <div class="feature-list">
+        <article><span class="feature-label">Build with context</span><h3>An assistant, with a place to work.</h3><p>Use the dedicated Assistant or a source-scoped conversation to develop integrations. Bring API documentation, review generated code, and test before enabling.</p><a href="https://github.com/iOnic-Developer/MCP-Station/blob/main/docs/wiki/Assistant.md">How the Assistant works <span aria-hidden="true">↗</span></a></article>
+        <article><span class="feature-label">See actual activity</span><h3>Usage from real tool calls.</h3><p>See calls, errors, and latency from completed authenticated tool calls. Bounded operational metadata—not invented activity, full audit logs, or provider cost tracking.</p><a href="https://github.com/iOnic-Developer/MCP-Station/blob/main/docs/wiki/Usage.md">What usage measures <span aria-hidden="true">↗</span></a></article>
+        <article><span class="feature-label">Keep it close</span><h3>Your server. Your everyday workspace.</h3><p>Self-host with Docker and persistent storage. Install the web app where your browser supports it over HTTPS. It’s a PWA, not a native desktop app or offline access to private content.</p><a href="https://github.com/iOnic-Developer/MCP-Station/blob/main/docs/wiki/Quick-Start.md">Plan your setup <span aria-hidden="true">↗</span></a></article>
+      </div>
+    </section>
+
+    <section id="boundaries" class="trust" aria-labelledby="trust-title"><div class="wrap trust-grid">
+      <div><p class="eyebrow">Control starts with clarity</p><h2 id="trust-title">Self-hosted.<br>Not trust-free.</h2><p class="trust-lead">Keep the station on infrastructure you control. Be deliberate about the code you run and the context you share.</p><a class="button light" href="https://github.com/iOnic-Developer/MCP-Station/blob/main/docs/wiki/Accounts.md">Read the account boundaries <span aria-hidden="true">↗</span></a></div>
+      <dl class="boundaries-list">
+        <div><dt>One administrator, not many tenants.</dt><dd>Service accounts are configurations—not separate user logins. The station administrator can manage every account.</dd></div>
+        <div><dt>Installed modules are trusted code.</dt><dd>Modules run in the station process. Review source and permissions; account scoping is not a sandbox. Management access and master tokens carry broad authority.</dd></div>
+        <div><dt>Know where assistant context goes.</dt><dd>Conversations, relevant source, station context, and tool output can go to your selected AI provider or gateway; self-hosting the station does not keep a cloud model’s processing local. Provider billing and privacy terms apply. Keep secrets in settings, not chat.</dd></div>
+      </dl>
+    </div></section>
+
+    <section id="start" class="start wrap" aria-labelledby="start-title">
+      <div><p class="eyebrow">Start with 2.7.0 stable</p><h2 id="start-title">Make room for<br>your first connection.</h2><p>Pull MCP Station 2.7.0 stable, then follow the full guide for credentials, persistent storage, and networking. A pull downloads the image; it does not start the station.</p><a class="text-link" href="https://github.com/iOnic-Developer/MCP-Station/blob/main/docs/wiki/Quick-Start.md">Open the full installation guide <span aria-hidden="true">↗</span></a></div>
+      <div class="install-panel"><div class="install-heading"><span>Docker · 2.7.0 stable</span><button class="copy-button" type="button" data-copy hidden>Copy command</button></div><pre><code id="pull-command">docker pull dbzocchi/mcp-station:2.7.0</code></pre><p data-copy-status role="status" aria-live="polite"></p><p>Persist /data and /app/mcps, plus /files when used. Before upgrading, back up and validate in an isolated instance with separate volumes.</p></div>
+      <div class="version-note"><h3>Pin a release, or follow stable updates.</h3><p><strong>2.7.0 stable:</strong> pin <code>2.7.0</code> for this release. Moving <code>2.7</code> and <code>latest</code> follow stable updates. All 18 modules are bundled; configure credentials and permissions before connecting. Multi-account means service configurations under one administrator—not multi-user hosting.</p><a href="https://github.com/iOnic-Developer/MCP-Station/blob/main/docs/wiki/Versions-and-Images.md">Versions &amp; images <span aria-hidden="true">↗</span></a></div>
+    </section>
+  </main>
+  <footer class="site-footer wrap"><a class="brand" href="#" aria-label="MCP Station home"><img src="assets/station-wordmark.svg" alt="MCP Station" width="260" height="48" loading="lazy"></a><p>Your APIs. Useful MCP tools.<br>Your accounts. Your choice of client.</p><nav aria-label="Project links"><a href="https://github.com/iOnic-Developer/MCP-Station/tree/main">Source <span aria-hidden="true">↗</span></a><a href="https://github.com/iOnic-Developer/MCP-Station/blob/main/docs/wiki/Home.md">Documentation <span aria-hidden="true">↗</span></a><a href="assets/plus-jakarta-sans-OFL.txt">Font license</a></nav></footer>
+</body>
+</html>

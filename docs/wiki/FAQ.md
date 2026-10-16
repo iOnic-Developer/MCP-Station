@@ -1,65 +1,74 @@
 # FAQ
 
-**What is MCP Station, in one line?**
-A self-hosted container that turns folders in `mcps/` into remote MCP servers claude.ai can connect
-to by URL, with OAuth 2.1 built in.
+## What is MCP Station?
 
-**Do I need to know how to code to add an MCP?**
-No. Open ➕ Add MCP, describe what you want or paste an API's docs, and the built-in ✦ assistant
-writes the module. You can also copy `_template` and edit two files.
+A self-hosted workspace that turns APIs and services into MCP tools. Build an integration once,
+configure multiple service accounts, and connect compatible local and cloud AI clients.
 
-**How does claude.ai connect — do I need a public URL?**
-Yes, an HTTPS one (that's what OAuth needs). A [Cloudflare Tunnel](https://github.com/iOnic-Developer/MCP-Station/blob/main/docs/CLOUDFLARE.md) is the easiest
-way to expose a home box without port-forwarding. Set `PUBLIC_URL` to exactly that hostname.
+## Which version should I use?
 
-**Is it safe to expose to the internet?**
-The admin UI and OAuth consent are gated by `APP_PASSWORD` (use a strong one, serve over HTTPS). MCP
-endpoints require a bearer token or a scoped OAuth token. Secrets are AES-256-GCM encrypted at rest.
-See [SECURITY.md](https://github.com/iOnic-Developer/MCP-Station/blob/main/SECURITY.md).
+Use stable `2.7.0`; `latest` and `2.7` are moving stable tags.
+See [Versions and Images](Versions-and-Images) for historical tags and safe rollback.
 
-**Where do API keys / module settings live?**
-In the station UI, per module — **not** in env vars. They're encrypted in `/data` and mirrored
-(still encrypted) into the module folder. Keep `/data` on a persistent volume.
+## Why do I not see all 18 modules after upgrading?
 
-**Can I use it with Claude Code / other MCP clients, not just claude.ai?**
-Yes. Add the same `/<slug>/mcp` URL with an `Authorization: Bearer <token>` header (the station-wide
-`MCP_TOKEN` or a per-module token). Anything that speaks MCP streamable HTTP works.
+A fresh 2.7.0 install seeds all 18 service-module folders into `/app/mcps`. On restart, missing
+bundled folders are added, but existing folders are never overwritten. Check your running image,
+volume mount, startup logs and enabled filters. Preserve custom sources before deliberately updating
+them; deleting a bundled folder alone makes it return at the next startup.
 
-**My connector reaches the password page, then fails. Why?**
-Almost always Cloudflare's AI-bot blocking eating `Claude-User` requests at the edge. Full fix in
-[docs/CLOUDFLARE.md](https://github.com/iOnic-Developer/MCP-Station/blob/main/docs/CLOUDFLARE.md).
+## Are multiple human users supported?
 
-**Why did my connectors keep expiring, and how do I stop it?**
-On 1.x the access token lasted an hour and the connection depended on claude.ai refreshing it on
-time. From 2.4.0 the consent page asks how long to stay signed in, with **Unlimited** as the
-default — pick that and the connection lasts until you revoke it. See
-[Connecting Claude](Connecting-Claude).
+No. MCP Station supports independently configured service accounts controlled by one administrator.
+Modules are trusted in-process code, not tenant-isolated workloads. [Accounts](Accounts).
 
-**Which Docker tag should I run?**
-`latest` (currently v2.4.0), or `2.4.0` if you'd rather pin a version and upgrade on your own
-schedule. Older tags use the same volumes, so you can roll back. See [Versions & Images](Versions-and-Images).
+## Do keys and data always stay on my server?
 
-**Which AI powers the ✦ assistant?**
-Your choice: OpenAI (the 2.x default), Claude or Gemini — set a key in ⚙ Station or via env vars. See
-[Configuration](Configuration).
+No. Secret settings fields are encrypted at rest, but modules call upstream services. Assistant
+conversations/context/source and relevant tool output go to the selected provider or gateway.
+Do not paste secrets into chat or source. [Assistant](Assistant).
 
-**Can I share a module I built?**
-Yes — 📦 **Export** on the module card gives you a `.zip` (secrets stripped). The recipient unzips it
-into their `mcps/`, hits Reload, and adds their own keys.
+## Can I build without writing everything by hand?
 
-**Does it run on Unraid / TrueNAS / plain Docker?**
-All three — see the README. It's one container plus two volumes (`/data`, `/app/mcps`), and a third
-(`/files`) if you use the 📁 Files module. Images are multi-arch (amd64 + arm64).
+The Assistant can scaffold and edit module source from documentation. You must still review,
+configure, and test it. No automatic compatibility, safety, completeness, or timing guarantee applies.
 
-**What are the requirements?**
-Docker (or Node ≥ 20). Three runtime deps, no build step, no database — state is a JSON file in
-`/data`.
+## Is Gmail bundled? What about NAS services?
 
-**Can Claude break something with a module?**
-A module does exactly what its `index.js` does. Money-touching or destructive modules should build in
-confirmations (the bundled Xero module drafts, never auto-authorises, for example). Only enable
-modules you trust.
+Gmail and Google Drive are included in the 2.7.0 stable 18-module bundle. The bundle covers 18 of 30 supplied NAS service modules; private business and
+Unraid host-control modules remain deferred. See [Bundled Modules](Bundled-Modules). There is no
+app-store service or built-in scheduler; schedules can run in a separately configured n8n instance.
 
-**How do I back up?**
-The UI's Backup button (or `POST /api/backup`) tars `/data` + `/app/mcps`. Restore re-imports it.
-Keep `SESSION_SECRET`/`secret.key` stable or encrypted settings won't decrypt after a restore.
+## Can it turn any website into tools?
+
+A usable API can be wrapped in a module with the right authentication and permissions. A site
+without an API needs an appropriate authorized adapter. Universal website access and built-in
+browser automation are not promised.
+
+## Can I use ChatGPT, Claude, Claude Code, or a local model?
+
+Use their compatible MCP features: ChatGPT custom apps where available, Claude remote connectors,
+Claude Code HTTP transport, or LibreChat with local/cloud models. Models require a tool-capable
+client. Plan/admin policy and supported app features vary. [Connecting AI Clients](Connecting-AI-Clients).
+
+## What does Usage store?
+
+Usage stores bounded tool-call metadata, not arguments/results. Retention is at most 30 days or
+5,000 events globally. This is not complete auditing or billing. [Usage](Usage).
+
+## Is a JSON export a complete backup?
+
+No. JSON is default-account configuration, not additional accounts, usage, or source. Full private
+backups preserve station recovery state; external Files storage and environment secrets need separate
+backup. [Backups](Backups).
+
+## Can I install it on my phone?
+
+The PWA can be installed where HTTPS, browser, and device permit. The service must
+still be reachable; private dashboard content is not available offline.
+
+## What about Unraid, TrueNAS, or ordinary Docker?
+
+Use Docker with persistent `/data` and `/app/mcps`, plus any external file storage. See the
+[Quick Start](Quick-Start). Choose the image/channel explicitly. The preserved 2.4 technical reference is historical and may
+contain outdated claims; use this wiki for current setup guidance.
