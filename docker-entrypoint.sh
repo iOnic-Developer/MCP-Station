@@ -1,5 +1,5 @@
 #!/bin/sh
-# Seed bundled modules (telegram, gemini, _template) into the mcps volume
+# Seed all 18 bundled service modules and _template into the mcps volume
 # without overwriting anything the user has created or edited.
 set -e
 

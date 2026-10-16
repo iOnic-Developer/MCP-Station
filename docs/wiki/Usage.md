@@ -1,6 +1,6 @@
 # Usage
 
-**Beta `2.7.0_beta` / branch preview. Not stable 2.4.** Usage is measured operational metadata,
+**MCP Station 2.7.0.** Usage is measured operational metadata,
 not generated demo activity, full auditing, cost tracking, or billing records.
 
 ## What is measured

@@ -1,11 +1,11 @@
 # Backups, exports, and recovery
 
-**Stable and beta share three distinct formats.** Additional service accounts and usage below are
-beta features; choose a full backup when preserving them.
+**Three formats serve different purposes.** Choose a full backup to preserve additional
+service accounts and usage.
 
 | Format | Included | Not included / caution |
 | --- | --- | --- |
-| Full station `.tar.gz` | Station data, OAuth state, persisted key, shared source; beta account registry and usage | External Files storage, externally supplied environment secrets; private recovery material. |
+| Full station `.tar.gz` | Station data, OAuth state, persisted key, shared source; account registry and usage | External Files storage, externally supplied environment secrets; private recovery material. |
 | Portable JSON | Instructions, provider/model configuration, installed sources' default-account settings | No additional account records, usage, or module source; secrets only if explicitly requested. |
 | Module ZIP | Shareable source, manifest, and module documentation | Managed settings/chat and account records excluded; manually embedded secrets still require review. |
 
@@ -19,7 +19,7 @@ beta features; choose a full backup when preserving them.
 
 Restoring changes state and module files. Expect access grants and credentials from the backup to
 return. Do not restore untrusted archives, publish backups as examples, or assume a switch back to
-an older image reverses beta state safely. The HTTP backup route flushes state/usage first.
+an older image reverses newer state safely. The HTTP backup route flushes state/usage first.
 Internal backups exclude the backups directory and trash; they are not a recursive archive history.
 
 ## Portable configuration is not a full backup

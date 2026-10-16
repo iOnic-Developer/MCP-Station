@@ -34,10 +34,10 @@ Schedules, webhooks, and retries run in your separately configured n8n instanceâ
 
 ## Reuse a source with different credentials
 
-**Beta:** add Personal and Work configurations for a suitable installed service, each with its own
+Add Personal and Work configurations for a suitable installed service, each with its own
 endpoint and grants. These are service accounts under one administrator, not human-user profiles.
-The upcoming Gmail and Google Drive modules provide practical examples; each configuration needs
-its own credentials. They are not in the published `2.7.0_beta` image.
+The bundled Gmail and Google Drive modules provide practical examples; each configuration needs
+its own credentials.
 
 ## Move between AI clients
 

@@ -10,7 +10,7 @@ const require = createRequire(import.meta.url);
 if (!process.env.PRODUCT_FONT_FILE) throw new Error('Set PRODUCT_FONT_FILE to the licensed Plus Jakarta Sans TTF.');
 const { Resvg } = require(process.env.BRAND_RESVG_MODULE || '@resvg/resvg-js');
 const root = new URL('./', import.meta.url);
-const out = new URL('../assets/product/', root);
+const out = new URL('assets/product/', root);
 await mkdir(out, { recursive: true });
 const inner = (svg) => svg.replace(/^<svg[^>]*>/, '').replace(/<title[^>]*>.*?<\/title>/s, '').replace(/<\/svg>\s*$/, '');
 const mark = inner(await readFile(new URL('assets/station-mark.svg', root), 'utf8'));
@@ -29,7 +29,7 @@ const items = [
     <g transform="translate(1008 198) scale(1.5)">${mark}</g>
     <path d="M64 470H1136" stroke="#c9d1c6"/>
     ${text(64, 528, 24, 'Your APIs → MCP tools → Compatible clients')}
-    ${text(64, 590, 18, 'Self-hosted / Source branch preview', '#506258', 400)}
+    ${text(64, 590, 18, 'Self-hosted / Compatible MCP clients', '#506258', 400)}
   `)],
   ['brand-banner', 1600, 560, svg(1600, 560, `
     <g transform="translate(72 48) scale(1.15)">${wordmark}</g>
@@ -41,7 +41,7 @@ const items = [
     ${text(72, 390, 27, 'One integration. Multiple accounts. Your local and cloud AI clients.', '#506258', 400)}
     <path d="M72 436H1528" stroke="#c9d1c6"/>
     ${text(72, 496, 25, 'Your APIs → MCP tools → Compatible clients')}
-    ${text(1190, 496, 19, 'Source branch preview', '#506258', 400)}
+    ${text(1190, 496, 19, 'Self-hosted MCP hub', '#506258', 400)}
   `)]
 ];
 for (const [name, width, height, source] of items) {
@@ -49,7 +49,7 @@ for (const [name, width, height, source] of items) {
   const outlined = renderer.toString();
   if (/<text[\s>]/.test(outlined)) throw new Error(`${name}: text was not outlined`);
   const accessible = outlined.replace(/<svg\b/, '<svg role="img" aria-labelledby="title"')
-    .replace(/(<svg[^>]*>)/, '$1<title id="title">MCP Station — Turn your APIs and services into MCP tools. One integration. Multiple accounts. Your local and cloud AI clients. Source branch preview.</title>');
+    .replace(/(<svg[^>]*>)/, '$1<title id="title">MCP Station — Turn your APIs and services into MCP tools. One integration. Multiple accounts. Your local and cloud AI clients. Self-hosted MCP hub.</title>');
   await writeFile(new URL(`${name}.svg`, out), accessible);
   await writeFile(new URL(`${name}.png`, out), renderer.render().asPng());
   console.log(`Generated ${name}.svg / .png (${width} × ${height}), with outlined lettering.`);

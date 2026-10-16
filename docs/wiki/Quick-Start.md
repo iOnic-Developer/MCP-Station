@@ -1,9 +1,7 @@
 # Quick Start
 
-**Stable 2.4.0 first.** The account-aware workflow below is labeled beta where it differs.
-Use separate volumes when evaluating `2.7.0_beta`; see [Versions and Images](Versions-and-Images).
-The expanded 18-module bundle belongs to upcoming source, not this stable image or the published
-`2.7.0_beta` image. Choose the source/image channel before expecting those integrations.
+**Install MCP Station 2.7.0 stable.** All 18 service modules are bundled, plus `_template`.
+Pin `:2.7.0`; moving `:2.7` and `:latest` track stable updates. See [Versions and Images](Versions-and-Images).
 
 ## 1. Keep the first run local
 
@@ -13,7 +11,7 @@ Save the following as `compose.yaml` in the same directory:
 ```yaml
 services:
   mcp-station:
-    image: dbzocchi/mcp-station:2.4.0
+    image: dbzocchi/mcp-station:2.7.0
     restart: unless-stopped
     ports:
       - "127.0.0.1:8788:8788"
@@ -36,16 +34,20 @@ curl --fail http://127.0.0.1:8788/healthz
 Open `http://127.0.0.1:8788` and sign in. The health response describes the running app, not
 proof that any upstream API or client connection works. OAuth is off with `PUBLIC_URL` unset.
 
+On first startup, missing bundled folders are seeded into `/app/mcps`; a new empty volume gets
+all 18 modules. Existing folders are never overwritten, so upgrading an image preserves your
+edited sources. Disable unwanted modules; deleting a bundled folder alone causes reseeding
+on restart. Persist `/data`, `/app/mcps`, and any Files storage.
+
 ## 2. Configure, inspect, and test
 
-**Stable:** use the module settings and capabilities controls.
-**Beta/branch:** open Integrations → choose the account → Configure; inspect Tools in its workspace.
+Open Integrations → choose the account → Configure; inspect Tools in its workspace.
 
 Enter required service URLs and credentials in the manifest-generated settings fields, not
 arbitrary environment variables. Save and run Test. A source without `test()` may only verify that
 it loads. Review tools before enabling the endpoint; passing Test does not imply a connected client.
 
-**Beta:** an additional account is blank, disabled, and untested. Configure and enable it explicitly;
+An additional account is blank, disabled, and untested. Configure and enable it explicitly;
 existing credentials, tokens, and tests are not copied. See [Accounts](Accounts).
 
 ## 3. Add remote HTTPS only when needed
@@ -61,7 +63,7 @@ another host needs deliberate networking; do not assume it can access that bindi
 
 Copy `https://your-station.example/<slug>/mcp` into a compatible connector. Approve OAuth consent,
 or configure a bearer token in the client. Prefer endpoint-scoped access over the master token.
-In beta, copy the selected account's endpoint. [ChatGPT, Claude, Claude Code, and LibreChat](Connecting-AI-Clients).
+Copy the selected account's endpoint. [ChatGPT, Claude, Claude Code, and LibreChat](Connecting-AI-Clients).
 
 ## 5. Protect the state
 

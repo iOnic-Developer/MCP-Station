@@ -1,6 +1,6 @@
 # Building a Module
 
-**Stable and beta:** modules are source folders. **Beta:** one source can serve several accounts;
+Modules are source folders. One source can serve several service accounts;
 source changes affect all of them.
 
 ```text
@@ -11,7 +11,7 @@ mcps/my-module/
 ```
 
 Copy `_template` or ask the [Assistant](Assistant) to scaffold a source from sanitized API docs.
-The detailed [module contract](https://github.com/iOnic-Developer/MCP-Station/blob/redesign/public-product/docs/BUILDING_MCPS.md)
+The detailed [module contract](https://github.com/iOnic-Developer/MCP-Station/blob/main/docs/BUILDING_MCPS.md)
 remains the implementation reference.
 
 ## Minimal manifest

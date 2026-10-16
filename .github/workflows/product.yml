@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [redesign/public-product]
+    branches: [main, redesign/public-product]
   workflow_dispatch:
 
 permissions:

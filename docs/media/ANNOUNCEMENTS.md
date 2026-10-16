@@ -1,45 +1,42 @@
-# Announcement copy
+# MCP Station 2.7.0 announcement copy
 
-Source-preview copy · 2026-10-16. Publish through the approved parent release process.
-Stable is 2.4.0 / `latest`; published `2.7.0_beta` at `7945275` predates the expanded bundle,
-newer workspace and site source. No new image or GitHub release is announced here.
+**Approved stable-release copy, ready after parent publication verification.** Do not post as a
+completed release until GitHub, Docker tags/digests and public surfaces are verified after CI.
 
 ## Short social post
 
-Turn your APIs and services into MCP tools. MCP Station's upcoming self-hosted workspace brings
-18 integrations, multiple service accounts, and compatible local/cloud AI clients together.
+MCP Station 2.7.0: turn your APIs and services into MCP tools. All 18 integrations, independent
+service accounts, and a self-hosted workspace for compatible local and cloud AI clients.
 Build once. Connect where you work.
 
-## Longer community announcement
+## Community announcement
 
 **Turn your APIs and services into MCP tools.**
 
 **One integration. Multiple accounts. Your local and cloud AI clients.**
 
-MCP Station is a self-hosted workspace for bringing your services into AI workflows. Start with a
-bundled integration, build a module from API docs with the optional Assistant, and reuse that source
-with different service accounts. Configure, inspect, test, and connect from one account workspace.
+MCP Station 2.7.0 brings 18 bundled integrations, account-aware workspaces, Connections, measured
+Usage and a full-page Assistant into a stable release. Build from API docs, reuse source across
+service accounts, configure and test each account, then connect your compatible MCP client.
 
-Connect ChatGPT, Claude, Claude Code, and LibreChat through their compatible MCP features, subject
-to available app features, plan, and admin policy. Local and cloud models use tools through a
-compatible client such as LibreChat—not as autonomous MCP connections.
+The bundle includes GitHub, Docker Hub, Cloudflare, n8n, Gmail, Google Drive, Files, SiYuan,
+Todoist, Telegram, Pushover, Radarr, Sonarr, Gemini, OpenProject, Xero, Proton Pass and MCP Station.
+Bundled does not mean connected: bring credentials, inspect tools and verify real service calls.
 
-The upcoming source includes 18 integrations: GitHub, Docker Hub, Cloudflare, n8n, Gmail, Google
-Drive, Files, SiYuan, Todoist, Telegram, Pushover, Radarr, Sonarr, Gemini, OpenProject, Xero, Proton
-Pass, and MCP Station. Eight additions contribute 185 tools; the bundle audit records 274 offline
-checks, not live-service certification. The account-aware workspace also includes Connections,
-measured tool activity, and a full-page Assistant.
+Use ChatGPT, Claude, Claude Code or LibreChat through supported MCP features. Plans and admin
+policy apply; local/cloud models need an MCP-capable client. These are compatibility paths, not
+certifications or claims of new live end-to-end tests.
 
-Self-host the station and choose the services and AI providers you connect. Modules contact their
-configured services; Assistant context can go to the selected provider. Modules are trusted code,
-and multiple service accounts are controlled by one administrator. Websites without APIs need an
-authorized adapter; universal site access is not promised.
+One administrator controls all accounts—not multi-user hosting. Modules are trusted code and
+contact configured services; Assistant context can go to the selected provider. Review generated
+adapters and permissions. Websites without usable APIs need authorized adapters, not universal browsing.
 
-Current screenshots show the source preview with labeled sample data. Try upcoming source in an
-isolated deployment, or choose the stable image. Feedback on setup and client connections is welcome.
+Pin `dbzocchi/mcp-station:2.7.0`, or follow stable updates with `:2.7` / `:latest`. Back up before
+upgrading. Missing module folders are seeded; existing source is never overwritten. Screenshots
+use labeled sample data, not customer activity.
 
+Product page: https://ionic-developer.github.io/MCP-Station/site/
 Repository: https://github.com/iOnic-Developer/MCP-Station
-Source preview: https://github.com/iOnic-Developer/MCP-Station/tree/redesign/public-product
 Docker Hub: https://hub.docker.com/r/dbzocchi/mcp-station
 
 ## Repository description
@@ -53,7 +50,6 @@ Turn APIs and services into MCP tools. Self-host integrations for your local and
 
 ## Editorial boundaries
 
-Use the channel notice once per publication. Keep the benefits prominent without promising
-universal websites, universal client/plan access, provider endorsement, live validation, tenant
-isolation, a built-in scheduler, or an offline dashboard. Do not imply the expanded source bundle
-is in `2.7.0_beta`. No hosted product domain has been selected or announced.
+Do not claim universal websites/client-plan access, endorsement, live certification, tenant
+isolation, a built-in scheduler or an offline dashboard. Use the published GitHub Pages URL, not
+an invented product domain. Publication readiness is not publication success.

@@ -1,6 +1,6 @@
 # Accounts
 
-**Beta `2.7.0_beta` / branch preview. Not stable 2.4.** An account means a service configuration,
+**MCP Station 2.7.0.** An account means a service configuration,
 not a person signing in. One station administrator can manage every account.
 
 ## One source, independent configuration
@@ -44,4 +44,4 @@ their shared source. There is no account-renaming or endpoint-migration API in t
 Full station backups include additional accounts and usage. Portable JSON and source ZIPs do not.
 Keep backups private and preserve any externally supplied `SESSION_SECRET`. [Backups](Backups).
 
-[Backend contract](https://github.com/iOnic-Developer/MCP-Station/blob/redesign/public-product/docs/ACCOUNT_INSTANCES.md)
+[Backend contract](https://github.com/iOnic-Developer/MCP-Station/blob/main/docs/ACCOUNT_INSTANCES.md)

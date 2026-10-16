@@ -161,4 +161,4 @@ pre-analytics backup empties history rather than importing unrelated destination
 No live external provider, production deployment, native device, human multi-user permissions or
 complete manual assistive-technology audit is claimed. Existing APIs/OAuth flows are covered by
 protocol regression suites. Default-account JSON portability remains limited; use full backups
-for additional accounts. Package version remains 2.4.0 until an approved release.
+for additional accounts. Approved stable release aligns package and app versions at 2.7.0.

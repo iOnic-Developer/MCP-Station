@@ -1,6 +1,6 @@
 # Configuration
 
-**Applies to stable 2.4 and beta unless marked.** Service credentials belong in the module/account
+**Applies to MCP Station 2.7.0.** Service credentials belong in the module/account
 settings form. Station and Assistant configuration use environment variables or Station settings.
 
 ## Deployment settings
@@ -48,7 +48,7 @@ origins without endpoint paths. See [Assistant](Assistant) before sending privat
 
 | Path | Content |
 | --- | --- |
-| `/data` | State, OAuth store, persisted key, backups, trash; beta also stores bounded `usage.json`. |
+| `/data` | State, OAuth store, persisted key, backups, trash; also stores bounded `usage.json`. |
 | `/app/mcps` | Shared source folders and default-account encrypted configuration mirrors. |
 | `/files` or configured Files root | User files; back up separately. |
 

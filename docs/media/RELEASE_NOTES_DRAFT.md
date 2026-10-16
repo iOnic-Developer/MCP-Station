@@ -1,55 +1,71 @@
-# Upcoming product preview — release-note draft
+# MCP Station 2.7.0 — stable release notes
 
-**Source preview, not a new image or published GitHub release.** Stable is 2.4.0 / `latest` on
-main. Published `2.7.0_beta` comes from `7945275` and reports `2.6.0-beta` internally; it does not
-include the new eight-module expansion, newer workspace refinements, or new product site source.
+**Approved release preparation · publication pending verification.** The parent release process
+publishes GitHub and Docker images after CI, then verifies tags, digests and public surfaces.
+This draft is not evidence that publication has completed.
 
 ## Turn your APIs and services into MCP tools
 
-One integration. Multiple accounts. Your local and cloud AI clients.
+**One integration. Multiple accounts. Your local and cloud AI clients.**
 
-- Reuse one module source with independent service-account settings, endpoints, tests, scoped
-  tokens, and OAuth grants. New accounts start blank, disabled, and untested.
-- Manage setup in account workspaces and Connections; inspect measured tool activity and use a
-  full-page Assistant to help build integrations from API documentation.
-- Connect compatible MCP features in ChatGPT, Claude, Claude Code, and LibreChat. Local/cloud
-  models require an MCP-capable client; plan and admin restrictions apply.
-- Explore a refreshed README, wiki, Docker Hub overview, real sample-data screenshots, and a
-  ready-to-host product-site source. No hosted product URL is announced.
+MCP Station 2.7.0 brings a self-hosted integration workspace and the complete **18-module bundle**
+into one stable release. Configure your services, inspect their tools, and connect compatible clients.
 
-## Expanded public bundle
+- Independent service-account settings, endpoints, tests, scoped tokens and OAuth grants share one
+  module source. Additional accounts start blank, disabled and untested—not with copied credentials.
+- Account-aware Integrations and Connections put configuration and authorization in context.
+- Usage shows measured calls, errors and latency, without retaining tool arguments or results.
+- The full-page Assistant and source conversations help build integrations from API documentation.
+- PWA installation is supported where HTTPS, browser and device allow; private content is not offline.
+- Updated README, wiki, Docker Hub overview and product page use stable setup guidance and labeled
+  sample screenshots. Product page: https://ionic-developer.github.io/MCP-Station/site/
 
-18 modules plus `_template`: ten retained and eight added. New additions are Todoist, GitHub,
-Docker Hub, Pushover, Proton Pass, Gmail, Google Drive, and Cloudflare, contributing **185 tools**.
-The source audit records **274 offline checks passed**, including actionable blank-configuration
-failures, real SDK discovery/calls against fixtures, credential-isolated Google caches, and scoped
-transport tests. No live services, real credentials, Proton CLI sessions, or AI-client sessions
-were tested by that audit.
+## All 18 modules included
 
-All new credentials are blank. Fresh-install imports may be discoverable before authentication;
-disable unwanted modules. Gmail/Drive's alternative auth requirements may outstrip the simple
-configured badge: use Test and a small read-only call. GitHub clone/pull filesystem tools are not
-bundled. Proton Pass requires explicit Settings PAT and the supported CLI executable.
+Files · Gemini · MCP Station · n8n · OpenProject · Radarr · SiYuan · Sonarr · Telegram · Xero ·
+Todoist · GitHub · Docker Hub · Pushover · Proton Pass · Gmail · Google Drive · Cloudflare.
 
-18 of 30 supplied NAS services are included. Private business adapters, deployment-specific
-Unraid REST/SSH/USB administration, and unreviewed agent packages remain deferred. See
-[the bundle audit](../MODULE_BUNDLE_AUDIT.md) for exact decisions and verification boundaries.
+`_template` is a scaffold, not a nineteenth integration. Eight additions contribute **185 tools**.
+The [bundle audit](../MODULE_BUNDLE_AUDIT.md) records **274 offline checks passed**; that is prior
+fixture/SDK/transport validation, not live-service, real credential, Proton CLI-session or AI-client
+certification. Credentials and upstream permissions/plans are required. GitHub filesystem clone/pull
+helpers are not bundled. Proton Pass requires explicit PAT configuration and the supported CLI.
+Private business adapters, Unraid host-control modules and unreviewed agent packages remain deferred.
 
-## Operations
+## Install and upgrade
 
-One administrator controls service accounts; modules remain trusted in-process code. Shared
-source edits affect every account. Modules send requests to configured services; Assistant context,
-source, and relevant tool output can go to the chosen provider/gateway. Secret settings encryption
-is not a no-egress guarantee, and privileged service tools can intentionally return secrets.
+Pin `dbzocchi/mcp-station:2.7.0`; moving `:2.7` and `:latest` track stable updates.
+See [Quick Start](../wiki/Quick-Start.md).
 
-Usage keeps bounded metadata, not arguments/results: at most 30 days or 5,000 events globally.
-Full private backups preserve additional accounts and usage; portable JSON is default-account
-configuration only. Preserve environment secrets and external Files storage separately.
-PWA installation depends on HTTPS/browser/device support, not private offline access.
+A fresh install seeds all 18 service-module folders. Startup adds missing bundled folders to
+`/app/mcps` but **never overwrites existing folders**, preserving edited sources. Updating the image
+alone does not update existing module code. Back up and review source updates deliberately; disable
+unwanted modules instead of deleting bundled folders, which are reseeded on restart.
 
-## Publication gate
+Persist `/data` and `/app/mcps`; preserve Files storage and any environment-supplied `SESSION_SECRET`
+separately. Validate full restore in an isolated deployment before upgrading production. Older stable
+and beta tags remain historical rollback options, not the current install path. Older images require
+matching validated state backups; switching images alone is not a verified downgrade.
 
-Record the approved source commit, verify image tag/digest after a new build, and validate the
-intended clients and restore flow before an image/release announcement. Use separate evaluation
-volumes and a full backup; switching images is not a verified beta downgrade path. The parent
-owns approved commit/push, page publication, wiki sync, image publishing, and release creation.
+## Compatibility and trust boundaries
+
+ChatGPT, Claude, Claude Code and LibreChat are compatible MCP connection paths subject to transport,
+authentication, product features, plan and admin policy—not endorsements or new live-client test
+claims. Local/cloud models need an MCP-capable client. A successful setup Test or tool listing is
+not proof of a successful client tool call. Websites need usable APIs or authorized adapters;
+universal browsing is not promised.
+
+One administrator controls service accounts: multi-account is **not multi-user hosting**. Modules
+run as trusted code in the station process; source changes affect every account. Modules contact
+configured services, and Assistant conversations/context/source/tool output can go to the selected
+provider or gateway. Keep secrets in settings, not chat or source. Privileged tools may return secrets.
+
+Usage retains bounded metadata for at most 30 days or 5,000 events globally, not full auditing or
+billing. Full private backups preserve accounts and usage; portable JSON is default-account
+configuration only, while ZIP exports share source. No built-in background scheduler is promised.
+
+## Publication handoff
+
+After CI, the parent must record the final approved commit, verify the GitHub release and Docker
+`2.7.0`, `2.7`, `latest` tags/digests, sync wiki/overview/site, and confirm public links before
+announcing completion. No commit, push or publication is performed by this documentation task.

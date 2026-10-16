@@ -1,56 +1,50 @@
 # Versions and Images
 
-**Publication snapshot: 2026-10-16.** These labels distinguish image tags, source, and the app's
-internal version. A Docker tag is not a GitHub release announcement.
+## MCP Station 2.7.0 stable
 
-| Channel | Tag/source | Status |
-| --- | --- | --- |
-| Stable | `dbzocchi/mcp-station:2.4.0`; moving `:latest`; `main` | Stable 2.4 interface. |
-| Published beta | `dbzocchi/mcp-station:2.7.0_beta` | Built from `7945275`, internal version `2.6.0-beta`. |
-| Branch preview | `redesign/public-product` | Upcoming 18-module bundle, newer workspace, site source and product documentation; not in the published beta image. |
+The 2.7.0 release includes all **18 service modules** plus `_template`, service-account workspaces,
+Connections, bounded Usage metadata, the full-page Assistant, and PWA installation where supported.
 
-The beta adds account-aware workspaces and Connections, real bounded tool-usage metadata,
-full-page Assistant work, and installable PWA support. Installation depends on browser/device and
-HTTPS; it is not offline access to private station content. Later navigation, card, and action-layout
-changes are branch-preview work until a subsequent image is explicitly built and verified.
+| Image | Purpose |
+| --- | --- |
+| `dbzocchi/mcp-station:2.7.0` | Pin the stable release. |
+| `dbzocchi/mcp-station:2.7` | Follow stable 2.7 updates. |
+| `dbzocchi/mcp-station:latest` | Follow the current stable release. |
 
-`latest` is moving, not a reproducibility guarantee. Version-looking tags can also be republished;
-use a verified image digest when exact reproducibility matters. The app's `2.6.0-beta` display does
-not mean the Docker `2.7.0_beta` tag is wrong: those version labels have not been aligned in code.
+Moving tags are not reproducibility guarantees. Record a verified digest for exact reproduction.
+Release preparation does not prove registry publication: the parent release process verifies the
+GitHub release, registry tags/digests and CI before announcing publication.
 
-## Safe evaluation
+## Persisted modules and safe upgrades
 
-1. Take a full backup and preserve any externally set `SESSION_SECRET`.
-2. Use a separate deployment with separate `/data`, `/app/mcps`, and Files storage for beta.
-3. Record the selected image/digest and test accounts, tools, access, and restoration.
-4. Do not assume an older image can consume beta state safely; restore a matching validated backup.
+A fresh empty `/app/mcps` gets all 18 service modules. Startup seeds missing bundled folders only;
+existing folders, including edited sources, are never overwritten by image updates. Back up and
+review source updates deliberately. Disabling an unwanted module persists intent; deleting its
+bundled folder alone causes reseeding on restart. Additional accounts start blank and disabled.
 
-Existing default account settings/endpoints are preserved by the beta model. Additional accounts
-are blank/disabled and reuse shared source. Bundled folders absent from the module volume are
-seeded on start; existing source folders are not replaced by a new image.
+1. Take a full backup; preserve externally supplied `SESSION_SECRET` and Files storage separately.
+2. Record the current image digest and volumes.
+3. Validate the new image, restored accounts, tools, scoped access and source in an isolated instance.
+4. Recreate production only after validation. See [Quick Start](Quick-Start) and [Backups](Backups).
 
-## Build the review source
+## Historical tags and rollback
+
+2.4.0 is the previous stable release, not the current installation recommendation. Older tags,
+including `2.7.0_beta` (built from `7945275`, internal label `2.6.0-beta`), are retained for historical
+reproduction and rollback. They do not contain the complete 2.7.0 release bundle. Do not assume an
+older image can read newer state: restore its matching validated full backup in separate volumes.
+`docs/REFERENCE_2_4.md` is a historical archive, not the current deployment contract.
+
+## Source and documentation
+
+Use the approved release tag/commit for reproducible source builds, or `main` for current source:
 
 ```sh
-git clone --branch redesign/public-product https://github.com/iOnic-Developer/MCP-Station.git
+git clone --branch main https://github.com/iOnic-Developer/MCP-Station.git
 cd MCP-Station
-docker build -t mcp-station:local-preview .
+docker build -t mcp-station:local .
 ```
 
-Build from the approved, published source commit to reproduce the upcoming preview. The checked-in Compose file can lag image labels; choose your image
-explicitly using the [Quick Start](Quick-Start) rather than assuming its label proves publication.
-
-## Historical material
-
-`docs/REFERENCE_2_4.md` preserves the old technical reference for historical context. It may contain
-outdated capability, model, or operational claims; it is not the current product or deployment
-contract. Prefer this wiki and the current module source.
-
-## Public documentation
-
-The public `main` README remains stable until an approved merge. The product page, Docker Hub
-description and GitHub Wiki are published with explicit channel labels. Publishing documentation
-does not update an image, change the stable branch, or deploy the application.
-
-[Review branch](https://github.com/iOnic-Developer/MCP-Station/tree/redesign/public-product) ·
-[Docker Hub](https://hub.docker.com/r/dbzocchi/mcp-station) · [Backups](Backups)
+Publishing documentation does not publish an image or deploy the application.
+[Source](https://github.com/iOnic-Developer/MCP-Station/tree/main) ·
+[Docker Hub](https://hub.docker.com/r/dbzocchi/mcp-station)

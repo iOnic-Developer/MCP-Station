@@ -7,18 +7,19 @@ configure multiple service accounts, and connect compatible local and cloud AI c
 
 ## Which version should I use?
 
-Stable is `2.4.0` / moving `latest`. The published `2.7.0_beta` tag is built from `7945275` and
-reports `2.6.0-beta` internally. Later branch refinements are not all in that image.
-See [Versions and Images](Versions-and-Images); use separate volumes for beta evaluation.
+Use stable `2.7.0`; `latest` and `2.7` are moving stable tags.
+See [Versions and Images](Versions-and-Images) for historical tags and safe rollback.
 
-## Is the new interface live on main or in the public wiki?
+## Why do I not see all 18 modules after upgrading?
 
-Not through this documentation task. Source remains on `redesign/public-product` for review.
-The main README stays stable until approval; public wiki content may be older until approved sync.
+A fresh 2.7.0 install seeds all 18 service-module folders into `/app/mcps`. On restart, missing
+bundled folders are added, but existing folders are never overwritten. Check your running image,
+volume mount, startup logs and enabled filters. Preserve custom sources before deliberately updating
+them; deleting a bundled folder alone makes it return at the next startup.
 
 ## Are multiple human users supported?
 
-No. Beta supports independently configured service accounts controlled by one administrator.
+No. MCP Station supports independently configured service accounts controlled by one administrator.
 Modules are trusted in-process code, not tenant-isolated workloads. [Accounts](Accounts).
 
 ## Do keys and data always stay on my server?
@@ -34,8 +35,7 @@ configure, and test it. No automatic compatibility, safety, completeness, or tim
 
 ## Is Gmail bundled? What about NAS services?
 
-Gmail and Google Drive are part of the upcoming 18-module source bundle, not the published
-`2.7.0_beta` image. The bundle covers 18 of 30 supplied NAS service modules; private business and
+Gmail and Google Drive are included in the 2.7.0 stable 18-module bundle. The bundle covers 18 of 30 supplied NAS service modules; private business and
 Unraid host-control modules remain deferred. See [Bundled Modules](Bundled-Modules). There is no
 app-store service or built-in scheduler; schedules can run in a separately configured n8n instance.
 
@@ -53,7 +53,7 @@ client. Plan/admin policy and supported app features vary. [Connecting AI Client
 
 ## What does Usage store?
 
-Beta stores bounded tool-call metadata, not arguments/results. Retention is at most 30 days or
+Usage stores bounded tool-call metadata, not arguments/results. Retention is at most 30 days or
 5,000 events globally. This is not complete auditing or billing. [Usage](Usage).
 
 ## Is a JSON export a complete backup?
@@ -64,7 +64,7 @@ backup. [Backups](Backups).
 
 ## Can I install it on my phone?
 
-The beta/branch PWA can be installed where HTTPS, browser, and device permit. The service must
+The PWA can be installed where HTTPS, browser, and device permit. The service must
 still be reachable; private dashboard content is not available offline.
 
 ## What about Unraid, TrueNAS, or ordinary Docker?

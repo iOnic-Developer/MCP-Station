@@ -1,7 +1,7 @@
 # Troubleshooting
 
-First identify your channel: **stable 2.4**, **published beta `2.7.0_beta` at `7945275`**, or
-**later branch preview**. The beta app still reports `2.6.0-beta` internally.
+Start with the running image tag/digest and health response. These guides target **2.7.0 stable**;
+older tags are historical. Back up state and source before any upgrade or restore.
 
 | Symptom | Check |
 | --- | --- |
@@ -14,10 +14,10 @@ First identify your channel: **stable 2.4**, **published beta `2.7.0_beta` at `7
 | Valid endpoint returns 404 | Check the slug, account existence, and explicit enablement. |
 | Test passes but tools fail | A source without `test()` may only confirm load; test is not a client call. |
 | Usage is empty | Initialization, tool listing, setup Test, denied requests, and aborted calls do not count. |
-| Beta changes missing | Check actual image build: later branch edits are not included in `7945275`. |
+| Stable features missing | Verify the running image/digest is 2.7.0, recreate after pulling, and check browser cache and logs. |
 | Gmail/Drive badge says configured but calls fail | Alternative OAuth requirements need Test; save an access token or complete refresh-token configuration. |
 | ChatGPT app / Claude connector option missing | Check provider plan, workspace policy, and supported app features; see Connecting AI Clients. |
-| New bundled modules missing | The 18-module source expansion is not in `2.7.0_beta`; existing module folders also are not overwritten. |
+| New bundled modules missing | 2.7.0 seeds all 18 on a fresh install and adds missing folders at startup; existing folders are not overwritten. Check image, mounts, logs, and filters before changing source. |
 | No install option | PWA installation depends on HTTPS, browser, and device; there is no private offline dashboard. |
 
 ## Network and access

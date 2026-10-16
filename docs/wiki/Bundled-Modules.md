@@ -1,8 +1,7 @@
 # Bundled Modules
 
-**Upcoming source bundle: 18 service modules plus `_template`.** Ten original modules are
-retained and eight general-purpose modules add **185 tools**. This expansion is not in the
-published `2.7.0_beta` image at `7945275`. Installed capabilities depend on image, persisted source,
+**MCP Station 2.7.0 includes 18 service modules plus `_template`.** Ten original modules are
+retained and eight general-purpose modules add **185 tools**. Installed capabilities depend on image, persisted source,
 credentials, upstream API version, and plan. These are project-maintained integrations.
 
 | Module | Slug | Intended use |
@@ -27,7 +26,7 @@ credentials, upstream API version, and plan. These are project-maintained integr
 | Cloudflare | `cloudflare_mcp` | Zero Trust and tunnels; scoped API token and account ID; zone where needed. |
 
 `_template` is a scaffold, not another integration. Inspect the running Tools view for actual
-capabilities. The [bundle audit](https://github.com/iOnic-Developer/MCP-Station/blob/redesign/public-product/docs/MODULE_BUNDLE_AUDIT.md)
+capabilities. The [bundle audit](https://github.com/iOnic-Developer/MCP-Station/blob/main/docs/MODULE_BUNDLE_AUDIT.md)
 records **274 offline checks passed**, including blank-configuration errors, SDK discovery/calls,
 mocked account isolation, and scoped transport checks. It does not certify live upstream services.
 
@@ -35,7 +34,7 @@ mocked account isolation, and scoped transport checks. It does not certify live 
 
 New modules contain no account credentials or personal defaults. Callbacks reject incomplete
 configuration with actionable guidance before service I/O. The existing loader can enable imports
-for discovery on a fresh install: discovered does not mean authenticated. Additional beta accounts
+for discovery on a fresh install: discovered does not mean authenticated. Additional service accounts
 start blank, disabled, and untested, separately from fresh-install default-module discovery.
 
 Gmail and Drive declare alternative auth setups for the host readiness check. Disabled Drive
@@ -59,7 +58,7 @@ so image updates do not automatically replace your edited modules. Disable unwan
 deleting a bundled folder alone does not stop it being seeded again on restart.
 
 Configure required settings, inspect the available operations, run the source's real connection test
-if it has one, and enable deliberately. Beta additional accounts reuse one source but require their
+if it has one, and enable deliberately. Additional accounts reuse one source but require their
 own settings, tests, endpoint access, and explicit enablement.
 
 ## Permission-sensitive operations

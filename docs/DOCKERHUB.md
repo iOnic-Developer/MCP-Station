@@ -12,39 +12,25 @@ features, plans, and admin policy; these are compatibility targets, not certifie
 Websites without usable APIs require an authorized adapter, not a promise of universal browsing.
 
 [GitHub](https://github.com/iOnic-Developer/MCP-Station) ·
-[Review branch](https://github.com/iOnic-Developer/MCP-Station/tree/redesign/public-product) ·
-[Documentation source](https://github.com/iOnic-Developer/MCP-Station/tree/redesign/public-product/docs/wiki) ·
+[Source](https://github.com/iOnic-Developer/MCP-Station/tree/main) ·
+[Documentation source](https://github.com/iOnic-Developer/MCP-Station/tree/main/docs/wiki) ·
 [Product page](https://ionic-developer.github.io/MCP-Station/site/)
 
-> **Image channels:** stable **2.4.0** (`latest` / `main`). Published **`2.7.0_beta`**
-> comes from **`7945275`** and reports **`2.6.0-beta`** internally. The upcoming source adds the
-> 18-module bundle, newer workspace and product site; **that beta image does not contain them**.
-> Screenshots below show the source preview with sample data. An image tag is not a GitHub release.
+## MCP Station 2.7.0 stable
 
-## Choose your channel
+All **18 service modules**, account workspaces, Connections, measured Usage, full-page Assistant,
+and installable PWA support are included. Screenshots use labeled sample data, not customer activity.
 
 | Image | Use |
 | --- | --- |
-| `dbzocchi/mcp-station:2.4.0` | Explicit stable version selection. |
-| `dbzocchi/mcp-station:latest` | Moving stable tag, currently 2.4.0. |
-| `dbzocchi/mcp-station:2.7.0_beta` | Published beta built from `7945275`; evaluate on separate volumes. |
+| `dbzocchi/mcp-station:2.7.0` | Pin this stable release. |
+| `dbzocchi/mcp-station:2.7` | Follow stable 2.7 updates. |
+| `dbzocchi/mcp-station:latest` | Follow the current stable release. |
 
-For exact reproducibility, record a verified image digest. A version-looking tag can be republished.
-The `redesign/public-product` source is the upcoming product preview; use the published source
-commit when building your own image. Do not assume beta state can be used
-by an older image without restoring a matching validated backup.
+Record a verified image digest for exact reproducibility. Older stable/beta tags remain historical
+rollback options with matching validated backups, not current installation recommendations.
 
-## The review workspace
-
-The following is branch-preview imagery—not stable 2.4 and not a guarantee that the published beta
-image contains the latest layout. Review screenshots use demonstration configuration, not customer data.
-
-![Branch-preview Integrations workspace with service account selection and endpoint actions](https://raw.githubusercontent.com/iOnic-Developer/MCP-Station/refs/heads/redesign/public-product/docs/assets/product/integrations.png)
-
-New beta capabilities include separately configured service accounts sharing one source module,
-account-aware Connections, measured tool-usage metadata, a full-page Assistant, and PWA installation
-where browser/device/HTTPS support it. Private dashboard content is not available offline.
-The latest visual refinements are branch-only until another image is built and verified.
+![Integrations workspace with sanitized sample service accounts](https://raw.githubusercontent.com/iOnic-Developer/MCP-Station/refs/heads/main/docs/assets/product/integrations.png)
 
 ## Run stable locally first
 
@@ -54,7 +40,7 @@ permissions. Save this as `compose.yaml`:
 ```yaml
 services:
   mcp-station:
-    image: dbzocchi/mcp-station:2.4.0
+    image: dbzocchi/mcp-station:2.7.0
     restart: unless-stopped
     ports:
       - "127.0.0.1:8788:8788"
@@ -96,12 +82,12 @@ Persist `/data` and `/app/mcps`. Leave `SESSION_SECRET` unset to use `/data/secr
 strong fixed value before storing settings and preserve it separately. Changing it later can make
 encrypted settings unreadable. Back up external Files storage separately.
 
-[Setup and configuration](https://github.com/iOnic-Developer/MCP-Station/tree/redesign/public-product/docs/wiki) ·
-[Historical 2.4 technical archive](https://github.com/iOnic-Developer/MCP-Station/blob/redesign/public-product/docs/REFERENCE_2_4.md)
+[Setup and configuration](https://github.com/iOnic-Developer/MCP-Station/tree/main/docs/wiki) ·
+[Historical 2.4 technical archive](https://github.com/iOnic-Developer/MCP-Station/blob/main/docs/REFERENCE_2_4.md)
 
 ## Bundled source modules
 
-**Upcoming source: 18 service modules plus a template.**
+**2.7.0 includes 18 service modules plus a template.**
 
 GitHub · Docker Hub · Cloudflare · n8n · Gmail · Google Drive · Files · SiYuan · Todoist · Telegram ·
 Pushover · Radarr · Sonarr · Gemini · OpenProject · Xero · Proton Pass · MCP Station.
@@ -110,17 +96,20 @@ The eight additions contribute **185 tools**, with **274 offline checks recorded
 audit**, not live-service certification. They ship with empty credentials and actionable preflight
 errors. Fresh installs may discover modules before they are authenticated; disable what you do not
 need. Gmail/Drive declare access-token or complete refresh-token alternatives for readiness;
-run Test and a read-only call to verify actual service access. Existing source folders are not overwritten on startup.
+run Test and a read-only call to verify actual service access.
+
+A fresh install seeds all 18 service-module folders. Missing bundled folders are seeded on startup;
+existing source folders are never overwritten. Persist `/app/mcps` and review source updates deliberately.
 
 The expanded bundle covers 18 of 30 supplied NAS service modules. Private business adapters,
 Unraid host-control/execution modules, and unreviewed agent packages remain deferred. `_template`
 is a scaffold. Upstream permissions/plans apply; these are project-maintained integrations.
-[Bundle audit](https://github.com/iOnic-Developer/MCP-Station/blob/redesign/public-product/docs/MODULE_BUNDLE_AUDIT.md) ·
-[AI-client setup](https://github.com/iOnic-Developer/MCP-Station/blob/redesign/public-product/docs/wiki/Connecting-AI-Clients.md)
+[Bundle audit](https://github.com/iOnic-Developer/MCP-Station/blob/main/docs/MODULE_BUNDLE_AUDIT.md) ·
+[AI-client setup](https://github.com/iOnic-Developer/MCP-Station/blob/main/docs/wiki/Connecting-AI-Clients.md)
 
 ## Account boundaries and data flow
 
-- **Beta service accounts are not human-user accounts.** One administrator controls all of them.
+- **Service accounts are not human-user accounts.** One administrator controls all of them.
 - Additional accounts start blank, disabled, and untested; each has its own endpoint, settings,
   tokens, tests, and scoped grants. Shared source edits affect every account using it.
 - Secret settings fields are AES-256-GCM encrypted at rest and masked in ordinary settings responses;
@@ -133,12 +122,12 @@ is a scaffold. Upstream permissions/plans apply; these are project-maintained in
 
 ## Usage and recovery
 
-**Beta usage** retains only time, account/source IDs, registered tool name, duration, and outcome.
+**Usage** retains only time, account/source IDs, registered tool name, duration, and outcome.
 It does not retain tool arguments/results, bodies, credentials, or client identifiers. History is
 bounded globally to **30 days / 5,000 events**, not a complete billing/audit ledger. Setup tests,
 initialization, tool listing, denied requests, and aborted responses do not count as recorded calls.
 
-Use a **full private `.tar.gz` backup** for station recovery, including beta account registry and
+Use a **full private `.tar.gz` backup** for station recovery, including account registry and
 usage. It contains sensitive state and the persisted encryption key. Save externally supplied
 `SESSION_SECRET` and Files storage separately. Portable JSON covers default-account configuration,
 not additional accounts, usage, or source. Module ZIPs share source without managed settings/chat;
@@ -150,7 +139,6 @@ review them for manually embedded secrets before sharing.
 [Security policy](https://github.com/iOnic-Developer/MCP-Station/blob/main/SECURITY.md) ·
 [MIT license](https://github.com/iOnic-Developer/MCP-Station/blob/main/LICENSE)
 
-The public main README stays stable until an approved merge. The
-[GitHub Wiki](https://github.com/iOnic-Developer/MCP-Station/wiki) and product page are published
-with explicit stable/preview labels. This does not announce a stable redesign release.
+Current setup guides target 2.7.0 stable. Source edits alone do not publish the GitHub release,
+registry images, wiki or this overview; publication is verified by the parent release process.
 Original Ribbon S artwork belongs to the project; third-party names imply no affiliation.

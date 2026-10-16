@@ -1,22 +1,19 @@
 # Changelog
 
-## Unreleased — navigation, product launch and expanded defaults
+## 2.7.0 — 2026-10-16
 
-- Keep installation controls outside the fixed rail; add remembered icon-only navigation and keyboard labels.
-- Add stable service identities and clear visual divisions to uniform integration cards.
-- Bundle eight reviewed general-purpose modules, bringing the default inventory to 18; no live credentials imported.
-- Validate alternative Google authentication configurations before labelling an account configured.
-- Overhaul README/wiki/Docker Hub copy; add a static product page, sample screenshots and original social artwork.
-- Published 2.7.0_beta does not yet include this source-only pass.
+Stable release of the account-aware product workspace, including all **18 bundled service modules**.
 
-## Unreleased — interaction density and assistant workspace
-
-- Give station chat the available viewport with an internally scrolling transcript and reachable composer.
-- Add one-click module Assistant entry and a dedicated source-scoped Assistant section.
-- Remove numbered setup strips, consolidate endpoint/account actions and make mobile section targets uniform.
-- Clarify active navigation, text links and selection controls; expose editor chat in the working toolbar.
-- Expand workflow checks to 81 with 23 accessibility audits, including short-screen composer clearance.
-- Published Docker beta is unchanged by this source-only refinement.
+- One shared module source with independent account configurations, endpoints, tests and scoped access.
+- Full-page Settings, Connect, Tools, Code, Activity and Assistant workspaces; direct module chat.
+- Screen-filling station chat, compact action bars, uniform mobile tabs, source identities and collapsible navigation.
+- Fix installation controls hidden behind navigation; preserve drafts and one-time token reveals.
+- Real bounded tool-call usage charts and accessible tables; no argument/result logging.
+- Add Gmail, Google Drive, GitHub, Docker Hub, Todoist, Pushover, Proton Pass and Cloudflare to the original ten defaults.
+- Validate alternative Google credential configurations; import no live credentials or personal defaults.
+- Original branding, PWA installation/update/offline handling, refreshed README/wiki/product site and release screenshots.
+- Single administrator and trusted in-process modules, not human multi-user hosting or tenant isolation.
+- Full backups preserve additional accounts; portable JSON remains default-account-only. Existing source folders are never overwritten.
 
 ## 2.6.0-beta — account-aware product workspace
 

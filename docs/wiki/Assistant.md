@@ -1,7 +1,7 @@
 # Assistant
 
-**Stable:** built-in and per-source Assistant tools. **Beta/branch:** full-page Assistant and
-account-workspace source editing. Later layout refinements may be branch-only.
+MCP Station 2.7.0 includes the full-page Assistant, per-source conversations, and
+account-workspace source editing.
 
 ## Build deliberately
 

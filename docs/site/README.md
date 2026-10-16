@@ -1,83 +1,61 @@
 # MCP Station product page
 
-Static HTML, separate CSS/JS, local brand artwork and licensed Plus Jakarta Sans.
-No build step, runtime dependencies, analytics, remote fonts, CDN assets, or service worker.
-JavaScript only enhances the Docker command with an optional clipboard button.
+Static HTML with separate CSS/JS, local Ribbon S artwork and licensed Plus Jakarta Sans.
+No runtime dependencies, analytics, remote fonts, CDN assets or service worker. JavaScript only
+enhances the Docker command with clipboard success/failure feedback.
 
-## Preview and path contract
+## Stable release contract
 
-Serve the repository root and open `/docs/site/`, or serve `docs/` and open `/site/`.
-Project-prefixed hosting also works: the page has no origin-root asset paths.
-The local mark, wordmark, font, license and stylesheet/script live inside this directory.
+The page targets **2.7.0 stable**, with all 18 modules, the “Get MCP Station 2.7.0” CTA and
+`docker pull dbzocchi/mcp-station:2.7.0`. Moving `2.7` and `latest` track stable updates.
+Documentation and source links target `main`, not a review branch. Credentials and permissions
+are required. Client names indicate compatible connection paths, not live certification or endorsement.
+Local models require MCP-capable clients. Multi-account is not multi-user hosting.
 
-The one screenshot is deliberately parent-owned:
-`../assets/product/integrations.png` resolves to `docs/assets/product/integrations.png`.
-It must be a real final-branch screenshot with sanitized sample data, not a fabricated mockup.
-The supplied PNG is 1440 × 1000; HTML reserves that exact intrinsic ratio to avoid layout shift. The fixture shows 12 sanitized samples, not the complete 18-module inventory.
+## Hosting and paths
 
-To publish the directory at an arbitrary root, preserve the sibling `assets/product/`
-media directory (or deliberately relocate that media and update the three image metadata/src paths).
-The page is self-contained for its identity/fonts, not a single-folder screenshot bundle.
-No symlinks, duplicate parent screenshots, or reference to `../../public/` are used.
+Canonical published product-page location: `https://ionic-developer.github.io/MCP-Station/site/`.
+The existing location is retained; this task prepares revised source and does not publish it.
+Canonical/Open Graph/Twitter metadata use that URL. Social images are under
+`site/assets/product/`, included by the existing workflow's recursive `docs/site/` copy.
 
-## Publication is a separate decision
+Serve the repository root at `/docs/site/`, docs root at `/site/`, or a project-prefixed docs root.
+All runtime asset paths are relative. The parent-owned screenshot at
+`../assets/product/integrations.png` must remain beside the site directory. Its 1440 × 1000
+intrinsic size is reserved in HTML. It shows 12 labeled sanitized samples, not all 18 modules or
+proof of connected upstream services. Preserve sample-data captions.
 
-This work does not configure GitHub Pages, publish a domain, sync the Wiki, build an image,
-or imply that branch-only changes are in the published beta.
-Docs links point to the exact Markdown source on `redesign/public-product`.
-The source link points to that branch. The beta action points to Docker Hub's `2.7.0_beta` tag.
-
-Open Graph/Twitter image paths are relative because no public site origin was supplied.
-Before public sharing, replace both image metadata values with the actual absolute HTTPS URL
-of `assets/product/social-card.png` at the chosen hosting location. Add `og:url` and a canonical
-only after that location is approved. Some social crawlers will not resolve relative image URLs.
-Do not manufacture a published canonical or domain.
-
-## Checks
-
-`node scripts/test-product-page.mjs` runs the dependency-free contract checks.
-For browser checks, also set `PRODUCT_BROWSER_MODULE` to an installed Playwright module path
-and `PRODUCT_AXE_MODULE` to an installed `@axe-core/playwright` module path.
-Set `REQUIRE_PRODUCT_SCREENSHOT=1` at publication time to fail if the parent screenshot is absent.
-Set `PRODUCT_TEST_OUTPUT` to an existing scratch directory to save browser screenshots.
-Browser checks cover repository-root, docs-root and project-prefixed routes, 375px mobile,
-landscape/tablet/desktop, keyboard navigation, reduced motion, clipboard success/failure,
-no-JS navigation, local font/image loading, request locality and axe WCAG 2.2 AA checks.
+`.github/workflows/product-site.yml` assembles a static artifact, not an application deployment.
+The parent owns workflow/release changes and verifies the revised deployed page after CI.
+Source edits do not prove publication, registry tags or GitHub release completion.
 
 ## Original social artwork
 
-`generate-media.mjs` creates the 1200 × 630 social card and 1600 × 560 brand banner.
-Supply existing build-time `@resvg/resvg-js` through `BRAND_RESVG_MODULE`, and a licensed
-Plus Jakarta Sans TTF through `PRODUCT_FONT_FILE`. No project dependency is added.
-SVG lettering is converted to outlines; PNG rendering loads the supplied local font only.
-The source brand mark and wordmark are copied unchanged from `public/assets/brand/`.
-Font attribution and the complete SIL OFL are kept in `assets/` alongside the WOFF2.
+`generate-media.mjs` creates `assets/product/social-card.svg` / `.png` (1200 × 630) and
+`brand-banner.svg` / `.png` (1600 × 560). Footer and accessible titles are version-neutral,
+without branch/beta-preview badges. Source SVG text is outlined using the local licensed font.
+No project dependency is added; set existing build-time tool paths:
 
-## Positioning and compatibility boundaries
+```sh
+BRAND_RESVG_MODULE=/workspace/scratch/station-brand-tools/node_modules/@resvg/resvg-js/index.js \
+PRODUCT_FONT_FILE=/workspace/scratch/station-brand-tools/PlusJakartaSans.ttf \
+node docs/site/generate-media.mjs
+```
 
-The page leads with “Turn your APIs and services into MCP tools.” and “One integration.
-Multiple accounts. Your local and cloud AI clients.” The 18-module inventory is source-branch
-scope per `docs/MODULE_BUNDLE_AUDIT.md`, not a claim about the published 2.7 image or live
-service verification. Account credentials and permissions are still needed. Custom service
-automation needs a usable API or adapter; arbitrary websites are not automatically tools.
-Local models need an MCP-capable client. Client names are plain text, not third-party logos,
-testimonials, endorsements, certification or evidence of end-to-end tests.
+Original mark/wordmark and font/license copies remain unchanged. See `assets/SOURCES.md`.
+Legacy `docs/assets/product/` artwork is not regenerated by this scoped task; current metadata
+and artwork checks use the stable files under `docs/site/assets/product/` instead.
 
-Primary client documentation (recheck current availability and setup before launch):
-- ChatGPT: https://help.openai.com/en/articles/12584461-developer-mode-and-full-mcp-connectors-in-chatgpt
-  Verify the current plan, workspace permissions, developer-mode/custom MCP setup,
-  supported transport and available actions. No universal availability is promised.
-- Claude: https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp
-- LibreChat: https://www.librechat.ai/docs/configuration/librechat_yaml/object_structure/mcp_servers
+## Validation
 
-These describe client capabilities, not certification of MCP Station. The site remains an
-unpublished static page, with no invented canonical/domain, hosted service or testimonials.
+```sh
+PRODUCT_BROWSER_MODULE=/workspace/omniforge/node_modules/playwright/index.mjs \
+PRODUCT_AXE_MODULE=/workspace/omniforge/node_modules/@axe-core/playwright/dist/index.js \
+REQUIRE_PRODUCT_SCREENSHOT=1 node scripts/test-product-page.mjs
+```
 
-## Publication configuration
-
-The owner-requested product page is configured for GitHub Pages at
-`https://ionic-developer.github.io/MCP-Station/site/` (API-confirmed repository URL).
-The optional `product-site.yml` workflow deploys only static website files and PNG media,
-never the application server, modules or private state. Canonical/social metadata use that
-location. The root redirects to `site/`. A successful Actions deployment and HTTP check,
-not source preparation alone, are required before reporting it live.
+Static checks cover main source targets, stable CTA/pull command, the 18-module list, local assets,
+canonical metadata and outlined artwork. Browser checks cover repo/docs/project-prefixed routes,
+four viewports, 44px targets, axe WCAG 2.2 AA, CLS, keyboard/focus, reduced motion, clipboard
+success/failure, 200% text, no-JS navigation, local fonts/images and zero third-party requests.
+`PRODUCT_TEST_OUTPUT` optionally saves screenshots to an existing scratch directory.

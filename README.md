@@ -6,11 +6,9 @@
 
 <p align="center"><a href="#start-with-docker">Get started</a> · <a href="https://ionic-developer.github.io/MCP-Station/site/">Product page</a> · <a href="docs/wiki/Home.md">Documentation</a> · <a href="https://hub.docker.com/r/dbzocchi/mcp-station">Docker Hub</a></p>
 
-> **Channels:** stable **2.4.0** (`latest` / `main`); published beta **`2.7.0_beta`**
-> from **`7945275`** (internal version `2.6.0-beta`). The upcoming `redesign/public-product`
-> source includes the expanded **18-module bundle**, newer workspace, site source, and screenshots;
-> these additions are **not in that published beta image**. Main and the public wiki change only
-> after approved publication. [Versions and images](docs/wiki/Versions-and-Images.md).
+> **MCP Station 2.7.0 stable** includes all **18 modules**, service-account workspaces,
+> Connections, Usage, and the Assistant. Pin `:2.7.0`; `:latest` and `:2.7` are moving stable tags.
+> [Versions and images](docs/wiki/Versions-and-Images.md).
 
 ## Build once. Connect where you work.
 
@@ -32,23 +30,22 @@ not promise universal website access or built-in browser automation.
 | Configure | Connect | Build |
 | --- | --- | --- |
 | Keep service credentials in settings fields, not scattered client configurations. | Give a compatible client an endpoint and scoped access. | Work with readable module files and an Assistant that can edit them. |
-| **Beta/branch:** independently configured service accounts share one source module. | OAuth for remote connectors; endpoint-scoped bearer tokens for clients and scripts. | Source edits affect every account using that source: review and test them. |
+| independently configured service accounts share one source module. | OAuth for remote connectors; endpoint-scoped bearer tokens for clients and scripts. | Source edits affect every account using that source: review and test them. |
 
 **Built for self-hosters and API builders, not multi-tenant hosting.** One administrator controls
 the station. Service accounts are separate configurations, not separate human users.
 
 ## A workspace, not a wall of settings
 
-The account-aware workspace brings service configuration into focus. The beta introduces account workspaces, Connections, real tool activity, a full-page Assistant,
-and installable PWA support. This branch continues refining navigation, cards, and action layout.
-The screenshots below show the **review workspace**, not stable 2.4 or a promise about the
-currently published image. Demonstration accounts and activity are not a live customer service.
+The account-aware workspace brings configuration, Connections, real tool activity, a full-page
+Assistant, and installable PWA support together. Screenshots use **sanitized sample data**, not
+live customer activity or evidence of connected services. The sample capture is not the full bundle.
 
-<p align="center"><img src="docs/assets/product/integrations.png" width="1000" alt="MCP Station source-preview Integrations workspace with service cards and account actions using labeled sample data"></p>
+<p align="center"><img src="docs/assets/product/integrations.png" width="1000" alt="MCP Station Integrations workspace with service cards and account actions using labeled sample data"></p>
 
 | Build with context | Work from a smaller screen |
 | --- | --- |
-| <img src="docs/assets/product/assistant.png" width="520" alt="MCP Station source-preview full-page Assistant using sanitized sample content"> | <img src="docs/assets/product/mobile.png" width="260" alt="MCP Station source-preview account-aware mobile interface using sample data"> |
+| <img src="docs/assets/product/assistant.png" width="520" alt="MCP Station full-page Assistant using sanitized sample content"> | <img src="docs/assets/product/mobile.png" width="260" alt="MCP Station account-aware mobile interface using sample data"> |
 | Assistant conversations can include station context and module source sent to the selected provider. | Installation depends on browser, device, and HTTPS; this is not an offline dashboard. |
 
 [Legacy stable-interface screenshots](docs/assets/screenshots) remain available for older deployments.
@@ -80,7 +77,7 @@ See [Security](SECURITY.md) and [account boundaries](docs/wiki/Accounts.md).
 
 ## Start with Docker
 
-The example pins **stable 2.4.0** and binds the admin port to localhost. It is deliberately local-only:
+The example pins **stable 2.7.0** and binds the admin port to localhost. It is deliberately local-only:
 OAuth stays disabled until you configure a reachable public HTTPS origin.
 
 Create a private `.env` containing a strong `APP_PASSWORD`. Keep it out of Git and restrict its
@@ -89,7 +86,7 @@ filesystem permissions. Save this as `compose.yaml`:
 ```yaml
 services:
   mcp-station:
-    image: dbzocchi/mcp-station:2.4.0
+    image: dbzocchi/mcp-station:2.7.0
     restart: unless-stopped
     ports:
       - "127.0.0.1:8788:8788"
@@ -124,17 +121,19 @@ Changing it later can make encrypted settings unreadable. Back up `/files` separ
 
 [Full setup](docs/wiki/Quick-Start.md) · [Historical 2.4 technical archive](docs/REFERENCE_2_4.md) · [Configuration](docs/wiki/Configuration.md)
 
-## Choose stable, beta, or source preview
+## Choose a stable image
 
-| Channel | Select | What to expect |
-| --- | --- | --- |
-| Stable | `dbzocchi/mcp-station:2.4.0` or moving `:latest` | Stable main interface and single default configuration per module. |
-| Published beta | `dbzocchi/mcp-station:2.7.0_beta` | Image built from `7945275`; internal version still `2.6.0-beta`. |
-| Upcoming source | `redesign/public-product` | Expanded 18-module bundle, newer workspace and product site source; not in the published beta image. |
+| Tag | Purpose |
+| --- | --- |
+| `dbzocchi/mcp-station:2.7.0` | Pin this stable release. |
+| `dbzocchi/mcp-station:2.7` | Follow stable 2.7 updates. |
+| `dbzocchi/mcp-station:latest` | Follow the current stable release. |
 
-Do not reuse production volumes to try beta. Take a full backup, use separate data/module volumes,
-and validate restored state in an isolated instance. Switching to an older image is **not** a
-verified downgrade path for beta state. [Version details](docs/wiki/Versions-and-Images.md).
+Back up before upgrading. Existing module folders in `/app/mcps` are preserved; missing bundled
+folders are seeded on startup. A fresh install receives all **18 service modules** plus `_template`.
+An image update does not replace edited modules. Review and update existing source deliberately.
+Older tags remain available for historical rollback with a matching validated backup—not as the
+current install recommendation. [Version details](docs/wiki/Versions-and-Images.md).
 
 ## Connect the right endpoint
 
@@ -143,14 +142,14 @@ verified downgrade path for beta state. [Version details](docs/wiki/Versions-and
   depend on that client's product and plan.
 - **Bearer:** configure the same URL with `Authorization: Bearer <token>`. Prefer a module/account
   token over the optional station-wide `MCP_TOKEN`, which can reach every endpoint.
-- **Beta accounts:** copy the selected account's URL rather than guessing it. New accounts start
+- **Service accounts:** copy the selected account's URL rather than guessing it. New accounts start
   blank, disabled, and untested; existing credentials and grants are not cloned.
 
 [AI-client setup](docs/wiki/Connecting-AI-Clients.md) · [Claude details](docs/wiki/Connecting-Claude.md) · [Accounts](docs/wiki/Accounts.md)
 
 ## Start with 18 integrations. Build the next one.
 
-The **upcoming source bundle** includes 18 service modules plus `_template`. Keep the services you
+The **2.7.0 release bundle** includes 18 service modules plus `_template`. Keep the services you
 need, configure your accounts, and extend the station with your own modules.
 
 | Workflow | Modules |
@@ -177,7 +176,7 @@ These project-maintained modules do not imply provider endorsement.
 
 ## Activity without storing tool payloads
 
-**Beta/branch:** Usage shows observed tool calls, errors, success rate, latency, daily buckets,
+Usage shows observed tool calls, errors, success rate, latency, daily buckets,
 and selected-account activity. It retains only time, account/source identifiers, registered tool
 name, duration, and outcome—**not arguments, results, bodies, credentials, or client identifiers**.
 History is bounded globally to **30 days or 5,000 events**, whichever removes events first.
@@ -188,7 +187,7 @@ Empty history stays empty; this is operational metadata, not billing-grade audit
 
 | Format | Use it for | Important boundary |
 | --- | --- | --- |
-| Full `.tar.gz` backup | Private station recovery, including beta account records and usage | Contains sensitive state and the persisted encryption key; preserve any externally configured `SESSION_SECRET` separately. |
+| Full `.tar.gz` backup | Private station recovery, including account records and usage | Contains sensitive state and the persisted encryption key; preserve any externally configured `SESSION_SECRET` separately. |
 | Portable JSON | Instructions and installed sources' default-account configuration | Additional accounts and usage are not included; optional secret export is sensitive. |
 | Module ZIP | Sharing source with another station | Managed settings/chat are excluded; review source for manually embedded secrets. |
 
@@ -198,7 +197,7 @@ Full backups do not include external Files storage. [Backup and restore guide](d
 
 - [Documentation home](docs/wiki/Home.md): setup, accounts, usage, Assistant, and troubleshooting.
 - [Product page](https://ionic-developer.github.io/MCP-Station/site/): public product story, screenshots and setup links.
-- [GitHub Wiki](https://github.com/iOnic-Developer/MCP-Station/wiki): published setup, account and client guides with stable/preview labels.
+- [GitHub Wiki](https://github.com/iOnic-Developer/MCP-Station/wiki): published setup, account and client guides for the stable release.
 - [Historical 2.4 technical archive](docs/REFERENCE_2_4.md), [OAuth](docs/OAUTH.md), and [Cloudflare](docs/CLOUDFLARE.md).
 - [Contributing](CONTRIBUTING.md), [Security](SECURITY.md), and [MIT license](LICENSE).
 

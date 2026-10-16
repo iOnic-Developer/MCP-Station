@@ -2,7 +2,7 @@
 
 For ChatGPT, Claude Code, LibreChat, and the client matrix, see [Connecting AI Clients](Connecting-AI-Clients).
 
-**Stable 2.4:** module endpoints. **Beta:** each service account has its own endpoint.
+Each service account has its own endpoint in MCP Station 2.7.0.
 MCP Station serves stateless streamable HTTP; client compatibility, connector menus, and access
 availability depend on the client. This is not a provider endorsement.
 
@@ -11,7 +11,7 @@ availability depend on the client. This is not a provider endorsement.
 Use the client's custom remote connector flow and paste the copied HTTPS endpoint, for example
 `https://your-station.example/siyuan/mcp`. The station provides discovery, registration, PKCE,
 and password-gated approval. Verify the requested scope, choose a sign-in lifetime, and approve
-or deny. Revoke a connection through Access (beta: the selected account's Connect workspace).
+or deny. Revoke a connection through the selected account's Connect workspace.
 
 `PUBLIC_URL` must match that public origin, and the endpoint must be reachable without another
 login wall. A hostname change requires configuration changes and often reconnection.
@@ -41,7 +41,7 @@ installed client's help and use its protected credential mechanism where availab
 ## Scope and account selection
 
 New scoped OAuth grants and per-account tokens are bound to the selected endpoint. A token for
-one beta account cannot be used at its sibling endpoint. The master bearer and legacy unscoped
+one service account cannot be used at its sibling endpoint. The master bearer and legacy unscoped
 OAuth grants remain intentionally broader. Copy the account URL instead of editing slugs by hand.
 The legacy bare `/<slug>` endpoint remains an alias; prefer canonical `/<slug>/mcp`.
 

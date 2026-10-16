@@ -28,9 +28,12 @@ assert.match(html, /One integration\. Multiple accounts\. Your local and cloud A
 assert.match(html, /Local models require an MCP-capable client/);
 assert.match(html, /Live end-to-end compatibility has not been verified/);
 assert.match(html, /This is not universal website automation/);
-assert.match(html, /12 sanitized sample integrations/);
+assert.match(html, /complete 18-module bundle/);
 assert.match(html, /18 bundled modules/);
-assert.match(html, /published <code>2\.7\.0_beta<\/code> image does not include this branch expansion/);
+assert.match(html, /Included in 2\.7\.0 stable/);
+assert.match(html, /Get MCP Station 2\.7\.0/);
+assert.match(html, /existing module folders are never overwritten/);
+assert.doesNotMatch(html, /2\.7\.0_beta|Stable 2\.4|branch preview|redesign\/public-product|not all in the beta image/i);
 for (const client of ['ChatGPT', 'Claude', 'LibreChat', 'Other MCP clients']) assert.ok(html.includes(`<li>${client}</li>`));
 const moduleList = html.match(/<ul class="module-names"[^>]*>(.*?)<\/ul>/s)[1];
 assert.equal((moduleList.match(/<li>/g) || []).length, 18);
@@ -50,10 +53,18 @@ assert.doesNotMatch(html, /<style\b|<script[^>]*>\s*[^<\s]|\son\w+=/i);
 assert.doesNotMatch(css, /@import|https?:\/\//);
 assert.doesNotMatch(js, /fetch\(|import\s|https?:\/\//);
 assert.doesNotMatch(html + css, /(?:src|href)=["']\/|url\(["']?\//);
-assert.match(html, /docker pull dbzocchi\/mcp-station:2\.7\.0_beta/);
-assert.match(html, /Stable 2\.4/);
-assert.match(html, /not all in the beta image/);
+assert.match(html, /docker pull dbzocchi\/mcp-station:2\.7\.0/);
+assert.match(html, /Moving <code>2\.7<\/code> and <code>latest<\/code>/);
 assert.match(html, /https:\/\/ionic-developer\.github\.io\/MCP-Station\/site\//);
+const publishedSite = 'https://ionic-developer.github.io/MCP-Station/site/';
+assert.ok(html.includes(`<link rel="canonical" href="${publishedSite}">`));
+assert.ok(html.includes(`<meta property="og:url" content="${publishedSite}">`));
+for (const tag of ['property="og:image"', 'name="twitter:image"']) {
+  assert.ok(html.includes(`<meta ${tag} content="${publishedSite}assets/product/social-card.png">`));
+}
+assert.ok(await exists(path.join(site, 'assets/product/social-card.png')));
+assert.match(html, /href="https:\/\/hub\.docker\.com\/r\/dbzocchi\/mcp-station\/tags\?name=2\.7\.0">Get MCP Station 2\.7\.0/);
+
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
 assert.equal(new Set(ids).size, ids.length, 'Duplicate HTML IDs');
 for (const [, fragment] of html.matchAll(/href="#([^"]+)"/g)) assert.ok(ids.includes(fragment), `Missing anchor ${fragment}`);
@@ -64,8 +75,8 @@ for (const [, attr, target] of html.matchAll(/\b(src|href)="([^"]+)"/g)) {
     const url = new URL(target.replaceAll('&amp;', '&'));
     assert.ok(['github.com', 'hub.docker.com'].includes(url.hostname), `Unexpected external link ${target}`);
     if (url.hostname === 'github.com' && url.pathname.includes('/blob/')) {
-      const relative = url.pathname.split('/blob/redesign/public-product/')[1];
-      assert.ok(relative, `Docs not pinned to exact branch source: ${target}`);
+      const relative = url.pathname.split('/blob/main/')[1];
+      assert.ok(relative, `Docs not linked to main source: ${target}`);
       assert.ok(await exists(path.join(root, relative)), `Missing linked source ${relative}`);
     }
     continue;
@@ -82,17 +93,18 @@ for (const name of ['plus-jakarta-sans-latin.woff2', 'plus-jakarta-sans-OFL.txt'
   assert.deepEqual(await readFile(path.join(site, 'assets', name)), await readFile(path.join(root, 'public/assets/fonts', name)));
 }
 for (const [name, width, height] of [['social-card', 1200, 630], ['brand-banner', 1600, 560]]) {
-  const png = await readFile(path.join(root, `docs/assets/product/${name}.png`));
+  const png = await readFile(path.join(root, `docs/site/assets/product/${name}.png`));
   assert.equal(png.subarray(1, 4).toString(), 'PNG');
   assert.equal(png.readUInt32BE(16), width);
   assert.equal(png.readUInt32BE(20), height);
-  const svg = await readFile(path.join(root, `docs/assets/product/${name}.svg`), 'utf8');
+  const svg = await readFile(path.join(root, `docs/site/assets/product/${name}.svg`), 'utf8');
   assert.match(svg, /<title/);
+  assert.doesNotMatch(svg.match(/<title[^>]*>(.*?)<\/title>/s)[1], /branch preview|beta|2\.4|2\.7/i);
   assert.match(svg, /Turn your APIs and services into MCP tools/);
   assert.match(svg, /One integration\. Multiple accounts\. Your local and cloud AI clients\./);
   assert.doesNotMatch(svg, /<text[\s>]|https?:\/\/(?!www\.w3\.org)/);
 }
-console.log('PASS: static contracts, local assets/licenses, branch documentation targets, metadata and outlined SVG/PNG dimensions.');
+console.log('PASS: static contracts, local assets/licenses, main documentation targets, metadata and outlined SVG/PNG dimensions.');
 if (!process.env.PRODUCT_BROWSER_MODULE) {
   console.log('SKIP: browser checks; set PRODUCT_BROWSER_MODULE and PRODUCT_AXE_MODULE to existing test dependencies.');
 } else {
@@ -160,6 +172,9 @@ if (!process.env.PRODUCT_BROWSER_MODULE) {
       console.log(`PASS: ${width} × ${height}: no overflow, CLS ≤ 0.01, 44px targets, axe WCAG AA.`);
     }
     await page.goto(origin + '/docs/site/');
+    const cta = page.getByRole('link', { name: 'Get MCP Station 2.7.0' });
+    assert.equal(await cta.count(), 1);
+    assert.equal(await cta.getAttribute('href'), 'https://hub.docker.com/r/dbzocchi/mcp-station/tags?name=2.7.0');
     await page.keyboard.press('Tab');
     assert.equal(await page.evaluate(() => document.activeElement.className), 'skip-link');
     assert.equal(await page.locator('.skip-link').evaluate((el) => getComputedStyle(el).outlineStyle), 'solid');
@@ -171,7 +186,7 @@ if (!process.env.PRODUCT_BROWSER_MODULE) {
     await page.getByRole('button', { name: 'Copy command' }).click();
     await page.waitForFunction(() => document.querySelector('[data-copy-status]').textContent.includes('Command copied'));
     assert.match(await page.locator('[data-copy-status]').textContent(), /Command copied/);
-    assert.equal(await page.evaluate(() => navigator.clipboard.readText()), 'docker pull dbzocchi/mcp-station:2.7.0_beta');
+    assert.equal(await page.evaluate(() => navigator.clipboard.readText()), 'docker pull dbzocchi/mcp-station:2.7.0');
     await page.evaluate(() => { navigator.clipboard.writeText = async () => { throw new Error('Permission denied'); }; });
     await page.getByRole('button', { name: 'Copy command' }).click();
     await page.waitForFunction(() => document.querySelector('[data-copy-status]').textContent.includes('Select and copy'));

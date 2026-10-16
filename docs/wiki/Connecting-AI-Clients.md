@@ -23,7 +23,7 @@ separate from a successful upstream tool call.
 ## Prepare the station
 
 1. Configure the selected service account, inspect its tools, run Test, and enable deliberately.
-2. Copy its canonical `https://your-station.example/<slug>/mcp` endpoint. Beta accounts each have
+2. Copy its canonical `https://your-station.example/<slug>/mcp` endpoint. Service accounts each have
    their own URL; do not guess a sibling account's slug.
 3. For cloud-hosted clients, set `PUBLIC_URL` to the exact public HTTPS origin (no path), set
    `COOKIE_SECURE=1`, and ensure the station is reachable without an intervening login wall.

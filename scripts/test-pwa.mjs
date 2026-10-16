@@ -10,7 +10,7 @@ const read = (path, encoding = 'utf8') => readFile(new URL(path.replace(/^\//, '
 const workerSource = await read('sw.js');
 const pwaSource = await read('assets/js/pwa.js');
 const origin = 'https://station.test';
-const cacheName = 'mcp-station-public-product-v2-ribbon';
+const cacheName = 'mcp-station-public-product-v3-stable-270';
 
 function workerHarness({ offline = false, response = () => new Response('public', {
   headers: { 'Content-Type': 'text/plain', 'Cache-Control': 'no-cache' }
