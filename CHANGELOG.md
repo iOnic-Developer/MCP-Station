@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.7.1 — 2026-10-17
+
+- Appearance moves to the bottom of the sidebar: a System / Light / Dark choice replaces the top-bar toggle.
+- Five styles above it — Default, Mono, Paper, Moderno and Ocean — each a font plus its own light and dark palette, shown as solid circles in the current mode's colour.
+
 ## 2.7.0 — 2026-10-16
 
 Stable release of the account-aware product workspace, including all **18 bundled service modules**.

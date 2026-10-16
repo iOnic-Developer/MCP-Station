@@ -16,14 +16,14 @@ Websites without usable APIs require an authorized adapter, not a promise of uni
 [Documentation source](https://github.com/iOnic-Developer/MCP-Station/tree/main/docs/wiki) ·
 [Product page](https://ionic-developer.github.io/MCP-Station/site/)
 
-## MCP Station 2.7.0 stable
+## MCP Station 2.7.1 stable
 
 All **18 service modules**, account workspaces, Connections, measured Usage, full-page Assistant,
 and installable PWA support are included. Screenshots use labeled sample data, not customer activity.
 
 | Image | Use |
 | --- | --- |
-| `dbzocchi/mcp-station:2.7.0` | Pin this stable release. |
+| `dbzocchi/mcp-station:2.7.1` | Pin this stable release. |
 | `dbzocchi/mcp-station:2.7` | Follow stable 2.7 updates. |
 | `dbzocchi/mcp-station:latest` | Follow the current stable release. |
 
@@ -40,7 +40,7 @@ permissions. Save this as `compose.yaml`:
 ```yaml
 services:
   mcp-station:
-    image: dbzocchi/mcp-station:2.7.0
+    image: dbzocchi/mcp-station:2.7.1
     restart: unless-stopped
     ports:
       - "127.0.0.1:8788:8788"
@@ -139,6 +139,6 @@ review them for manually embedded secrets before sharing.
 [Security policy](https://github.com/iOnic-Developer/MCP-Station/blob/main/SECURITY.md) ·
 [MIT license](https://github.com/iOnic-Developer/MCP-Station/blob/main/LICENSE)
 
-Current setup guides target 2.7.0 stable. Source edits alone do not publish the GitHub release,
+Current setup guides target 2.7.1 stable. Source edits alone do not publish the GitHub release,
 registry images, wiki or this overview; publication is verified by the parent release process.
 Original Ribbon S artwork belongs to the project; third-party names imply no affiliation.

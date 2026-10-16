@@ -1,7 +1,7 @@
 services:
   mcp-station:
     build: .
-    image: dbzocchi/mcp-station:2.7.0
+    image: dbzocchi/mcp-station:2.7.1
     container_name: mcp-station
     restart: unless-stopped
     ports:

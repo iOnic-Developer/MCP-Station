@@ -6,8 +6,8 @@
 
 <p align="center"><a href="#start-with-docker">Get started</a> · <a href="https://ionic-developer.github.io/MCP-Station/site/">Product page</a> · <a href="docs/wiki/Home.md">Documentation</a> · <a href="https://hub.docker.com/r/dbzocchi/mcp-station">Docker Hub</a></p>
 
-> **MCP Station 2.7.0 stable** includes all **18 modules**, service-account workspaces,
-> Connections, Usage, and the Assistant. Pin `:2.7.0`; `:latest` and `:2.7` are moving stable tags.
+> **MCP Station 2.7.1 stable** includes all **18 modules**, service-account workspaces,
+> Connections, Usage, and the Assistant. Pin `:2.7.1`; `:latest` and `:2.7` are moving stable tags.
 > [Versions and images](docs/wiki/Versions-and-Images.md).
 
 ## Build once. Connect where you work.
@@ -77,7 +77,7 @@ See [Security](SECURITY.md) and [account boundaries](docs/wiki/Accounts.md).
 
 ## Start with Docker
 
-The example pins **stable 2.7.0** and binds the admin port to localhost. It is deliberately local-only:
+The example pins **stable 2.7.1** and binds the admin port to localhost. It is deliberately local-only:
 OAuth stays disabled until you configure a reachable public HTTPS origin.
 
 Create a private `.env` containing a strong `APP_PASSWORD`. Keep it out of Git and restrict its
@@ -86,7 +86,7 @@ filesystem permissions. Save this as `compose.yaml`:
 ```yaml
 services:
   mcp-station:
-    image: dbzocchi/mcp-station:2.7.0
+    image: dbzocchi/mcp-station:2.7.1
     restart: unless-stopped
     ports:
       - "127.0.0.1:8788:8788"
@@ -125,7 +125,7 @@ Changing it later can make encrypted settings unreadable. Back up `/files` separ
 
 | Tag | Purpose |
 | --- | --- |
-| `dbzocchi/mcp-station:2.7.0` | Pin this stable release. |
+| `dbzocchi/mcp-station:2.7.1` | Pin this stable release. |
 | `dbzocchi/mcp-station:2.7` | Follow stable 2.7 updates. |
 | `dbzocchi/mcp-station:latest` | Follow the current stable release. |
 

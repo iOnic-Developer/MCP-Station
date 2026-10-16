@@ -41,7 +41,21 @@ let acceptedHash = location.hash;
 let navigating = false;
 let sidebarCollapsed = false;
 try { sidebarCollapsed = localStorage.getItem('station.sidebar.collapsed') === '1'; } catch { /* Storage is optional. */ }
-try { document.documentElement.dataset.theme = localStorage.getItem('station.theme') || 'light'; } catch { document.documentElement.dataset.theme = 'light'; }
+const themeMedia = matchMedia('(prefers-color-scheme: dark)');
+const STYLES = [['default', 'Default'], ['mono', 'Mono'], ['paper', 'Paper'], ['moderno', 'Moderno'], ['ocean', 'Ocean']];
+let themePref = 'light';
+let stylePref = 'default';
+try {
+  const theme = localStorage.getItem('station.theme'); if (['light', 'dark', 'system'].includes(theme)) themePref = theme;
+  const style = localStorage.getItem('station.style'); if (STYLES.some(([v]) => v === style)) stylePref = style;
+} catch { /* Storage is optional. */ }
+function applyAppearance() {
+  document.documentElement.dataset.theme = themePref === 'system' ? (themeMedia.matches ? 'dark' : 'light') : themePref;
+  document.documentElement.dataset.style = stylePref;
+  document.querySelectorAll('[data-style-choice]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.styleChoice === stylePref)));
+}
+applyAppearance();
+themeMedia.addEventListener('change', () => { if (themePref === 'system') applyAppearance(); });
 initPwa();
 window.addEventListener('station:unauthed', () => {
   // A wrong login password also returns 401: leave that form intact to show its error.
@@ -119,9 +133,9 @@ function renderShell() {
       <button class="nav-link sidebar-toggle" type="button" data-sidebar-toggle aria-controls="station-sidebar" aria-expanded="true" aria-label="Collapse navigation">${icon('panel')}<span class="nav-label">Collapse navigation</span><span class="nav-tooltip" aria-hidden="true">Collapse navigation</span></button>
       <div class="nav-caption">Workspace</div><nav>${['overview', 'integrations', 'connect', 'assistant'].map((k) => navLink(k)).join('')}</nav>
       <div class="nav-caption">Manage</div><nav>${['settings', 'backups'].map((k) => navLink(k)).join('')}</nav>
-      <div class="sidebar-foot"><span class="sidebar-version">Self-hosted · v${esc(ctx.me.version)}</span><button class="nav-link" data-logout aria-label="Sign out">${icon('logout')}<span class="nav-label">Sign out</span><span class="nav-tooltip" aria-hidden="true">Sign out</span></button></div>
+      <div class="sidebar-foot"><div class="appearance"><div class="style-swatches" role="group" aria-label="Style">${STYLES.map(([v, n]) => `<button type="button" class="style-swatch" data-style-choice="${v}" title="${n}" aria-label="${n} style" aria-pressed="${v === stylePref}"></button>`).join('')}</div><label class="appearance-label" for="themeChoice">Appearance</label><select id="themeChoice" class="input" data-theme-choice>${['system', 'light', 'dark'].map((v) => `<option value="${v}"${v === themePref ? ' selected' : ''}>${v[0].toUpperCase() + v.slice(1)}</option>`).join('')}</select></div><span class="sidebar-version">Self-hosted · v${esc(ctx.me.version)}</span><button class="nav-link" data-logout aria-label="Sign out">${icon('logout')}<span class="nav-label">Sign out</span><span class="nav-tooltip" aria-hidden="true">Sign out</span></button></div>
     </aside>
-    <div class="workspace"><header class="workspace-bar"><button class="btn icon-btn mobile-menu" data-menu aria-label="Open navigation">${icon('menu')}</button><div class="breadcrumbs"><span>Workspace</span>${icon('chevron')}<span id="crumb">Overview</span></div><div class="spacer"></div><button class="btn icon-btn" data-theme aria-label="Switch color theme"></button><button class="btn primary" data-add>${icon('plus')}<span>Add integration</span></button></header>
+    <div class="workspace"><header class="workspace-bar"><button class="btn icon-btn mobile-menu" data-menu aria-label="Open navigation">${icon('menu')}</button><div class="breadcrumbs"><span>Workspace</span>${icon('chevron')}<span id="crumb">Overview</span></div><div class="spacer"></div><button class="btn primary" data-add>${icon('plus')}<span>Add integration</span></button></header>
       <main id="main-content" class="main" tabindex="-1"><div id="routeRoot"></div></main>
     </div><nav class="bottom-nav" aria-label="Mobile navigation">${['overview', 'integrations', 'connect', 'assistant'].map((k) => navLink(k, true)).join('')}</nav></div>`;
   const toggle = root.querySelector('[data-sidebar-toggle]');
@@ -155,10 +169,8 @@ function renderShell() {
   });
   root.querySelector('[data-add]').onclick = () => { location.hash = '/integrations/new'; };
   root.querySelector('[data-logout]').onclick = logout;
-  const theme = root.querySelector('[data-theme]');
-  const updateTheme = () => { const dark = document.documentElement.dataset.theme === 'dark'; theme.innerHTML = icon(dark ? 'sun' : 'moon'); theme.setAttribute('aria-label', dark ? 'Use light theme' : 'Use dark theme'); };
-  updateTheme();
-  theme.onclick = () => { document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'; try { localStorage.setItem('station.theme', document.documentElement.dataset.theme); } catch {} updateTheme(); };
+  root.querySelectorAll('[data-style-choice]').forEach((b) => { b.onclick = () => { stylePref = b.dataset.styleChoice; try { localStorage.setItem('station.style', stylePref); } catch { /* Storage is optional. */ } applyAppearance(); }; });
+  root.querySelector('[data-theme-choice]').onchange = (e) => { themePref = e.target.value; try { localStorage.setItem('station.theme', themePref); } catch { /* Storage is optional. */ } applyAppearance(); };
   root.querySelector('[data-menu]').onclick = () => {
     const d = drawer({ title: 'Your workspace', body: `<nav class="mobile-nav">${Object.keys(routes).map((k) => navLink(k)).join('')}</nav><button class="btn" data-signout>${icon('logout')}Sign out</button>` });
     d.el.querySelectorAll('a').forEach((a) => { a.onclick = d.close; });
