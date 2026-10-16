@@ -22,6 +22,7 @@ import { encrypt, decrypt } from './crypto.js';
 import { createShare, listShares, revokeShare, parseTtl } from './fileShares.js';
 import { MODULE_CONTRACT } from './seedInstructions.js';
 import { log } from './log.js';
+import { recordUsage } from './usage.js';
 
 const shareStore = { createShare, listShares, revokeShare, parseTtl };
 
@@ -30,7 +31,8 @@ const shareStore = { createShare, listShares, revokeShare, parseTtl };
 // difference between the two servers once headers and metadata match.
 export const RESERVED_SLUGS = new Set([
   'api', 'assets', 'authorize', 'backups', 'favicon.ico', 'healthz', 'index.html',
-  'login', 'logout', 'oauth', 'register', 'revoke', 'token', '.well-known'
+  'login', 'logout', 'oauth', 'register', 'revoke', 'token', '.well-known',
+  'f', 'sw.js', 'offline.html', 'manifest.webmanifest'
 ]);
 
 export const ManifestSchema = z.object({
@@ -51,6 +53,7 @@ export const ManifestSchema = z.object({
   })).default([])
 });
 
+const registeredToolNames = new WeakMap();
 let modules = new Map(); // slug -> { id, dir, manifest, register, test, instructions, error }
 
 /* ── Self-contained module config ─────────────────────────────────────────
@@ -66,7 +69,7 @@ const CONFIG_FILE = '.config.json';
 export function mirrorConfig(id) {
   const mod = getModuleById(id);
   const reg = getState().mcps[id];
-  if (!mod || !reg) return;
+  if (!mod || !reg || mod.sourceId) return;
   try {
     fs.writeFileSync(
       path.join(mod.dir, CONFIG_FILE),
@@ -134,12 +137,21 @@ export async function loadModules() {
     .filter((d) => d.isDirectory() && !d.name.startsWith('_') && !d.name.startsWith('.'));
 
   for (const d of dirs) {
+    if (st.mcps[d.name]?.sourceId) {
+      log('mcp', `Skipped source folder '${d.name}': id belongs to an account instance`);
+      continue;
+    }
     const dir = path.join(cfg.mcpsDir, d.name);
     const entry = { id: d.name, dir, manifest: null, register: null, test: null, error: null };
     try {
       const manifest = ManifestSchema.parse(JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8')));
       if (RESERVED_SLUGS.has(manifest.slug)) throw new Error(`slug '${manifest.slug}' is reserved`);
       if (next.has(manifest.slug)) throw new Error(`duplicate slug '${manifest.slug}' (already used by another module)`);
+      if (st.mcps[manifest.id]?.sourceId || Object.values(st.mcps).some((r) => r.sourceId && r.slug === manifest.slug)) {
+        log('mcp', `Skipped source '${d.name}': id or slug belongs to an account instance`);
+        continue;
+      }
+      if ([...next.values()].some((m) => m.id === manifest.id)) throw new Error(`duplicate id '${manifest.id}'`);
       entry.id = manifest.id;
       entry.manifest = manifest;
       const mod = await import(pathToFileURL(path.join(dir, 'index.js')).href + `?v=${Date.now()}`);
@@ -172,8 +184,63 @@ export async function loadModules() {
 }
 
 export const getModules = () => modules;
-export const getModuleBySlug = (slug) => modules.get(slug) || null;
-export const getModuleById = (id) => [...modules.values()].find((m) => m.id === id) || null;
+// Virtual manifests are fresh values, never mutable aliases to shared module metadata.
+function instanceModule(reg) {
+  const source = [...modules.values()].find((m) => m.id === reg?.sourceId);
+  if (!source?.manifest) return null;
+  return { ...source, id: reg.id, sourceId: source.id, name: reg.name,
+    manifest: { ...structuredClone(source.manifest), id: reg.id, slug: reg.slug } };
+}
+export const getModuleById = (id) => {
+  const reg = getState().mcps[id];
+  return reg?.sourceId ? instanceModule(reg) : [...modules.values()].find((m) => m.id === id) || null;
+};
+export const getModuleBySlug = (slug) => modules.get(slug)
+  || instanceModule(Object.values(getState().mcps).find((r) => r.sourceId && r.slug === slug));
+
+export function getInstancesFor(sourceId) {
+  const source = getModuleById(sourceId);
+  if (!source || source.sourceId) return [];
+  return [source, ...Object.values(getState().mcps)
+    .filter((r) => r.sourceId === sourceId).map(instanceModule).filter(Boolean)];
+}
+
+export function createInstance(sourceId, { name, slug } = {}) {
+  const source = getModuleById(sourceId);
+  if (!source?.manifest || source.sourceId) throw new Error('An installed source module is required');
+  if (typeof name !== 'string' || !name.trim() || name.trim().length > 100) throw new Error('name must contain 1–100 characters');
+  const st = getState();
+  const available = (v) => !RESERVED_SLUGS.has(v) && !getModuleBySlug(v) && !getModuleById(v)
+    && !Object.hasOwn(st.mcps, v) && !Object.values(st.mcps).some((r) => r.sourceId && r.slug === v)
+    && !fs.existsSync(path.join(cfg.mcpsDir, v));
+  if (slug === undefined) {
+    const suffix = name.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'account';
+    const stem = `${source.manifest.slug}--${suffix}`.slice(0, 110);
+    slug = stem;
+    for (let i = 2; !available(slug); i++) slug = `${stem}-${i}`;
+  }
+  if (typeof slug !== 'string' || !/^[a-z0-9][a-z0-9_-]{0,127}$/.test(slug) || !available(slug)) {
+    throw new Error('slug must be unique, non-reserved, 1–128 lowercase letters/digits/_/- and start with a letter or digit');
+  }
+  st.mcps[slug] = { id: slug, sourceId, slug, name: name.trim(), enabled: false,
+    settings: {}, token: '', tokenExpiresAt: null, createdAt: new Date().toISOString() };
+  save();
+  return getModuleById(slug);
+}
+
+export function deleteInstance(sourceId, id) {
+  const mod = getModuleById(id);
+  if (!mod?.sourceId || mod.sourceId !== sourceId) throw new Error('Instance does not belong to this source module');
+  delete getState().mcps[id];
+  save();
+}
+
+function requireSource(id) {
+  const mod = getModuleById(id);
+  if (!mod) throw new Error(`Unknown MCP '${id}'`);
+  if (mod.sourceId) throw new Error(`Shared source: use sourceId '${mod.sourceId}' for files, editor, chat, export or source deletion`);
+  return mod;
+}
 
 /** Decrypted settings object for a module (manifest defaults applied). */
 export function getSettingsFor(id) {
@@ -183,7 +250,7 @@ export function getSettingsFor(id) {
   const out = {};
   for (const s of mod?.manifest?.settings || []) {
     const raw = reg?.settings?.[s.key];
-    out[s.key] = raw != null && raw !== '' ? decrypt(raw) : (s.default ?? '');
+    out[s.key] = raw != null && raw !== '' ? decrypt(raw) : (mod?.sourceId ? '' : (s.default ?? ''));
   }
   return out;
 }
@@ -276,10 +343,22 @@ export function buildServerFor(mod) {
     { name: `${mod.id}-mcp-server`, version: mod.manifest.version },
     mod.instructions ? { instructions: mod.instructions } : undefined
   );
+  // Capture names from successful registrations, not untrusted request text or SDK internals.
+  const toolNames = new Set();
+  for (const method of ['registerTool', 'tool']) {
+    const register = server[method].bind(server);
+    server[method] = (name, ...args) => {
+      const tool = register(name, ...args);
+      toolNames.add(name);
+      return tool;
+    };
+  }
+  registeredToolNames.set(server, toolNames);
+  const settings = Object.freeze({ ...getSettingsFor(mod.id) });
   mod.register({
     server,
     z,
-    getSettings: () => getSettingsFor(mod.id),
+    getSettings: () => ({ ...settings }),
     log: (m) => log(`mcp:${mod.id}`, m),
     fetchJson,
     shareStore, // { createShare, listShares, revokeShare, parseTtl } — public /f/<token> links
@@ -373,13 +452,13 @@ export async function buildSkillMd(id) {
  * (modules take no deps by contract) but is skipped defensively.
  */
 export function exportModuleZip(id) {
-  const mod = getModuleById(id);
+  const mod = requireSource(id);
   if (!mod) throw new Error(`Unknown MCP '${id}'`);
   const root = path.resolve(mod.dir);
   const entries = [];
   const walk = (dir, prefix) => {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (e.name.startsWith('.') || e.name === 'node_modules') continue; // no secrets, chat, or deps
+      if (e.name.startsWith('.') || e.name === 'node_modules' || e.isSymbolicLink()) continue; // no secrets, chat, or deps
       const rel = prefix ? `${prefix}/${e.name}` : e.name;
       const abs = path.join(dir, e.name);
       if (e.isDirectory()) { walk(abs, rel); continue; }
@@ -411,6 +490,22 @@ export async function handleMcpRequest(req, res) {
   try {
     const server = buildServerFor(mod);
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
+    // Observe only response metadata, before serialization. Never buffer or retain tool payloads.
+    if (req.body?.method === 'tools/call' && req.body.id != null) {
+      const started = performance.now();
+      const requestedTool = req.body.params?.name;
+      const tool = registeredToolNames.get(server)?.has(requestedTool) && /^[a-zA-Z0-9_.:-]{1,128}$/.test(requestedTool) ? requestedTool : '(invalid)';
+      const requestId = req.body.id;
+      let outcome = false;
+      const send = transport.send.bind(transport);
+      transport.send = async (message, ...args) => {
+        if (message.id === requestId) outcome = !message.error && Boolean(message.result) && message.result.isError !== true;
+        return send(message, ...args);
+      };
+      res.once('finish', () => recordUsage({ time: new Date().toISOString(), instanceId: mod.id,
+        moduleId: mod.sourceId || mod.id, tool, durationMs: performance.now() - started,
+        ok: outcome && res.statusCode >= 200 && res.statusCode < 300 }));
+    }
     res.on('close', () => { transport.close(); server.close(); });
     await server.connect(transport);
     await transport.handleRequest(req, res, req.body);
@@ -427,7 +522,7 @@ export function createModule({ name, slug, description = '', icon = '🔌' }) {
   slug = String(slug || '').trim().toLowerCase().replace(/[^a-z0-9_\-]/g, '_');
   if (!slug) throw new Error('A slug is required (e.g. weather_mcp)');
   if (RESERVED_SLUGS.has(slug)) throw new Error(`'${slug}' is a reserved path — pick another slug`);
-  if (getModuleBySlug(slug)) throw new Error(`slug '${slug}' is already in use`);
+  if (getModuleBySlug(slug) || getModuleById(slug) || Object.hasOwn(getState().mcps, slug)) throw new Error(`slug '${slug}' is already in use`);
   const id = slug;
   const dir = path.join(cfg.mcpsDir, id);
   if (fs.existsSync(dir)) throw new Error(`Folder mcps/${id} already exists`);
@@ -451,8 +546,9 @@ export function createModule({ name, slug, description = '', icon = '🔌' }) {
 
 /** Soft delete: move the folder to DATA_DIR/trash and drop the registry entry. */
 export function deleteModule(id) {
-  const mod = getModuleById(id);
+  const mod = requireSource(id);
   if (!mod) throw new Error(`Unknown MCP '${id}'`);
+  if (getInstancesFor(id).length > 1) throw new Error('Remove account instances explicitly before deleting their shared source');
   const trash = path.join(cfg.dataDir, 'trash');
   fs.mkdirSync(trash, { recursive: true });
   const dest = path.join(trash, `${id}-${Date.now()}`);
@@ -468,20 +564,38 @@ const EDITABLE = /\.(js|json|md|txt)$/;
 const MAX_FILE = 512 * 1024;
 
 function jail(mod, rel) {
+  if (String(rel).replace(/\\/g, '/').split('/').some((part) => part.startsWith('.') && part !== '.')) {
+    throw new Error('Dot-files and parent paths are station-managed and not editable');
+  }
   const p = path.resolve(mod.dir, rel);
   if (!p.startsWith(path.resolve(mod.dir) + path.sep) && p !== path.resolve(mod.dir)) {
     throw new Error('Path escapes the module folder');
   }
+  let cursor = path.resolve(mod.dir);
+  for (const part of path.relative(cursor, p).split(path.sep).filter(Boolean)) {
+    cursor = path.join(cursor, part);
+    try {
+      if (fs.lstatSync(cursor).isSymbolicLink()) throw new Error('Symlinks are not editable module files');
+    } catch (e) {
+      if (e.code === 'ENOENT') break;
+      throw e;
+    }
+  }
+  let existing = p;
+  while (!fs.existsSync(existing)) existing = path.dirname(existing);
+  const real = fs.realpathSync(existing);
+  const root = fs.realpathSync(mod.dir);
+  if (real !== root && !real.startsWith(root + path.sep)) throw new Error('Symlink escapes the module folder');
   return p;
 }
 
 export function listModuleFiles(id) {
-  const mod = getModuleById(id);
+  const mod = requireSource(id);
   if (!mod) throw new Error(`Unknown MCP '${id}'`);
   const out = [];
   const walk = (dir, prefix) => {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (e.name === 'node_modules' || e.name.startsWith('.')) continue;
+      if (e.name === 'node_modules' || e.name.startsWith('.') || e.isSymbolicLink()) continue;
       const rel = prefix ? `${prefix}/${e.name}` : e.name;
       if (e.isDirectory()) walk(path.join(dir, e.name), rel);
       else out.push({ path: rel, size: fs.statSync(path.join(dir, e.name)).size });
@@ -492,7 +606,7 @@ export function listModuleFiles(id) {
 }
 
 export function readModuleFile(id, rel) {
-  const mod = getModuleById(id);
+  const mod = requireSource(id);
   if (!mod) throw new Error(`Unknown MCP '${id}'`);
   const p = jail(mod, rel);
   if (!EDITABLE.test(p)) throw new Error('Only .js/.json/.md/.txt files can be opened');
@@ -501,13 +615,17 @@ export function readModuleFile(id, rel) {
 }
 
 export function writeModuleFile(id, rel, content) {
-  const mod = getModuleById(id);
+  const mod = requireSource(id);
   if (!mod) throw new Error(`Unknown MCP '${id}'`);
   const p = jail(mod, rel);
   if (!EDITABLE.test(p)) throw new Error('Only .js/.json/.md/.txt files can be written');
   if (Buffer.byteLength(content, 'utf8') > MAX_FILE) throw new Error('Content too large (512 KB max)');
-  if (rel === 'manifest.json') {
-    ManifestSchema.parse(JSON.parse(content)); // validate before write
+  if (p === path.resolve(mod.dir, 'manifest.json')) {
+    const manifest = ManifestSchema.parse(JSON.parse(content));
+    if (manifest.id !== mod.id) throw new Error('Changing a source module id is not supported');
+    if (RESERVED_SLUGS.has(manifest.slug) || (getModuleBySlug(manifest.slug) && getModuleBySlug(manifest.slug).id !== id)) {
+      throw new Error('Manifest slug is reserved or already in use');
+    }
   }
   fs.mkdirSync(path.dirname(p), { recursive: true });
   fs.writeFileSync(p, content);
@@ -518,7 +636,7 @@ export function writeModuleFile(id, rel, content) {
 const CHAT_FILE = '.chat.json'; // dot-prefixed: listModuleFiles skips it, so it never shows as a tab
 
 export function readModuleChat(id) {
-  const mod = getModuleById(id);
+  const mod = requireSource(id);
   if (!mod) throw new Error(`Unknown MCP '${id}'`);
   try {
     const parsed = JSON.parse(fs.readFileSync(path.join(mod.dir, CHAT_FILE), 'utf8'));
@@ -529,7 +647,7 @@ export function readModuleChat(id) {
 }
 
 export function writeModuleChat(id, messages) {
-  const mod = getModuleById(id);
+  const mod = requireSource(id);
   if (!mod) throw new Error(`Unknown MCP '${id}'`);
   const clean = (Array.isArray(messages) ? messages : [])
     .filter((m) => m && typeof m.content === 'string')
@@ -544,7 +662,7 @@ export function writeModuleChat(id, messages) {
  * the budget is cut at a line boundary with a pointer to read_module_file for the rest, so the
  * model never assumes it has seen the end. */
 export function moduleSource(id, budget = 240_000) {
-  const mod = getModuleById(id);
+  const mod = requireSource(id);
   if (!mod) throw new Error(`Unknown MCP '${id}'`);
   const out = [];
   let left = budget;

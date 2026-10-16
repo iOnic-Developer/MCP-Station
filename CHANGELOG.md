@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased — account-aware product workspace
+
+- Replace routine configuration drawers with deep-linkable Settings, Connect, Tools, Code and Activity pages.
+- Equal-height service cards with upfront endpoint copy, configuration, tests and named-account selection.
+- Reuse one module codebase across independently configured account endpoints; preserve existing default endpoints.
+- Turn Connections into a working quick-control hub; guide new account setup without asking for endpoint slugs.
+- Add bounded, real tool-call usage charts, error rates, response times and per-account activity; no payload logging.
+- Introduce original Ribbon S branding, local typography, favicons and install/update/offline PWA support.
+- Guard unsaved settings, code and one-time token displays. Add real-browser accessibility and workflow regression CI.
+- This remains a single-admin product; multiple human users and tenant isolation are not implemented.
+- Additional accounts require a full station backup for portability; legacy JSON exports cover default accounts only.
+
+
 ## v2.4.0 — 2026-10-05
 
 **2.x goes stable: sign-ins that don't expire, OpenAI as the assistant's default, a Debian image with

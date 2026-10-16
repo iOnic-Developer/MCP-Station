@@ -1,6 +1,14 @@
-<p align="center"><img src="public/assets/mcp_station_logo.svg" width="340" alt="MCP Station — one hub, many docked MCP modules"></p>
+<p align="center"><img src="public/assets/brand/station-wordmark.svg" width="340" alt="MCP Station — one hub, many docked MCP modules"></p>
 
 <h1 align="center">MCP Station</h1>
+
+> **Account-aware workspace preview (unreleased):** this branch replaces routine drawers with full-page
+> account workspaces, upfront endpoint copy, independent accounts sharing one module, practical
+> Connections controls, real usage charts and installable PWA support. See
+> [product design](docs/PRODUCT_DESIGN.md), [account boundaries](docs/ACCOUNT_INSTANCES.md), and
+> [verification](docs/QA_WORKFLOWS.md). Existing screenshots below describe stable 2.4, not this preview.
+> Multiple service accounts are supported; multiple human users are **not**.
+
 
 <p align="center"><b>Turn any API into an MCP server that claude.ai can use — self-hosted, in one container.</b></p>
 

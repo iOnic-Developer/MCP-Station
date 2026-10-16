@@ -1,53 +1,23 @@
 import { chatPane } from '../chat.js';
-import { esc } from '../ui.js';
-
+import { esc, confirmModal } from '../ui.js';
+import { icon } from '../icons.js';
 const STORE = 'station.chat.v1';
-
-/** Floating ✦ station popup. Chat persists in localStorage; instructions live server-side. */
-export function mountAssistant(ctx) {
-  if (document.querySelector('.fab')) return;
-
-  const fab = document.createElement('button');
-  fab.className = 'fab';
-  fab.title = 'Station assistant — knows this site and how to build MCPs for it';
-  fab.textContent = '✦';
-  document.body.appendChild(fab);
-
-  const gemini = ctx.me.provider === 'gemini';
-  const who = gemini ? 'Gemini' : 'Claude';
-
-  const panel = document.createElement('div');
-  panel.className = 'assistant chat';
-  panel.hidden = true;
-  panel.innerHTML = `
-    <div class="a-head">✦ Station assistant
-      <span class="sub">${who} · ${ctx.me.model || ''}</span>
-      <div class="spacer"></div>
-      <button class="btn sm" data-clear title="Clear conversation">🧹</button>
-      <button class="btn sm" data-close>✕</button>
-    </div>
-    <div class="chat-body"></div>`;
-  document.body.appendChild(panel);
-
-  let history = [];
-  try { history = JSON.parse(localStorage.getItem(STORE) || '[]'); } catch { /* fresh */ }
-
-  const chat = chatPane({
-    el: panel.querySelector('.chat-body'),
-    history,
-    persist: (h) => localStorage.setItem(STORE, JSON.stringify(h.slice(-60))),
-    placeholder: 'e.g. Make me a Gmail MCP',
-    fields: [
-      { key: 'apiHost', label: 'API base URL', placeholder: 'API base URL (optional — I can usually find it)' },
-      { key: 'apiDocs', label: 'API docs', placeholder: 'API docs link (optional)' }
-    ],
-    greeting: `Hi — I'm the station assistant, running on <b>${who}</b> (${esc(ctx.me.model || '')}). Switch provider in ⚙ Station.<br><br>Ask me to <b>build an MCP</b> and I'll <b>actually create it</b> on this station and reload it live — say <i>“make one for Gmail”</i> and I'll find everything I need. The two boxes below are <b>optional</b>: fill them only if you want to point me at a specific API host or docs page.<br><br>For changes to an <i>existing</i> module, open its <b>‹/› Code</b> drawer — the chat in there sees that module's files and <b>edits them in place</b> (or just name the module here).`
-  });
-
-  fab.onclick = () => {
-    panel.hidden = !panel.hidden;
-    if (!panel.hidden) { chat.render(); chat.input.focus(); }
-  };
-  panel.querySelector('[data-close]').onclick = () => { panel.hidden = true; };
-  panel.querySelector('[data-clear]').onclick = chat.clear;
+let panel, chat;
+export function resetAssistant() { chat?.dispose(); panel?.remove(); panel = null; chat = null; }
+/** Keep the pane on metadata refresh; the router disposes its stream when leaving. */
+export function renderAssistant(root, ctx) {
+  if (!panel) {
+    const provider = { openai: 'OpenAI', anthropic: 'Anthropic', gemini: 'Google Gemini' }[ctx.me.provider] || ctx.me.provider;
+    panel = document.createElement('section'); panel.className = 'assistant-page chat panel';
+    panel.innerHTML = `<div class="a-head">${icon('assistant')}<div><strong>Station Assistant</strong><span class="sub">${esc(provider)} · ${esc(ctx.me.model || 'No model selected')}</span></div><div class="spacer"></div><button class="btn sm" data-clear>${icon('trash')}Clear chat</button></div><div class="banner" data-provider-warning hidden>Add an API key in <a href="#/settings">Settings</a> to start chatting.</div><div class="chat-body"></div>`;
+    let history = [];
+    try { const saved = JSON.parse(localStorage.getItem(STORE) || '[]'); if (Array.isArray(saved)) history = saved.filter((m) => m && ['user', 'assistant'].includes(m.role) && typeof m.content === 'string'); } catch {}
+    chat = chatPane({ el: panel.querySelector('.chat-body'), history, persist: (h) => { try { localStorage.setItem(STORE, JSON.stringify(h.slice(-60))); } catch {} }, placeholder: 'Ask a question, or describe an integration to build…', fields: [{ key: 'apiHost', label: 'API base URL (optional)', placeholder: 'https://api.example.com' }, { key: 'apiDocs', label: 'API documentation (optional)', placeholder: 'Link to the service’s API docs' }], greeting: `<h2>What would you like to connect?</h2><p>I can explain your integrations, build new ones and edit their code. Try “Explain how to connect Claude” or “Build an integration for my service”.</p><p class="help">I can change files on this station. Review the tools and test an integration before relying on it. For focused changes, open the integration’s code editor.</p>` });
+    panel.querySelector('[data-clear]').onclick = async () => { if (await confirmModal('Clear this conversation?', 'This removes the conversation saved in this browser. It does not undo changes made to integrations.', 'Clear conversation')) chat.clear(); };
+  }
+  const providerName = { openai: 'OpenAI', anthropic: 'Anthropic', gemini: 'Google Gemini' }[ctx.me.provider] || ctx.me.provider;
+  panel.querySelector('.sub').textContent = `${providerName} · ${ctx.me.model || 'No model selected'}`;
+  panel.querySelector('[data-provider-warning]').hidden = Boolean(ctx.me.hasAssistantKey || ctx.me.hasAnthropicKey);
+  root.appendChild(panel);
 }
+export function mountAssistant() { location.hash = '/assistant'; }

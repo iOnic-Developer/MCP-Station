@@ -1,0 +1,45 @@
+name: Product workflow checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [redesign/public-product]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  product:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Frontend and PWA checks
+        run: npm run test:ui && npm run test:pwa
+      - name: Account isolation and usage privacy
+        run: npm run test:instances && npm run test:usage
+      - name: Existing protocol regressions
+        run: npm test && npm run test:oauth && npm run test:scoping && npm run test:selfcontained && npm run test:openai
+      - name: Assistant streaming regressions
+        run: ASSISTANT_PROVIDER=anthropic bash scripts/smoke-assistant.sh
+      - name: Install browser-only QA dependencies
+        run: npm install --no-save --package-lock=false playwright@1.55.0 @axe-core/playwright@4.10.2
+      - run: npx playwright install --with-deps chromium
+      - name: Test end-user workflows and accessibility
+        env:
+          QA_SCREENSHOT_DIR: ${{ runner.temp }}/station-workflow-qa
+        run: npm run test:workflows
+      - name: Upload sanitized workflow evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: workflow-evidence
+          path: ${{ runner.temp }}/station-workflow-qa
+          if-no-files-found: ignore

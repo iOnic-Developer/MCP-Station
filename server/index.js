@@ -23,6 +23,7 @@ import * as host from './lib/mcpHost.js';
 import * as assistant from './lib/assistant.js';
 import * as backup from './lib/backup.js';
 import { expiryFromChoice } from './lib/expiry.js';
+import { getUsage, persistUsage, reloadUsage } from './lib/usage.js';
 
 const app = express();
 app.use(express.json({ limit: '4mb' }));
@@ -86,32 +87,57 @@ app.use('/api', (req, res, next) => {
   return auth.requireSession(req, res, () => api(req, res, next));
 });
 
+function instanceListing(m, req) {
+  const reg = getState().mcps[m.id] || {};
+  const values = host.getSettingsFor(m.id);
+  const settings = {};
+  for (const s of m.manifest?.settings || []) {
+    settings[s.key] = s.type === 'secret' ? (values[s.key] ? '••••••' : '') : (values[s.key] ?? '');
+  }
+  return { id: m.id, sourceId: m.sourceId || m.id,
+    name: m.sourceId ? reg.name : 'Default account',
+    url: `${oauth.baseUrl(req)}/${m.manifest?.slug || m.id}/mcp`,
+    enabled: Boolean(reg.enabled), configured: m.manifest ? host.isConfigured(m.id) : false,
+    error: m.error || null, lastTest: reg.lastTest || null, settings,
+    tokenSet: Boolean(reg.token), tokenExpiresAt: reg.token ? reg.tokenExpiresAt || null : null,
+    clients: m.manifest ? oauth.listConnections(m.manifest.slug).length : 0 };
+}
+
 function mcpListing(req) {
-  const st = getState();
   return [...host.getModules().values()].map((m) => {
-    const reg = st.mcps[m.id] || {};
-    const settings = {};
-    for (const s of m.manifest?.settings || []) {
-      const raw = reg.settings?.[s.key];
-      settings[s.key] = s.type === 'secret'
-        ? (raw ? '••••••' : '')
-        : (raw != null && raw !== '' ? decrypt(raw) : (s.default ?? ''));
-    }
-    return {
-      id: m.id,
-      manifest: m.manifest,
-      error: m.error,
-      enabled: Boolean(reg.enabled),
-      configured: m.manifest ? host.isConfigured(m.id) : false,
-      tokenSet: Boolean(reg.token),
-      tokenExpiresAt: reg.token ? reg.tokenExpiresAt || null : null, // null = unlimited
-      clients: m.manifest ? oauth.listConnections(m.manifest.slug).length : 0,
-      lastTest: reg.lastTest || null,
-      settings,
-      url: `${oauth.baseUrl(req)}/${m.manifest?.slug || m.id}/mcp`
-    };
+    const { name, ...account } = instanceListing(m, req);
+    return { ...account, manifest: m.manifest,
+      instances: host.getInstancesFor(m.id).map((i) => instanceListing(i, req)) };
   }).sort((a, b) => (a.manifest?.name || a.id).localeCompare(b.manifest?.name || b.id));
 }
+
+api.get('/usage', (req, res) => {
+  try {
+    res.json(getUsage({ days: req.query.days ?? 7, instanceId: req.query.instanceId,
+      nameFor: (id) => {
+        const mod = host.getModuleById(id);
+        return mod?.sourceId ? mod.name : mod?.manifest?.name || id;
+      } }));
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+api.post('/mcps/:moduleId/instances', (req, res) => {
+  try {
+    const mod = host.createInstance(req.params.moduleId, req.body || {});
+    res.status(201).json({ ok: true, instance: instanceListing(mod, req) });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+api.delete('/mcps/:moduleId/instances/:instanceId', (req, res) => {
+  try {
+    const mod = host.getModuleById(req.params.instanceId);
+    if (!mod?.sourceId || mod.sourceId !== req.params.moduleId) return res.status(404).json({ error: 'Unknown account instance for this source' });
+    oauth.revokeInstanceAccess(mod.manifest.slug);
+    host.deleteInstance(req.params.moduleId, mod.id);
+    persist(); // removal and revocation are durable before success is returned
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
 
 api.get('/mcps', (req, res) => res.json({ mcps: mcpListing(req) }));
 
@@ -128,7 +154,7 @@ api.patch('/mcps/:id', (req, res) => {
   try {
     const st = getState();
     const id = req.params.id;
-    if (!st.mcps[id]) return res.status(404).json({ error: `Unknown MCP '${id}'` });
+    if (!host.getModuleById(id)) return res.status(404).json({ error: `Unknown MCP '${id}'` });
     if (typeof req.body?.enabled === 'boolean') host.setEnabled(id, req.body.enabled);
     if (req.body?.settings && typeof req.body.settings === 'object') {
       host.saveSettings(id, req.body.settings);
@@ -305,7 +331,7 @@ api.post('/import', (req, res) => {
   catch (e) { res.status(400).json({ error: e.message }); }
 });
 api.post('/backup', async (req, res) => {
-  try { res.json(await backup.createBackup()); }
+  try { persist(); persistUsage(); res.json(await backup.createBackup()); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 api.get('/backups', (req, res) => res.json({ backups: backup.listBackups() }));
@@ -315,12 +341,20 @@ api.get('/backups/:name', (req, res) => {
 });
 api.post('/restore', express.raw({ type: ['application/gzip', 'application/x-gzip', 'application/octet-stream'], limit: '200mb' }), async (req, res) => {
   try {
-    if (req.body?.length > 100) return res.json(await backup.restoreBackup({ buffer: req.body }));
+    if (req.body?.length > 100) {
+      const result = await backup.restoreBackup({ buffer: req.body });
+      reloadUsage();
+      return res.json(result);
+    }
     return res.status(400).json({ error: 'Upload a .tar.gz backup as the request body' });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 api.post('/restore/:name', async (req, res) => {
-  try { res.json(await backup.restoreBackup({ name: req.params.name })); }
+  try {
+    const result = await backup.restoreBackup({ name: req.params.name });
+    reloadUsage();
+    res.json(result);
+  }
   catch (e) { res.status(400).json({ error: e.message }); }
 });
 
@@ -383,6 +417,7 @@ app.use((err, req, res, next) => {
 async function main() {
   initKey();
   loadState();
+  reloadUsage();
   assistant.ensureInstructions();
   await host.loadModules();
 
@@ -396,9 +431,12 @@ async function main() {
   log('boot', `OAuth store loaded from ${cfg.dataDir}/station.json — ${nClients} client(s), ${nTokens} access + ${nRefresh} refresh token(s). If this is 0 after you connected, DATA_DIR is not a persistent volume.`);
   verifyPublicUrl();
 
-  setInterval(gc, 10 * 60_000).unref();
-  process.on('SIGTERM', () => { persist(); process.exit(0); });
-  process.on('SIGINT', () => { persist(); process.exit(0); });
+  setInterval(() => {
+    gc();
+    try { persistUsage(); } catch { log('usage', 'Could not persist usage metadata'); }
+  }, 10 * 60_000).unref();
+  process.on('SIGTERM', () => { persist(); persistUsage(); process.exit(0); });
+  process.on('SIGINT', () => { persist(); persistUsage(); process.exit(0); });
 
   app.listen(cfg.port, () => {
     log('boot', `MCP Station v${cfg.version} on :${cfg.port} — UI at / · MCPs at /<slug> · OAuth ${oauth.oauthEnabled() ? 'ON' : 'off'}`);

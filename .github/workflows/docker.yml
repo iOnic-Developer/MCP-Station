@@ -31,6 +31,9 @@ jobs:
       - name: Dashboard syntax checks
         run: npm run test:ui
 
+      - name: PWA and account regressions
+        run: npm run test:pwa && npm run test:instances && npm run test:usage
+
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
 

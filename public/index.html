@@ -2,15 +2,26 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#116859">
+  <meta name="description" content="Your tools. One station. A self-hosted home for your MCP connections.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="MCP Station">
   <title>MCP Station</title>
-  <link rel="icon" type="image/svg+xml" href="/assets/mcp_station_logo_1024_canvas.svg">
+  <link rel="icon" type="image/svg+xml" href="/assets/brand/favicon.svg">
+  <link rel="icon" type="image/x-icon" sizes="16x16 32x32 48x48" href="/assets/brand/favicon.ico">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="preload" href="/assets/fonts/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/assets/css/app.css">
-  <link rel="stylesheet" href="/assets/css/v2.css">
+  <link rel="stylesheet" href="/assets/css/pwa.css">
 </head>
 <body>
+  <a class="station-skip-link" href="#main-content">Skip to main content</a>
   <div id="app" class="app"></div>
-  <div id="toasts" class="toasts"></div>
+  <div id="toasts" class="toasts" role="status" aria-live="polite" aria-atomic="false" aria-relevant="additions text"></div>
+  <noscript>MCP Station needs JavaScript to manage connections. Enable JavaScript and reload this page.</noscript>
   <script type="module" src="/assets/js/app.js"></script>
 </body>
 </html>

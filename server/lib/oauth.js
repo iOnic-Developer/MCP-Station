@@ -18,7 +18,7 @@ import { cfg } from './env.js';
 import { getState, save, persist } from './state.js';
 import { sha256b64url, timingEqual } from './crypto.js';
 import { verifyPassword, checkRate, noteFail } from './auth.js';
-import { getModuleBySlug, getModuleToken } from './mcpHost.js';
+import { getModuleBySlug, getModuleById, getModuleToken } from './mcpHost.js';
 import { log } from './log.js';
 import { EXPIRY_CHOICES, expiryFromChoice } from './expiry.js';
 
@@ -73,6 +73,7 @@ let provider = null;
  * grantId ties one sign-in's access + refresh tokens together across rotations: a refresh retires
  * the access tokens it supersedes, so long-lived tokens don't pile up (one connection, one row). */
 function issueTokens(clientId, scopes = [], resource, grantExpiresAt = null, grantId = rand(8)) {
+  if (resource && !slugFromResource(resource)) throw new InvalidGrantError('Unknown or removed MCP resource');
   const st = getState();
   const access = rand(32);
   const refresh = rand(32);
@@ -398,6 +399,16 @@ export function bearerGate(req, res, next) {
   const mod = getModuleBySlug(slug);
   const modToken = mod ? getModuleToken(mod.id) : '';
   if (token && modToken && timingEqual(token, modToken)) return next();
+  // Preserve the legacy cross-source 401 contract, but make cross-account refusal explicit.
+  if (token) {
+    for (const id of Object.keys(getState().mcps)) {
+      const other = getModuleById(id);
+      if (other && id !== mod?.id && (other.sourceId || mod?.sourceId)) {
+        const otherToken = getModuleToken(id);
+        if (otherToken && timingEqual(token, otherToken)) return res.status(403).json({ error: 'Token belongs to another MCP account' });
+      }
+    }
+  }
 
   // Challenge with the metadata URL for the exact path the client called, so the PRM's
   // `resource` matches the connector URL for both endpoint forms (/<slug>/mcp and /<slug>).
@@ -446,6 +457,17 @@ export function revokeConnection(handle) {
   }
   persist();
   log('oauth', `Revoked connection ${handle} (client ${clientId}${slug ? `, /${slug}` : ', all MCPs'})`);
+}
+
+/** Remove only this instance's grants, codes and unfinished consents; keep shared DCR clients. */
+export function revokeInstanceAccess(slug) {
+  const st = getState();
+  const matches = (rec) => rec.slug === slug || slugFromResource(rec.resource) === slug;
+  for (const bucket of ['tokens', 'refresh', 'codes']) {
+    for (const [key, rec] of Object.entries(st.oauth[bucket])) if (matches(rec)) delete st.oauth[bucket][key];
+  }
+  for (const [key, rec] of pending) if (matches(rec)) pending.delete(key);
+  persist();
 }
 
 /* ── Consent page (password only; plain form post to /oauth/approve) ─────── */
