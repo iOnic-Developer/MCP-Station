@@ -26,7 +26,7 @@ export async function openCapabilities(m) {
 
   const { tools = [], prompts = [], instructions = '' } = cap;
   const dlg = modal({
-    title: `🧰 ${m.manifest?.icon || ''} ${cap.name} — capabilities`,
+    title: `${cap.name} — tools & capabilities`,
     body: `
       <div class="help" style="margin-bottom:14px">
         Read live from the running module — this is exactly what a connected client sees.
@@ -35,7 +35,7 @@ export async function openCapabilities(m) {
         ${instructions ? `<b>ships house instructions</b> (${instructions.length} chars)` : 'no instructions file'}
       </div>
 
-      <input class="input" id="capFilter" placeholder="Filter tools…" style="margin-bottom:12px">
+      <label for="capFilter">Search tools by name or description</label><div class="row"><input class="input" id="capFilter" placeholder="Filter tools…"><button class="btn" data-clear-filter>Clear</button></div><p class="help" data-tool-count role="status"></p>
 
       <div id="toolList">${tools.map((t) => `
         <details class="tool" data-name="${esc(t.name.toLowerCase())} ${esc((t.description || '').toLowerCase())}">
@@ -44,7 +44,7 @@ export async function openCapabilities(m) {
             <p>${esc(t.description || 'No description.')}</p>
             ${args(t.inputSchema)}
           </div>
-        </details>`).join('') || '<div class="dim">This module registers no tools.</div>'}</div>
+        </details>`).join('') || '<div class="dim">This module registers no tools.</div>'}</div><p data-tool-empty hidden>No tools match. Clear the search to see all tools.</p>
 
       ${prompts.length ? `<h4 style="margin:18px 0 8px">Prompts</h4>
         ${prompts.map((p) => `
@@ -64,12 +64,19 @@ export async function openCapabilities(m) {
   });
 
   const filter = dlg.querySelector('#capFilter');
-  filter.oninput = () => {
+  const apply = () => {
+    let shown = 0;
     const q = filter.value.trim().toLowerCase();
     for (const el of dlg.querySelectorAll('#toolList .tool')) {
-      el.hidden = q && !el.dataset.name.includes(q);
+      el.hidden = Boolean(q && !el.dataset.name.includes(q));
+      if (!el.hidden) shown++;
     }
+    dlg.querySelector('[data-tool-count]').textContent = `${shown} of ${tools.length} tools`;
+    dlg.querySelector('[data-tool-empty]').hidden = shown !== 0 || !tools.length;
   };
+  filter.oninput = apply;
+  dlg.querySelector('[data-clear-filter]').onclick = () => { filter.value = ''; apply(); filter.focus(); };
+  apply();
   dlg.querySelector('[data-cancel]').onclick = () => dlg.close();
 }
 

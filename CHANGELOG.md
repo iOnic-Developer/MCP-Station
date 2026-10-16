@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.0_beta — 2026-10-16
+
+Beta product redesign: Overview, Modules, Connections, Settings and Help; original brand and app icons; self-hosted fonts; light/dark/system themes; mobile navigation; guided module operations; accessible native dialogs; draft-safe editor and streaming assistant; session teardown safeguards and public-assets-only PWA cache.
+
+Preserves OAuth, bearer/admin separation, secret-mask round trips and self-contained modules. Optional SESSION_COOKIE_NAME isolates parallel preview sessions; default unchanged. 43 browser checks and 3 server contracts passed, alongside existing smoke/OAuth/scoping/self-contained/assistant/OpenAI suites. Explicit beta publication never updates latest.
+
 ## v2.4.0 — 2026-10-05
 
 **2.x goes stable: sign-ins that don't expire, OpenAI as the assistant's default, a Debian image with
