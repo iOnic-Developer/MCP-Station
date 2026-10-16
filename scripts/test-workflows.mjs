@@ -253,7 +253,7 @@ try {
     await page.locator('[data-workspace-test]').click(); assert((await (await response).json()).ok);
     await until(async () => (await page.locator('[data-workspace-result]').innerText()).includes('Personal fixture'));
   });
-  for (const [tab, selector] of [['connect','[data-connections]'], ['tools','[data-workspace-surface] .page-surface'], ['code','#codeArea'], ['activity','[data-usage-body] .stats-grid']]) {
+  for (const [tab, selector] of [['connect','[data-connections]'], ['tools','[data-workspace-surface] .page-surface'], ['code','#codeArea'], ['activity','[data-usage-body] .stats-grid'], ['assistant','[data-module-assistant] textarea']]) {
     await check(`Workspace ${tab}: routed tab, selected account, no dialog, labelled fields`, async () => {
       await go(work(tab, accountA.id), selector); assert.equal(await page.locator('[data-account]').inputValue(), accountA.id);
       assert.equal(await page.locator('.workspace-tabs [aria-current=page]').count(), 1); await noDialog(); await labels();
@@ -408,6 +408,55 @@ try {
       await screenshot('dark-' + route);
     });
   }
+  await check('Refinement: library assistant is one click and source-scoped', async () => {
+    await go('#/integrations', '[data-id]');
+    await page.locator('[data-filter=all]').click();
+    await page.locator('[data-search-clear]').click();
+    const link = card().getByRole('link', {name: 'Ask assistant', exact:true});
+    assert(await link.isVisible());
+    await link.click(); await page.locator('[data-module-assistant] textarea').waitFor();
+    assert.match(await page.evaluate(() => location.hash), /\/assistant/);
+    assert.match(await page.locator('[data-module-assistant]').innerText(), /all accounts/);
+    const response = page.waitForResponse(r => r.request().method() === 'PUT' && r.url().endsWith(`/api/mcps/${sourceId}/chat`));
+    await page.locator('[data-module-assistant] [data-clear]').click();
+    await page.locator('dialog [data-yes]').click();
+    assert((await response).ok());
+  });
+  for (const width of [375,768,1440]) {
+    await check('Refinement: compact header and six uniform tabs at '+width+'px', async () => {
+      await page.setViewportSize({width,height:900});
+      await go(work('settings', accountA.id),'#setForm');
+      assert.equal(await page.locator('.account-progress').count(),0);
+      const tabs = await page.locator('.workspace-tabs a').evaluateAll(els=>els.map(el=>{const r=el.getBoundingClientRect();return {w:r.width,h:r.height,y:r.y};}));
+      assert.equal(tabs.length,6);
+      assert(Math.max(...tabs.map(t=>t.w))-Math.min(...tabs.map(t=>t.w))<2);
+      assert(tabs.every(t=>t.h>=44));
+      const rows = new Map(); for(const t of tabs){const y=Math.round(t.y);rows.set(y,(rows.get(y)||0)+1);}
+      assert([...rows.values()].every(n=>n===3||n===6),'No orphan tab row');
+      const header = await page.locator('.workspace-endpoint').boundingBox();
+      assert(header.height < (width<1000 ? 260:180),'Action bar remains compact');
+      await audit('refined-workspace-'+width);
+      await screenshot('refined-workspace-'+width);
+    });
+    for (const height of [520,900]) {
+      await check('Refinement: assistant viewport and composer '+width+'x'+height,async()=>{
+        await page.setViewportSize({width,height}); await go('#/assistant','.assistant-page textarea');
+        await pause(120);
+        assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+        const geometry=await page.locator('.assistant-page').evaluate(el=>{const r=el.getBoundingClientRect(),c=el.querySelector('.a-input').getBoundingClientRect(),n=document.querySelector('.bottom-nav'),nr=n?.getBoundingClientRect();return {height:r.height,bottom:c.bottom,limit:n&&getComputedStyle(n).display!=='none'?nr.top:innerHeight,doc:document.documentElement.scrollHeight,viewport:innerHeight};});
+        evidence['assistantGeometry'+width+'x'+height]=geometry;
+        assert(geometry.height>height*.5,'Chat owns most available workspace');
+        assert(geometry.bottom<=geometry.limit+1,'Composer not covered by navigation');
+        assert(geometry.doc<=geometry.viewport+1,'No nested page-sized document scroll');
+        await page.getByLabel('Message to the assistant').fill('Local unsent draft');
+        await page.evaluate(()=>window.dispatchEvent(new Event('station:mcps-changed')));await pause(180);
+        assert.equal(await page.getByLabel('Message to the assistant').inputValue(),'Local unsent draft');
+      });
+    }
+  }
+  await check('Refinement: numbered setup strip removed from new account page',async()=>{
+    await go('#/integrations/new','#accountName');assert.equal(await page.locator('.account-progress').count(),0);
+  });
   await check('Runtime: no uncaught browser errors or external requests', async () => { assert.deepEqual(pageErrors, []); assert.deepEqual(externalRequests, []); });
 } catch (error) {
   results.push({ name: 'Fixture prerequisite or suite execution', ok: false, errorType: error.name,

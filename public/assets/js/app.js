@@ -12,6 +12,14 @@ import { openBackup } from './views/backup.js';
 import { openStation } from './views/station.js';
 import { renderAssistant, resetAssistant } from './views/assistant.js';
 const root = document.getElementById('app');
+// Use the visible keyboard viewport without treating pinch zoom as a layout resize.
+const syncViewport = () => {
+  const viewport = window.visualViewport;
+  if (!viewport || viewport.scale === 1) document.documentElement.style.setProperty('--workspace-viewport-height', `${viewport?.height || window.innerHeight}px`);
+};
+window.visualViewport?.addEventListener('resize', syncViewport);
+window.addEventListener('resize', syncViewport);
+syncViewport();
 // Focus the current main region without sending the skip fragment to the router.
 document.querySelector('.station-skip-link')?.addEventListener('click', (event) => {
   event.preventDefault();
@@ -76,6 +84,7 @@ async function boot() {
     if (version !== bootVersion) return;
     ctx.me = me;
     if (!me.authed) {
+      document.body.classList.remove('assistant-workspace');
       resetAssistant();
       root.querySelectorAll('.page-surface').forEach((el) => el.dispatchEvent(new Event('station:dispose')));
       document.querySelectorAll('dialog').forEach((d) => d.close());
@@ -133,6 +142,8 @@ async function renderRoute(focus) {
   const signature = location.hash || '#/overview';
   const page = root.querySelector('#routeRoot');
   if (!page) return;
+  document.body.classList.toggle('assistant-workspace', key === 'assistant');
+  page.classList.toggle('integration-route', key === 'integrations' && Boolean(route.sourceId));
   const same = renderedRoute === signature;
   if (same && !focus && (['assistant', 'settings', 'backups'].includes(key) || route.sourceId)) { ctx.workspaceRefresh?.(); return; }
   const wasLibrary = renderedRoute.split('?')[0] === '#/integrations';
@@ -159,7 +170,7 @@ async function renderRoute(focus) {
     if (focus) { window.scrollTo(0,0); root.querySelector('#main-content').focus({preventScroll:true}); }
     return;
   }
-  page.innerHTML = `<div class="page-heading"><div><p class="eyebrow">${key === 'settings' || key === 'backups' ? 'Station management' : 'Your workspace'}</p><h1>${info[0]}</h1><p class="page-description">${info[1]}</p></div>${key === 'integrations' ? `<button class="btn" data-reload>${icon('reload')}Reload modules</button>` : ''}</div><div id="viewRoot"></div>`;
+  page.innerHTML = `${key === 'assistant' ? '' : `<div class="page-heading"><div><p class="eyebrow">${key === 'settings' || key === 'backups' ? 'Station management' : 'Your workspace'}</p><h1>${info[0]}</h1><p class="page-description">${info[1]}</p></div>${key === 'integrations' ? `<button class="btn" data-reload>${icon('reload')}Reload modules</button>` : ''}</div>`}<div id="viewRoot"></div>`;
   const view = page.querySelector('#viewRoot');
   if (ctx.loadError) view.innerHTML = `<div class="banner" role="alert">We couldn’t load integrations: ${esc(ctx.loadError)}. <button class="btn sm" data-retry>Try again</button></div>`;
   const content = document.createElement('div'); view.appendChild(content);

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — interaction density and assistant workspace
+
+- Give station chat the available viewport with an internally scrolling transcript and reachable composer.
+- Add one-click module Assistant entry and a dedicated source-scoped Assistant section.
+- Remove numbered setup strips, consolidate endpoint/account actions and make mobile section targets uniform.
+- Clarify active navigation, text links and selection controls; expose editor chat in the working toolbar.
+- Expand workflow checks to 81 with 23 accessibility audits, including short-screen composer clearance.
+- Published Docker beta is unchanged by this source-only refinement.
+
 ## 2.6.0-beta — account-aware product workspace
 
 Docker preview tag: `dbzocchi/mcp-station:2.6.0_beta`. Published independently from the redesign branch; does not update `latest`.

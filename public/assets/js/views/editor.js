@@ -2,6 +2,7 @@ import { icon } from '../icons.js';
 import { api } from '../api.js';
 import { esc, toast, workspaceSurface, confirmModal } from '../ui.js';
 import { chatPane } from '../chat.js';
+import { workspaceUrl } from './accounts.js';
 
 export async function openEditor(m, ctx, target) {
   let files = [];
@@ -22,7 +23,7 @@ export async function openEditor(m, ctx, target) {
     target,
     title: `${name} · Code editor`,
     body: `
-      <p class="help">Advanced · Shared source for every account of this service. Changes are written to the server. Save, then reload to apply them. The Assistant can edit files directly.</p><div class="edit-split">
+      <div class="editor-toolbar"><strong>Shared source</strong><div class="spacer"></div><a class="btn action-accent" href="${workspaceUrl(m.id,'assistant')}">${icon('assistant')}Assistant workspace</a><button class="btn" data-chat aria-expanded="false" aria-controls="mcpChat">${icon('assistant')}Show assistant</button></div><p class="help">Advanced · Shared source for every account of this service. Changes are written to the server. Save, then reload to apply them. The Assistant can edit files directly.</p><div class="edit-split">
         <div class="edit-code">
           <div class="files" id="fileTabs"></div>
           <label class="sr-only" for="codeArea">Module source code</label><textarea class="code" id="codeArea" aria-describedby="editorState" spellcheck="false" placeholder="Pick a file…"></textarea>
@@ -36,12 +37,12 @@ export async function openEditor(m, ctx, target) {
         </div>
       </div>`,
     foot: `<span class="help" id="editorState" role="status">No file selected</span><button class="btn" data-cancel>Close</button>
-           <button class="btn" data-chat aria-expanded="false" aria-controls="mcpChat"> ${icon('assistant')}Assistant</button>
            <div class="spacer"></div>
            <button class="btn" data-reload>${icon('reload')}Save &amp; reload</button>
            <button class="btn primary" data-save>Save</button>`
   });
 
+  d.el.classList.add('editor-surface');
   const tabs = d.el.querySelector('#fileTabs');
   const area = d.el.querySelector('#codeArea');
   const chatBox = d.el.querySelector('#mcpChat');
@@ -61,6 +62,8 @@ export async function openEditor(m, ctx, target) {
     placeholder: `e.g. add a delete_message tool, or: why does get_updates 409?`,
     greeting: `I can see <b>${esc(name)}</b>'s files (manifest.json, index.js, …) and the module contract.<br><br>Ask me to add a tool, fix a bug or explain what it does — I <b>edit the files directly</b> and reload the module, and the open tab refreshes when I change it. Nothing to copy.<br><br>If you'd rather paste something yourself, ask to see the code: <b>⤵ Replace file</b> on a code block swaps the whole open file for it (complete files only).`
   });
+
+  chat.msgsEl.tabIndex = 0;
 
   // The assistant edits files on disk with its tools — keep the open tab (and tab list) in sync.
   const onFileChanged = async (e) => {
@@ -157,8 +160,17 @@ export async function openEditor(m, ctx, target) {
     d.el.classList.toggle('wide', !chatBox.hidden);
     e.currentTarget.classList.toggle('active', !chatBox.hidden);
     e.currentTarget.setAttribute('aria-expanded', String(!chatBox.hidden));
-    if (!chatBox.hidden) chat.input.focus();
+    e.currentTarget.innerHTML = `${icon('assistant')}${chatBox.hidden ? 'Show assistant' : 'Hide assistant'}`;
+    if (!chatBox.hidden) { chatBox.scrollIntoView({ block: 'nearest' }); chat.input.focus({ preventScroll: true }); }
   };
+  // Open a useful split only when both source and conversation have room.
+  if (window.matchMedia('(min-width: 1200px)').matches) {
+    chatBox.hidden = false;
+    d.el.classList.add('wide');
+    const toggle = d.el.querySelector('[data-chat]');
+    toggle.classList.add('active'); toggle.setAttribute('aria-expanded', 'true');
+    toggle.innerHTML = `${icon('assistant')}Hide assistant`;
+  }
   chatBox.querySelector('[data-clear]').onclick = async () => { if (await confirmModal('Clear this conversation?', 'This clears the module conversation but does not undo file changes.', 'Clear conversation')) chat.clear(); };
   d.el.querySelector('[data-save]').onclick = async (e) => {
     const b = e.currentTarget; b.disabled = true;

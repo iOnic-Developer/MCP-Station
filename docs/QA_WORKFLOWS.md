@@ -135,3 +135,11 @@ the named or default CommonJS export and asserts that a launcher exists. Reprodu
 CI-pinned Playwright 1.55.0 / axe 4.10.2: 68/68 checks and 19 audits pass. This local compatibility
 run used the workspace's installed Chromium via QA_BROWSER_EXECUTABLE; GitHub installs the pinned
 package's own browser and is the authoritative CI result.
+
+## Interaction-density refinement
+
+The subsequent frontend-only pass expands the canonical suite to **81/81 checks and 23 axe
+audits**, all passing locally. New checks cover a direct library-to-module Assistant link,
+shared-source chat persistence, six equal navigation targets with no orphan row, compact
+account/endpoint controls, removal of setup strips, and station composer visibility/draft
+retention at 375/768/1440px × 520/900px. See UX_REFINEMENT.md for design and device limitations.
