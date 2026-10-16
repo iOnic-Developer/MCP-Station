@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased — account-aware product workspace
+## 2.6.0-beta — account-aware product workspace
+
+Docker preview tag: `dbzocchi/mcp-station:2.6.0_beta`. Published independently from the redesign branch; does not update `latest`.
 
 - Replace routine configuration drawers with deep-linkable Settings, Connect, Tools, Code and Activity pages.
 - Equal-height service cards with upfront endpoint copy, configuration, tests and named-account selection.

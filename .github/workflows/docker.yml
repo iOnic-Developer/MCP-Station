@@ -7,6 +7,12 @@ on:
     branches: [main]
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Optional beta image tag; must end in _beta. Never updates latest.'
+        required: false
+        default: ''
+        type: string
 
 jobs:
   test-and-docker:
@@ -18,6 +24,13 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+
+      - name: Validate manual beta tag
+        if: inputs.image_tag != ''
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          [[ "$IMAGE_TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+_beta$ ]] || exit 1
 
       - name: Install dependencies
         run: npm install
@@ -54,10 +67,11 @@ jobs:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/mcp-station
           flavor: latest=false
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=${{ steps.ver.outputs.version }},enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' && inputs.image_tag == '' }}
+            type=raw,value=${{ steps.ver.outputs.version }},enable=${{ github.ref == 'refs/heads/main' && inputs.image_tag == '' }}
             type=semver,pattern={{version}}
-            type=sha,prefix=
+            type=sha,prefix=,enable=${{ inputs.image_tag == '' }}
+            type=raw,value=${{ inputs.image_tag }},enable=${{ inputs.image_tag != '' }}
 
       - name: Build and push
         uses: docker/build-push-action@v6
