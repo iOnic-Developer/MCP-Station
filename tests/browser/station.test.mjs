@@ -221,7 +221,8 @@ check('navigation focus back and module deep link', async (f) => {
   await f.login('#/connections'); assert.equal(await f.page.locator('[data-route="connections"]').getAttribute('aria-current'), 'page');
   await f.navigate('help'); assert.equal(await f.page.locator('#page-help h1').evaluate((el) => el === document.activeElement), true);
   await f.page.goBack(); await f.page.locator('#page-connections').waitFor({ state: 'visible' });
-  await f.page.locator('.connection-row').first().getByRole('link', { name: 'Find module' }).click();
+  // Connections now exposes direct controls; inbound module deep links remain supported.
+  await f.page.evaluate(() => { location.hash = '#/modules?module=sample'; });
   await f.page.locator('#page-modules').waitFor({ state: 'visible' });
   assert.equal(await f.row().evaluate((el) => el === document.activeElement || el.contains(document.activeElement)), true, 'Deep linked module not focused');
 });
@@ -333,4 +334,120 @@ check('closing editor protects an unsent assistant draft even when source is cle
   assert.match(await confirmation.innerText(), /unsent assistant draft/i);
   await confirmation.locator('[data-no]').click();
   assert.equal(await f.page.locator('#mcpChat textarea').inputValue(), 'Keep my unsent question');
+});
+
+for (const width of [1440, 768, 375]) check(`connections full-width rows ordered accessible controls ${width}`, async (f) => {
+  await f.login('#/connections');
+  const rows = f.page.locator('.connection-list .connection-row');
+  assert.equal(await rows.count(), 4);
+  assert.equal(await f.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  assert.equal(await f.page.locator('.connection-guidance').getAttribute('open'), null);
+  const geometry = await rows.evaluateAll((items) => items.map((row) => {
+    const bounds = row.getBoundingClientRect(), list = row.parentElement.getBoundingClientRect();
+    const parts = [...row.querySelector('.connection-main').children].map((el) => el.getBoundingClientRect().toJSON());
+    return { width: bounds.width, listWidth: list.width, right: bounds.right, parts, targets: [...row.querySelectorAll('button,input')].map((el) => ({ width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height, name: el.getAttribute('aria-label') })) };
+  }));
+  for (const g of geometry) {
+    assert(Math.abs(g.width - g.listWidth) < 2);
+    for (const target of g.targets) { assert(target.width >= 44 && target.height >= 44); assert(target.name); }
+    if (width === 1440) {
+      for (let i = 1; i < g.parts.length; i++) assert(g.parts[i].left >= g.parts[i - 1].right - 1);
+      assert(g.parts.every((p) => Math.abs((p.top + p.height / 2) - (g.parts[0].top + g.parts[0].height / 2)) < 2));
+      assert(Math.abs(g.parts.at(-1).right - (g.right - 19)) < 2);
+    }
+  }
+  const row = rows.first();
+  assert.deepEqual(await row.locator('[data-connection-action]').evaluateAll((els) => els.map((el) => el.dataset.connectionAction)), ['copy', 'config', 'test', 'access', 'toggle']);
+  assert.match(await row.innerText(), /1 authorized client.*authorization records/);
+  assert.match(await row.innerText(), /Module token: Configured/);
+  assert.match(await row.innerText(), /Last test: Not run/);
+  assert.equal(await row.locator('[role=switch]').evaluate((el) => getComputedStyle(el).borderRadius), '0px');
+}, { width });
+
+check('connections account uses declared nonsecret identity only', async (f) => {
+  const m = f.state.modules[0];
+  m.manifest.settings.push({ key: 'username', type: 'secret' }, { key: 'account', type: 'text' }, { key: 'email', type: 'text' }, { key: 'token', type: 'text' }, { key: 'password', type: 'text' });
+  m.settings = { ...m.settings, username: 'hidden-identity', account: { name: 'object-identity' }, email: 'person@example.invalid', password: 'hidden-password', token: 'hidden-token', apikey: 'hidden-key' };
+  await f.login('#/connections');
+  const account = f.page.locator('[data-connection-id=sample] .connection-account');
+  assert.match(await account.innerText(), /Service account · not verified[\s\S]*person@example.invalid/);
+  assert.doesNotMatch(await f.page.locator('.connection-list').innerText(), /hidden-|object-identity|\[object Object\]/);
+  m.settings.email = 'https://account.invalid/private';
+  await f.page.evaluate(() => window.dispatchEvent(new Event('station:mcps-changed')));
+  await until(async () => (await account.innerText()).includes('Not provided'), 'URL must not become an account');
+  m.manifest.settings.push({ key: 'userName', type: 'text' }); m.settings.userName = '<owner>';
+  await f.page.evaluate(() => window.dispatchEvent(new Event('station:mcps-changed')));
+  await until(async () => (await account.innerText()).includes('<owner>'), 'Declared nonsecret username missing');
+  assert.equal(await account.locator('owner').count(), 0);
+  assert.match(await f.page.locator('[data-connection-id=setup] .connection-account').innerText(), /Not provided/);
+});
+
+check('connections config access copy fallback and successful clipboard use existing routes', async (f) => {
+  await f.page.addInitScript(() => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async () => { throw new Error('denied'); } } }));
+  await f.login('#/connections');
+  const row = f.page.locator('[data-connection-id=sample]');
+  await row.locator('[data-connection-action=config]').click();
+  await f.page.locator('.drawer').waitFor();
+  assert.match(await f.page.locator('.drawer').innerText(), /Example service — configuration/);
+  await f.page.locator('.drawer [data-cancel]').click();
+  await row.locator('[data-connection-action=access]').click();
+  await f.page.locator('#connRows').waitFor();
+  assert.match(await f.page.locator('#connRows').innerText(), /Fixture desktop/);
+  await f.page.locator('dialog[open] [data-cancel]').click();
+  await row.locator('[data-connection-action=copy]').click();
+  assert.equal(await f.page.locator('#connection-copy-value').inputValue(), f.state.modules[0].url);
+  await f.page.locator('dialog[open] [data-done]').click();
+  await f.page.evaluate(() => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (value) => { window.__copiedEndpoint = value; } } }));
+  await row.locator('[data-connection-action=copy]').click();
+  await f.page.waitForFunction(() => Boolean(window.__copiedEndpoint));
+  assert.equal(await f.page.evaluate(() => window.__copiedEndpoint), f.state.modules[0].url);
+});
+
+check('connections test pending survives refresh blocks duplicates restores exact action and offline state', async (f) => {
+  await f.login('#/connections');
+  const gate = deferred(); let requests = 0;
+  f.state.handlers.set('POST /api/mcps/sample/test', async (route) => { requests++; await gate.promise; f.state.modules[0].lastTest = { ok: false, at: Date.now() }; await route.fulfill({ json: { ok: false, message: '<script>private upstream error</script>' } }); });
+  const row = f.page.locator('[data-connection-id=sample]');
+  try {
+    await row.locator('[data-connection-action=test]').click();
+    await until(() => requests === 1, 'Test missing');
+    await f.page.evaluate(() => { window.__connectionsRefreshed = false; window.addEventListener('station:data-refreshed', () => { window.__connectionsRefreshed = true; }, { once: true }); window.dispatchEvent(new Event('station:mcps-changed')); });
+    await f.page.waitForFunction(() => window.__connectionsRefreshed);
+    assert.equal(await row.locator('[data-connection-action]:disabled').count(), 5);
+    await row.locator('[data-connection-action=test]').dispatchEvent('click');
+    assert.equal(requests, 1);
+  } finally { gate.resolve(); }
+  await until(async () => !(await row.locator('[data-connection-action=test]').isDisabled()), 'Pending not released');
+  assert.equal(await row.locator('[data-connection-action=test]').evaluate((el) => el === document.activeElement), true);
+  assert.match(await row.innerText(), /Test failed/); assert.doesNotMatch(await row.innerText(), /private upstream error|<script>/);
+  await f.page.locator('[data-connection-id=disabled] [data-connection-action=config]').focus();
+  await f.page.evaluate(() => { window.__focusRefreshed = false; window.addEventListener('station:data-refreshed', () => { window.__focusRefreshed = true; }, { once: true }); window.dispatchEvent(new Event('station:mcps-changed')); });
+  await f.page.waitForFunction(() => window.__focusRefreshed);
+  assert.equal(await f.page.locator('[data-connection-id=disabled] [data-connection-action=config]').evaluate((el) => el === document.activeElement), true);
+  await f.context.setOffline(true);
+  await until(async () => await row.locator('[data-connection-action]:disabled').count() === 5, 'Offline controls still active');
+  await f.context.setOffline(false);
+  await until(async () => !(await row.locator('[data-connection-action=test]').isDisabled()), 'Online controls not restored');
+});
+
+check('connections toggle PATCH persists through refresh and safe failure rolls back', async (f) => {
+  await f.login('#/connections');
+  const row = f.page.locator('[data-connection-id=sample]'); const toggle = row.locator('[data-connection-action=toggle]');
+  const gate = deferred(); let requests = 0;
+  f.state.handlers.set('PATCH /api/mcps/sample', async (route, record) => { requests++; await gate.promise; f.state.modules[0].enabled = record.body.enabled; await route.fulfill({ json: { ok: true } }); });
+  try {
+    await toggle.uncheck(); await until(() => requests === 1, 'PATCH missing');
+    await f.page.evaluate(() => window.dispatchEvent(new Event('station:mcps-changed')));
+    await until(async () => (await row.getAttribute('aria-busy')) === 'true', 'Pending toggle lost');
+    await toggle.dispatchEvent('change'); assert.equal(requests, 1);
+  } finally { gate.resolve(); }
+  await until(async () => !(await toggle.isDisabled()), 'Toggle pending not released');
+  assert.equal(await toggle.isChecked(), false);
+  assert.deepEqual(f.state.calls.find((c) => c.method === 'PATCH' && c.path === '/api/mcps/sample').body, { enabled: false });
+  f.state.handlers.set('PATCH /api/mcps/sample', (route) => route.fulfill({ status: 500, json: { error: '<img src=x onerror=alert(1)>secret' } }));
+  await toggle.check();
+  await until(async () => (await row.innerText()).includes('Connection action failed'), 'Safe error missing');
+  assert.equal(await toggle.isChecked(), false);
+  assert.doesNotMatch(await row.innerText(), /onerror|secret/);
+  assert.equal(await row.locator('img').count(), 0);
 });

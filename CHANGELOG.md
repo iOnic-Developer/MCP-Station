@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.5.1_beta — 2026-10-17
+
+Connections is now one full-width box per module, with name, non-secret service account, endpoint and Copy followed by right-aligned Config, Test, Access and a square enable switch. Small authorization/token/test details sit underneath; guidance is folded below the list. Existing module operations are wired directly, with pending/offline guards and focused-control restoration. Seven new browser regressions; 50 browser checks and 3 contract checks pass. Static public cache advances to v3.
+
 ## 2.5.0_beta — 2026-10-16
 
 Beta product redesign: Overview, Modules, Connections, Settings and Help; original brand and app icons; self-hosted fonts; light/dark/system themes; mobile navigation; guided module operations; accessible native dialogs; draft-safe editor and streaming assistant; session teardown safeguards and public-assets-only PWA cache.

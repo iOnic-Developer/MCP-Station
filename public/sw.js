@@ -1,5 +1,5 @@
 /* PUBLIC ASSETS ONLY. No admin HTML, JavaScript, API, OAuth, MCP or credentials. */
-const VERSION = 'station-public-v2';
+const VERSION = 'station-public-v3';
 const PUBLIC_ASSETS = new Map([
   ['/assets/css/app.css', ['text/css']],
   ['/assets/css/v2.css', ['text/css']],

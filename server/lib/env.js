@@ -9,7 +9,7 @@ const trimSlash = (s) => String(s || '').replace(/\/+$/, '');
 const provider = String(process.env.ASSISTANT_PROVIDER || '').toLowerCase();
 
 export const cfg = {
-  version: '2.5.0_beta',
+  version: '2.5.1_beta',
   port: parseInt(process.env.PORT || '8788', 10),
   /** Public https base URL, no trailing slash. Enables OAuth when set. */
   publicUrl: trimSlash(process.env.PUBLIC_URL),

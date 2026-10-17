@@ -8,6 +8,7 @@ import { openStation } from './views/station.js';
 import { mountAssistant, hasSessionWork } from './assistant-shell.js';
 import { icon, destinations, titleOf, overview, connections, settings, help, inventoryNotice } from './product.js';
 import { setupPwa, requestInstall } from './pwa.js';
+import { bindConnections } from './views/connections.js';
 
 const root = document.getElementById('app');
 const ctx = { me: null, mcps: [], inventoryState: 'loading', inventoryLoaded: false, inventoryError: '', refresh: refreshData };
@@ -75,6 +76,8 @@ function clearSession() {
   ctx.inventoryError = '';
   pendingModuleLink = null;
   delete ctx.listState;
+  ctx.connectionPending = new Set();
+  ctx.connectionFeedback = new Map();
   scrollPositions.clear();
   shell = null;
   currentRoute = '';
@@ -206,6 +209,7 @@ function capturePageFocus() {
   const active = document.activeElement;
   const page = active?.closest('#page-overview, #page-connections, #page-settings');
   if (!page || modalOwnsFocus()) return null;
+  if (active.dataset.connectionAction) return { page, active, connectionId: active.closest('[data-connection-id]')?.dataset.connectionId, connectionAction: active.dataset.connectionAction };
   const key = ['id', 'href', 'data-action'].find((attr) => active.hasAttribute(attr));
   if (!key) return null;
   return { page, active, key, value: active.getAttribute(key), start: active.selectionStart, end: active.selectionEnd, direction: active.selectionDirection };
@@ -213,7 +217,9 @@ function capturePageFocus() {
 function restorePageFocus(saved) {
   if (!saved || saved.page.hidden || modalOwnsFocus()) return;
   if (document.activeElement !== document.body && document.activeElement !== saved.active) return;
-  const target = [...saved.page.querySelectorAll(`[${saved.key}]`)].find((el) => el.getAttribute(saved.key) === saved.value);
+  const target = saved.connectionId
+    ? [...saved.page.querySelectorAll('[data-connection-id]')].find((el) => el.dataset.connectionId === saved.connectionId)?.querySelector(`[data-connection-action="${saved.connectionAction}"]`)
+    : [...saved.page.querySelectorAll(`[${saved.key}]`)].find((el) => el.getAttribute(saved.key) === saved.value);
   if (!target || target.disabled) return;
   target.focus({ preventScroll: true });
   if (typeof saved.start === 'number' && target.setSelectionRange) {
@@ -224,6 +230,7 @@ function updatePageData() {
   const focused = capturePageFocus();
   document.getElementById('page-overview').innerHTML = overview(ctx);
   document.getElementById('page-connections').innerHTML = connections(ctx);
+  bindConnections(document.getElementById('page-connections'), ctx);
   document.getElementById('page-settings').innerHTML = settings(ctx);
   if (!document.getElementById('page-help').hasChildNodes()) document.getElementById('page-help').innerHTML = help();
   // Only this library subtree is replaced; editors, dialogs and the assistant live outside it.
@@ -281,3 +288,6 @@ function route(initial = false) {
 try { localStorage.removeItem('station.chat.v1'); } catch { /* no browser storage required */ }
 setupPwa();
 boot();
+
+window.addEventListener('online', () => { if (shell) updatePageData(); });
+window.addEventListener('offline', () => { if (shell) updatePageData(); });
