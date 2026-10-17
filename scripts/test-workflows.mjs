@@ -72,7 +72,7 @@ async function api(url, method = 'GET', data) {
 }
 async function go(hash, selector) {
   await page.evaluate((h) => { location.hash = h; }, hash);
-  await until(() => page.evaluate((h) => location.hash === h, hash));
+  await until(() => page.evaluate((h) => location.hash === (h === '#/connect' ? '#/integrations' : h), hash));
   await pause(120);
   if (selector) await page.locator(selector).first().waitFor();
 }
@@ -185,7 +185,7 @@ try {
   await page.getByLabel('Station password', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await page.locator('#codeArea').waitFor();
-  const routes = { overview: 'Overview', integrations: 'Integrations', connect: 'Connections', assistant: 'Assistant', settings: 'Settings', backups: 'Backups & portability' };
+  const routes = { overview: 'Overview', integrations: 'Integrations', create: 'Create integration', settings: 'Settings', backups: 'Backups & portability' };
   for (const [route, title] of Object.entries(routes)) {
     await check(`Route ${route}: real content, title, active navigation and labels`, async () => {
       await go(`#/${route}`); await page.getByRole('heading', { level: 1, name: title, exact: true }).waitFor();
@@ -199,11 +199,11 @@ try {
   }
   await go('#/integrations', '[data-id]');
   for (const width of [375, 768, 1440]) {
-    await check(`Cards ${width}px: equal heights with long descriptions and no overflow`, async () => {
+    await check(`Cards ${width}px: independent account rows with no overflow`, async () => {
       await page.setViewportSize({ width, height: 1000 }); await pause(150);
       const heights = await page.locator('.integration-card:visible').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().height));
       evidence[`cardHeights${width}`] = heights;
-      assert.equal(heights.length, 12); assert(Math.max(...heights) - Math.min(...heights) <= 1);
+      assert.equal(heights.length, 12); assert(heights.every((height) => height >= 44), 'Each account row has usable touch height');
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     });
     await check(`Cards ${width}px: Copy endpoint is upfront without details`, async () => {
@@ -267,19 +267,18 @@ try {
   await check('Account settings: axe serious/critical', () => audit('account-settings'));
   await screenshot('account-settings');
   await check('Connections dropdown and Copy use selected endpoint', async () => {
-    await go('#/connect', '[data-source]'); const row = page.locator(`[data-source=${sourceId}]`);
-    await row.locator('[data-account]').selectOption(accountB.id);
+    await go('#/integrations', '[data-source]'); const row = page.locator(`[data-id="${accountB.id}"]`);
     const endpoint = await row.locator('.endpoint code').innerText(); assert.match(endpoint, new RegExp(`/${accountB.id}/mcp$`));
     await row.locator('[data-copy]').click(); await clipboardEquals(endpoint); await noDialog();
   });
   await check('Connections Test calls selected account and shows actual result', async () => {
-    const row = page.locator(`[data-source=${sourceId}]`);
+    const row = page.locator(`[data-id="${accountB.id}"]`);
     const response = page.waitForResponse((r) => r.url().endsWith(`/api/mcps/${accountB.id}/test`));
     await row.locator('[data-test]').click(); assert((await (await response).json()).ok);
-    await until(async () => (await page.locator(`[data-source=${sourceId}] [data-result]`).innerText()).includes('Work fixture'));
+    await until(async () => (await page.locator(`[data-id="${accountB.id}"] [data-result]`).innerText()).includes('Work fixture'));
   });
   await check('Connections Configure opens selected account full page', async () => {
-    await page.locator(`[data-source=${sourceId}]`).getByRole('link', { name: 'Configure', exact: true }).click();
+    await page.locator(`[data-id="${accountB.id}"]`).getByRole('link', { name: 'Configure', exact: true }).click();
     await page.locator('#setForm').waitFor(); assert.equal(await surface().locator('[name=account]').inputValue(), 'Work fixture'); await noDialog();
   });
   await check('Library Back preserves search, filter and real nonzero scroll', async () => {
@@ -532,7 +531,7 @@ try {
       for (const [route, title] of Object.entries(routes)) {
         await page.getByRole('button', { name: 'Open navigation', exact: true }).click();
         const menu = page.locator('dialog[open] .mobile-nav'); await menu.waitFor();
-        assert.equal(await menu.locator('a').count(), 6);
+        assert.equal(await menu.locator('a').count(), 5);
         for (const label of Object.values(routes)) assert(await menu.getByRole('link', { name: label, exact: true }).isVisible());
         await menu.getByRole('link', { name: title, exact: true }).click(); await noDialog();
         await until(() => page.evaluate((h) => location.hash === h, '#/' + route));
@@ -550,23 +549,23 @@ try {
     assert.equal(baseline.tone, ['forest', 'ocean', 'plum', 'slate'][hash % 4]);
     assert.equal(await page.locator('[data-id="qa-card-01"] .service-category').innerText(), 'Custom integration');
     assert.equal(await page.locator('[data-id="qa-card-01"] .service-monogram').innerText(), 'QC');
-    await card().locator('[data-account]').selectOption(accountB.id); assert.deepEqual(await identity(), baseline);
-    const enabled = (await api('/mcps')).mcps.find((m) => m.id === sourceId).instances.find((a) => a.id === accountB.id).enabled;
+    assert.equal(await page.locator(`[data-id="${sourceId}"] .service-monogram`).innerText(), baseline.monogram);
+    const enabled = (await api('/mcps')).mcps.find((m) => m.id === sourceId).instances.find((a) => a.id === sourceId).enabled;
     try {
-      const patched = page.waitForResponse((r) => r.request().method() === 'PATCH' && r.url().endsWith(`/api/mcps/${accountB.id}`));
+      const patched = page.waitForResponse((r) => r.request().method() === 'PATCH' && r.url().endsWith(`/api/mcps/${sourceId}`));
       await card().locator('[data-toggle]').click(); assert((await patched).ok()); await pause(180); assert.deepEqual(await identity(), baseline);
-      const tested = page.waitForResponse((r) => r.url().endsWith(`/api/mcps/${accountB.id}/test`));
+      const tested = page.waitForResponse((r) => r.url().endsWith(`/api/mcps/${sourceId}/test`));
       await card().locator('[data-test]').click(); assert((await tested).ok()); await pause(180); assert.deepEqual(await identity(), baseline);
       for (const theme of ['dark', 'light']) {
         await page.evaluate((t) => { document.documentElement.dataset.theme = t; }, theme);
         for (const width of [375, 768, 1440]) {
           await page.setViewportSize({ width, height: 1000 }); await pause(100);
           const heights = await page.locator('.integration-card:visible').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().height));
-          assert.equal(heights.length, 12); assert(Math.max(...heights) - Math.min(...heights) <= 1); assert.deepEqual(await identity(), baseline);
+          assert.equal(heights.length, 14); assert(heights.every((height) => height >= 44), 'Independent account metadata may wrap without clipping'); assert.deepEqual(await identity(), baseline);
           assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
         }
       }
-    } finally { await api(`/mcps/${accountB.id}`, 'PATCH', { enabled }); }
+    } finally { await api(`/mcps/${sourceId}`, 'PATCH', { enabled }); }
   });
   for (const theme of ['light', 'dark']) await check(`Navigation collapsed ${theme}: axe serious/critical`, async () => {
     await page.setViewportSize({ width: 1440, height: 1000 }); await page.evaluate((t) => { document.documentElement.dataset.theme = t; }, theme);

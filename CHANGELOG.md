@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.7.2_beta — 2026-10-17
+
+- Based on 2.7.1: retain all five appearance styles, sidebar preferences, independent accounts, usage and bundled modules.
+- One Integrations page now shows an independent row per account with endpoint copy, Configure, Test, Access and square enable control. Legacy `#/connect` redirects here.
+- Replace primary Assistant navigation with Create integration: one required service field, optional goal/documentation, real AI authoring through the existing configured provider/model, no AI settings changes.
+- Create sources disabled before load; show actual streamed tool output, retain drafts and running streams across routes, retry on the same source, then review/configure/test explicitly. Manual creation and installed-service account reuse remain secondary options.
+- Add isolated real-server/browser regression coverage and keep it in PR CI. No image publication or deployment in this change.
+
 ## 2.7.1 — 2026-10-17
 
 - Appearance moves to the bottom of the sidebar: a System / Light / Dark choice replaces the top-bar toggle.

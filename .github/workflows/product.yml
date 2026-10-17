@@ -37,7 +37,7 @@ jobs:
       - name: Test end-user workflows and accessibility
         env:
           QA_SCREENSHOT_DIR: ${{ runner.temp }}/station-workflow-qa
-        run: npm run test:workflows
+        run: npm run test:workflows && npm run test:simple-create
       - name: Audit public product page
         env:
           PRODUCT_BROWSER_MODULE: ${{ github.workspace }}/node_modules/playwright/index.mjs

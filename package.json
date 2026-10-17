@@ -1,6 +1,6 @@
 {
   "name": "mcp-station",
-  "version": "2.7.1",
+  "version": "2.7.2-beta.1",
   "description": "Self-hosted hub that serves, configures and builds MCP servers \u2014 each hosted at its own path, with OAuth 2.1, a built-in multi-provider assistant, and import/export/backup.",
   "type": "module",
   "main": "server/index.js",
@@ -19,7 +19,8 @@
     "test:workflows": "node scripts/test-workflows.mjs",
     "test:bundled": "node scripts/test-bundled.mjs",
     "test:configuration": "node scripts/test-configuration.mjs",
-    "test:product-page": "REQUIRE_PRODUCT_SCREENSHOT=1 node scripts/test-product-page.mjs"
+    "test:product-page": "REQUIRE_PRODUCT_SCREENSHOT=1 node scripts/test-product-page.mjs",
+    "test:simple-create": "node scripts/test-simple-create.mjs"
   },
   "engines": {
     "node": ">=20"

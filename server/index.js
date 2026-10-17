@@ -143,8 +143,14 @@ api.get('/mcps', (req, res) => res.json({ mcps: mcpListing(req) }));
 
 api.post('/mcps', async (req, res) => {
   try {
-    const { name, slug, description, icon } = req.body || {};
+    const { name, slug, description, icon, enabled } = req.body || {};
+    if (enabled !== undefined && typeof enabled !== 'boolean') return res.status(400).json({ error: 'enabled must be a boolean' });
     const created = host.createModule({ name, slug, description, icon });
+    // Register explicit draft state before loading: no discoverable enabled window.
+    if (enabled === false) {
+      getState().mcps[created.id] = { id: created.id, enabled: false, settings: {}, token: '', createdAt: new Date().toISOString() };
+      persist();
+    }
     await host.loadModules();
     res.status(201).json({ ok: true, ...created });
   } catch (e) { res.status(400).json({ error: e.message }); }
