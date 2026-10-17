@@ -210,6 +210,23 @@ try {
       assert(await card().locator('[data-copy]').isVisible()); assert.equal(await card().locator('details').count(), 0);
       const endpoint = await card().locator('.endpoint code').innerText(); await card().locator('[data-copy]').click(); await clipboardEquals(endpoint); await noDialog();
     });
+    await check(`Cards ${width}px: icon controls, one-line tests and unified vertical switch`, async () => {
+      const row = card();
+      const sizes = await row.locator('.row-icon-action,.client-count-box,.vertical-enable').evaluateAll(els => els.map(el => ({w:el.getBoundingClientRect().width,h:el.getBoundingClientRect().height})));
+      assert.equal(sizes.length,5); assert(sizes.every(r=>r.w===44 && r.h===44));
+      assert.equal(await row.getByRole('link',{name:/^Access/}).count(),0);
+      assert.equal(await row.locator('.status-pill').filter({hasText:/^Enabled$|^Disabled$/}).count(),0);
+      assert.equal(await row.getByRole('link',{name:'Repair, tweak or add to MCP',exact:true}).count(),1);
+      for(const control of await row.locator('.row-icon-action').all()) {
+        assert.equal((await control.innerText()).trim(),''); assert(await control.getAttribute('aria-label'));
+      }
+      const summary = row.locator('[data-result]');
+      await summary.evaluate(el=>{el.textContent='Long test result with extra details '.repeat(30);el.title=el.textContent;});
+      assert(await summary.evaluate(el=>getComputedStyle(el).whiteSpace==='nowrap' && el.getBoundingClientRect().height<=parseFloat(getComputedStyle(el).lineHeight)+1));
+      assert.match(await row.locator('.client-count-box').getAttribute('aria-label'),/authorized clients/);
+      const positions = await row.locator('.vertical-enable').evaluate(el=>{const face=el.querySelector('.vertical-switch-face').getBoundingClientRect(), thumb=el.querySelector('.vertical-switch-thumb').getBoundingClientRect();return {up:thumb.top-face.top,checked:el.querySelector('input').checked}});
+      assert(positions.checked ? positions.up<10 : positions.up>20);
+    });
     await check(`Cards ${width}px: axe serious/critical`, () => audit(`cards-${width}`));
     await screenshot(`cards-${width}`);
   }
@@ -412,7 +429,7 @@ try {
     await go('#/integrations', '[data-id]');
     await page.locator('[data-filter=all]').click();
     await page.locator('[data-search-clear]').click();
-    const link = card().getByRole('link', {name: 'Ask assistant', exact:true});
+    const link = card().getByRole('link', {name: 'Repair, tweak or add to MCP', exact:true});
     assert(await link.isVisible());
     await link.click(); await page.locator('[data-module-assistant] textarea').waitFor();
     assert.match(await page.evaluate(() => location.hash), /\/assistant/);

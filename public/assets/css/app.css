@@ -2235,3 +2235,29 @@ body.sidebar-collapsed .sidebar .appearance { display:none; }
 .ai-build-page details>summary { cursor:pointer; padding-block:12px; }
 @media(max-width:1100px) { .account-rows .integration-card { grid-template-columns:minmax(0,1fr) minmax(0,1fr); } .account-rows .test-summary { grid-column:1 / -1; } .account-rows .card-assistant { grid-column:1 / -1; grid-row:auto; justify-self:start; } .account-rows .card-footer { grid-column:1 / -1; grid-row:auto; } }
 @media(max-width:600px) { .account-rows .integration-card { grid-template-columns:minmax(0,1fr); } .account-rows .test-summary,.account-rows .card-footer { grid-column:1; } .ai-build-page .panel { padding:16px; } }
+
+/* Compact account controls: one visual size, one enable state, no duplicate Access link. */
+.account-rows .row-icon-action,
+.account-rows .client-count-box,
+.account-rows .vertical-enable { box-sizing:border-box; width:44px; height:44px; min-width:44px; min-height:44px; padding:0; margin:0; flex:0 0 44px; border:1px solid var(--border-2); border-radius:4px; display:inline-flex; align-items:center; justify-content:center; background:var(--panel-2); color:var(--text); }
+.account-rows .row-icon-action .icon { width:20px; height:20px; }
+.account-rows .client-count-box { gap:3px; font-size:12px; font-variant-numeric:tabular-nums; }
+.account-rows .client-count-box .icon { width:17px; height:17px; flex-shrink:0; }
+.account-rows .integration-primary { flex-wrap:nowrap; justify-content:flex-end; }
+.account-rows .vertical-enable { position:relative; overflow:visible; cursor:pointer; border:0; }
+.account-rows .vertical-enable input { position:absolute; inset:0; opacity:0; width:44px; height:44px; margin:0; z-index:1; cursor:pointer; }
+.account-rows .vertical-switch-face { position:relative; width:44px; height:44px; border:1px solid var(--border-2); border-radius:4px; background:var(--panel-2); display:block; }
+.account-rows .vertical-switch-thumb { position:absolute; top:22px; left:3px; width:36px; height:17px; background:var(--border-2); border-radius:2px; display:flex; align-items:center; justify-content:center; transition:transform .14s ease; }
+.account-rows .vertical-switch-thumb .icon { width:12px; height:12px; visibility:hidden; }
+.account-rows .vertical-switch-off { position:absolute; left:16px; top:3px; display:block; color:var(--muted); }
+.account-rows .vertical-switch-off .icon { width:12px; height:12px; }
+.account-rows .vertical-enable input:checked + .vertical-switch-face { border-color:var(--accent); background:var(--accent-soft); }
+.account-rows .vertical-enable input:checked + .vertical-switch-face .vertical-switch-thumb { transform:translateY(-19px); background:var(--accent); color:#fff; }
+.account-rows .vertical-enable input:checked + .vertical-switch-face .vertical-switch-thumb .icon { visibility:visible; }
+.account-rows .vertical-enable input:checked + .vertical-switch-face .vertical-switch-off { display:none; }
+.account-rows .vertical-enable input:focus-visible + .vertical-switch-face { outline:3px solid var(--focus); outline-offset:3px; }
+.account-rows .vertical-enable:has(input:disabled) { opacity:.5; cursor:not-allowed; }
+.account-rows .test-summary { min-width:0; max-width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.5; display:block; }
+.account-rows .card-assistant { grid-column:3 / -1; }
+@media(max-width:1100px) { .account-rows .card-assistant { grid-column:1 / -1; } .account-rows .integration-primary { justify-content:flex-start; } }
+@media(prefers-reduced-motion:reduce) { .account-rows .vertical-switch-thumb { transition:none; } }

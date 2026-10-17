@@ -152,7 +152,7 @@ async function regression() {
     const account = (await api(`/mcps/${id}/instances`, 'POST', {name:'Second account'})).instance;
     await page.reload(); await page.locator('[data-id="' + account.id + '"]').waitFor();
     check(await page.locator('[data-source="' + id + '"]').count() === 2, 'One row per account, not source dropdown');
-    check(await page.locator('[data-id="' + account.id + '"] a[href*="account=' + account.id + '"]').count() >= 2, 'Account-specific Configure and Access links');
+    check(await page.locator('[data-id="' + account.id + '"] a[href*="account=' + account.id + '"]').count() >= 2, 'Account-specific Configure and repair links');
     await page.goto(lab.base + '/#/create'); await page.locator('#buildName').waitFor();
     await page.locator('#buildName').fill('Retry fixture');
     // Force a transport failure, then resume the same source without another POST.

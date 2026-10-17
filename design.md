@@ -75,3 +75,10 @@ No paid/live model quality, real third-party credentials or production service
 connectivity tested. GitHub CI status is reported in the PR/hand-off, not assumed.
 
 Product page: static contracts and explicit Playwright/axe browser audit passed.
+
+
+## 2026-10-17 — Integration row refinement
+
+Revision 2.7.3_beta refines the deployed latest-base 2.7.2_beta implementation, not the obsolete 2.5.x branch. Copy/Configure/Test are equally sized icon-only controls with accessible names and titles. The redundant Access row link is removed without removing workspace access management. A matching client count box replaces it, explicitly labelled as authorized records rather than online presence. One square native checkbox switch moves its face vertically and exposes enabled state, removing duplicate On and Enabled UI. Error/setup badges remain important diagnostic information. Account chat now reads Repair, tweak or add to MCP. Long test text stays on one line with ellipsis; full text remains in the DOM and tooltip.
+
+Regression checks assert control dimensions, icon-only accessible labels, no Access shortcut, no redundant Enabled/Disabled badge, updated assistant label, vertical thumb positions, one-line long results and responsive overflow at 375/768/1440. Full workflow101 and creation83 assertions pass with 26 axe audits; no AI configuration is modified.

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.7.3_beta — 2026-10-17
+
+- Integration rows use uniform 44px icon-only Copy, Configure and Test actions with accessible labels and tooltips. Remove the duplicate Access shortcut; access controls remain available inside the workspace.
+- Replace On/Off text and redundant Enabled/Disabled badges with one square vertical switch: up enabled, down disabled, keyboard-operable. Preserve setup/error warnings.
+- Add a matching client-icon/count box in the former Access position; counts are authorized-client records, not a live-presence claim.
+- Rename the account assistant shortcut to Repair, tweak or add to MCP. Test summaries are single-line with ellipsis and full tooltip.
+- Verified 101 workflow checks, 26 axe audits, 83 AI-creation assertions, frontend syntax and PWA checks. No AI provider/settings changes.
+
 ## 2.7.2_beta — 2026-10-17
 
 - Based on 2.7.1: retain all five appearance styles, sidebar preferences, independent accounts, usage and bundled modules.
