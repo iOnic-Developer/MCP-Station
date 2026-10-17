@@ -2267,3 +2267,9 @@ body.sidebar-collapsed .sidebar .appearance { display:none; }
 .account-rows .card-assistant { grid-column:3 / -1; }
 @media(max-width:1100px) { .account-rows .card-assistant { grid-column:1 / -1; } .account-rows .integration-primary { justify-content:flex-start; } }
 @media(prefers-reduced-motion:reduce) { .account-rows .vertical-switch-thumb { transition:none; } }
+
+/* A single repair action with a dedicated icon compartment and visible divider. */
+.account-rows .card-assistant .repair-action { width:auto; max-width:100%; padding:0; display:inline-flex; align-items:stretch; min-height:44px; white-space:normal; text-decoration:none; }
+.repair-action-icon { flex:0 0 44px; display:flex; align-items:center; justify-content:center; border-right:1px solid var(--border-2); }
+.repair-action-icon svg.icon { display:inline-block; width:20px; height:20px; }
+.repair-action-text { display:flex; align-items:center; padding:10px 14px; min-width:0; text-align:left; }

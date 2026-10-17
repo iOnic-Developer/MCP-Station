@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.7.5_beta — 2026-10-17
+
+- Installation footer surface, text, borders and interaction colours follow selected application appearance tokens in all five light/dark styles, rather than hardcoded light colours.
+- Repair action is a single bordered button-style link with an icon compartment, vertical divider and text, retaining correct navigation semantics.
+- Public PWA cache advances to v5-beta-275 for the updated cached stylesheet. 105 workflow checks and 26 axe audits passed; regressions verify footer palette pairing and repair icon/divider at 375/768/1440.
+
 ## 2.7.4_beta — 2026-10-17
 
 - Fix legacy CSS hiding Configure/Test SVGs; regression checks now verify rendered icons, not merely button size.

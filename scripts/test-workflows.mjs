@@ -272,6 +272,10 @@ try {
       assert.equal(await row.getByRole('link',{name:/^Access/}).count(),0);
       assert.equal(await row.locator('.status-pill').filter({hasText:/^Enabled$|^Disabled$/}).count(),0);
       assert.equal(await row.getByRole('link',{name:'Repair, tweak or add to MCP',exact:true}).count(),1);
+      const repair = row.getByRole('link',{name:'Repair, tweak or add to MCP',exact:true});
+      assert(await repair.evaluate(el=>el.classList.contains('btn') && el.getBoundingClientRect().height>=44));
+      assert(await repair.locator('.repair-action-icon').evaluate(el=>parseFloat(getComputedStyle(el).borderRightWidth)>=1));
+      assert(await repair.locator('svg').isVisible());
       for(const control of await row.locator('.row-icon-action').all()) {
         assert.equal((await control.innerText()).trim(),''); assert(await control.getAttribute('aria-label'));
       }
@@ -292,6 +296,21 @@ try {
     await screenshot(`cards-${width}`);
   }
   await page.setViewportSize({ width: 1440, height: 1000 });
+  await check('Install footer follows all ten selected appearance palettes', async () => {
+    const previous=await page.evaluate(()=>({theme:document.documentElement.dataset.theme,style:document.documentElement.dataset.style}));
+    await page.evaluate(()=>window.dispatchEvent(new Event('offline')));
+    try {
+      for (const theme of ['light','dark']) for(const style of ['default','mono','paper','moderno','ocean']) {
+        await page.evaluate(({theme,style})=>{document.documentElement.dataset.theme=theme;document.documentElement.dataset.style=style;},{theme,style});
+        assert(await page.locator('.station-pwa').evaluate(el=>{
+          const probe=document.createElement('span');probe.style.background='var(--panel)';probe.style.color='var(--text)';el.append(probe);
+          const matches=getComputedStyle(el).backgroundColor===getComputedStyle(probe).backgroundColor && getComputedStyle(el).color===getComputedStyle(probe).color;probe.remove();return matches;
+        }));
+      }
+    } finally {
+      await page.evaluate(({theme,style})=>{document.documentElement.dataset.theme=theme;document.documentElement.dataset.style=style;window.dispatchEvent(new Event('online'));},previous);
+    }
+  });
   await check('Client and tool count links open the selected account workspace tabs', async () => {
     await card().getByRole('link', { name: /authorized clients — view activity/ }).click();
     await page.locator('[data-usage-body] .stats-grid').waitFor();

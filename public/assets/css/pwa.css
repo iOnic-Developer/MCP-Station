@@ -21,17 +21,17 @@
 }
 .station-skip-link:focus { transform: none; }
 .station-pwa {
-  --pwa-surface: #f7f8fa;
-  --pwa-ink: #161c24;
-  --pwa-muted: #46515e;
-  --pwa-line: #c9d1d5;
-  --pwa-accent: #087f70;
+  --pwa-surface: var(--panel, #f7f8fa);
+  --pwa-ink: var(--text, #161c24);
+  --pwa-muted: var(--muted, #46515e);
+  --pwa-line: var(--border-2, #c9d1d5);
+  --pwa-accent: var(--accent, #087f70);
   box-sizing: border-box;
   /* In normal flow: no overlays on editors, dialogs, or the assistant launcher. */
   margin: 16px max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   padding: 12px 16px;
   border: 1px solid var(--pwa-line);
-  border-radius: 12px;
+  border-radius: 4px;
   background: var(--pwa-surface);
   color: var(--pwa-ink);
   font: 500 0.875rem/1.6 'Plus Jakarta Sans', system-ui, sans-serif;
@@ -50,7 +50,7 @@
   max-width: 100%;
   padding: 10px 16px;
   border: 1px solid var(--pwa-line, #c9d1d5);
-  border-radius: 7px;
+  border-radius: 4px;
   background: var(--pwa-surface, #f7f8fa);
   color: var(--pwa-ink, #161c24);
   font: 600 0.875rem/1.5 'Plus Jakarta Sans', system-ui, sans-serif;
@@ -63,10 +63,10 @@
 .station-pwa-primary { background: var(--pwa-accent, #087f70); border-color: var(--pwa-accent, #087f70); color: #fff; }
 .station-pwa-dismiss { border-color: transparent; color: var(--pwa-muted); }
 .station-pwa-button:hover { border-color: var(--pwa-accent, #087f70); }
-.station-pwa-primary:hover { background: #06685c; border-color: #06685c; }
-.station-pwa-button:active { background: #e0e9e6; color: #161c24; }
+.station-pwa-primary:hover { background: var(--accent-hover, #06685c); border-color: var(--accent-hover, #06685c); }
+.station-pwa-button:active { background: var(--accent-soft, #e0e9e6); color: var(--pwa-ink, #161c24); }
 .station-pwa-button:disabled { opacity: 0.65; cursor: wait; }
-.station-pwa-button:focus-visible, .station-skip-link:focus-visible { outline: 3px solid #087f70; outline-offset: 4px; }
+.station-pwa-button:focus-visible, .station-skip-link:focus-visible { outline: 3px solid var(--focus, #087f70); outline-offset: 4px; }
 .station-pwa-details { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--pwa-line); max-width: 70ch; }
 .station-pwa-details p { margin: 0 0 12px; }
 
