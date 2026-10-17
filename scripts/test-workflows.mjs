@@ -72,7 +72,7 @@ async function api(url, method = 'GET', data) {
 }
 async function go(hash, selector) {
   await page.evaluate((h) => { location.hash = h; }, hash);
-  await until(() => page.evaluate((h) => location.hash === h, hash));
+  await until(() => page.evaluate((h) => location.hash === (h === '#/connect' ? '#/integrations' : h), hash));
   await pause(120);
   if (selector) await page.locator(selector).first().waitFor();
 }
@@ -130,11 +130,66 @@ async function rpc(id, token, method = 'tools/call', params = { name: 'qa_echo',
 
 try {
   await mkdir(output, { recursive: true });
+  await check('Tool count scheduler: cap, reuse, cache TTL, failures, stale render and auth cleanup', async () => {
+    const { renderToolCounts } = await import('../public/assets/js/views/toolCounts.js');
+    const originalFetch = globalThis.fetch, originalWindow = globalThis.window;
+    const events = new EventTarget(), pending = [];
+    let active = 0, peak = 0;
+    globalThis.window = events;
+    globalThis.fetch = (url, options) => new Promise((resolve, reject) => {
+      active++; peak = Math.max(peak, active);
+      let settled = false;
+      const settle = (fn, value) => { if (!settled) { settled = true; active--; fn(value); } };
+      options.signal.addEventListener('abort', () => settle(reject, new Error('aborted')), { once: true });
+      pending.push({ url, options, reply: (tools, ok = true, status = 200) => settle(resolve, { ok, status, json: async () => ({ tools }) }) });
+    });
+    const makeRoot = (ids) => {
+      const links = new Map(ids.map(id => [id, { text: '—', attrs: {}, querySelector() { return { set textContent(value) { links.get(id).text = value; } }; }, setAttribute(k,v) { this.attrs[k] = v; } }]));
+      return { isConnected: true, links, querySelectorAll: () => [...links].map(([id,link]) => ({ dataset: { id }, querySelector: () => link })) };
+    };
+    const rows = ['a','b','c'].map(id => ({ m: { id, manifest: {} } }));
+    const ctx = { me: { authed: true } }, root = makeRoot(['a','b','c']);
+    const flush = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
+    try {
+      renderToolCounts(root, ctx, rows); assert.equal(pending.length, 2);
+      ctx.me = { authed: true }; renderToolCounts(root, ctx, rows);
+      assert.equal(pending.length, 2); // Refresh must reuse the two active requests.
+      pending[0].reply([{}, {}]); await flush(); assert.equal(pending.length, 3);
+      pending[1].reply([], false, 500); pending[2].reply([]); await flush();
+      assert.equal(peak, 2); assert.equal(root.links.get('a').text, '2');
+      assert.equal(root.links.get('b').text, '—'); assert.equal(root.links.get('c').text, '0');
+      renderToolCounts(root, ctx, rows); assert.equal(pending.length, 4); // Only failed b retries.
+      pending[3].reply([{}]); await flush();
+      renderToolCounts(root, ctx, rows); assert.equal(pending.length, 4);
+      ctx.toolCounts.cache.get('a').at -= 60001;
+      renderToolCounts(root, ctx, rows); assert.equal(pending.length, 5);
+      // A reused, still-connected root belongs to a new render; old account results cannot apply.
+      root.links.delete('a'); renderToolCounts(root, ctx, [{ m: { id: 'b', manifest: {} } }]);
+      pending[4].reply([{}, {}, {}]); await flush(); assert.equal(root.links.get('b').text, '1');
+      const broken = makeRoot(['broken']);
+      renderToolCounts(broken, ctx, [{ m: { id: 'broken', manifest: {}, error: 'broken' } }]);
+      assert.equal(pending.length, 5); assert.equal(broken.links.get('broken').text, '—');
+      const next = makeRoot(['a']); renderToolCounts(next, ctx, [rows[0]]);
+      assert.equal(pending.length, 6);
+      events.dispatchEvent(new Event('station:unauthed')); await flush();
+      assert.equal(ctx.toolCounts.cache.size, 0); assert.equal(ctx.toolCounts.jobs.size, 0);
+      assert.equal(ctx.toolCounts.current, null); assert.equal(active, 0);
+      assert(pending[5].options.signal.aborted);
+      renderToolCounts(next, ctx, [rows[0]]); assert.equal(pending.length, 7);
+      pending[6].reply([{}]); await flush(); assert.equal(next.links.get('a').text, '1');
+      assert(pending.every(p => p.options.cache === 'no-store' && p.options.credentials === 'same-origin' && p.url.endsWith('/capabilities')));
+    } finally {
+      events.dispatchEvent(new Event('station:unauthed')); await flush();
+      globalThis.fetch = originalFetch;
+      if (originalWindow === undefined) delete globalThis.window; else globalThis.window = originalWindow;
+    }
+  });
   temp = await mkdtemp(path.join(tmpdir(), 'station-workflows-'));
   const mcps = path.join(temp, 'mcps'); await mkdir(mcps);
   await writeFile(path.join(temp, 'package.json'), '{"type":"module"}');
   const code = `export function register({server,z,getSettings}) {
     server.registerTool('qa_echo',{description:'Local fixture only',inputSchema:{fail:z.boolean().default(false),text:z.string().default('public echo')}},async ({fail,text})=>({content:[{type:'text',text:getSettings().account+':'+text}],isError:fail}));
+    if (getSettings().account === 'Work fixture') server.registerTool('qa_work_only',{description:'Account-dependent registration fixture',inputSchema:{}},async ()=>({content:[{type:'text',text:'Work fixture'}]}));
   }
   export async function test(settings) {return {ok:!!settings.secret && !!settings.account,message:'Local account '+settings.account};}\n`;
   for (let i = 0; i < 12; i++) {
@@ -185,7 +240,7 @@ try {
   await page.getByLabel('Station password', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await page.locator('#codeArea').waitFor();
-  const routes = { overview: 'Overview', integrations: 'Integrations', connect: 'Connections', assistant: 'Assistant', settings: 'Settings', backups: 'Backups & portability' };
+  const routes = { overview: 'Overview', integrations: 'Integrations', create: 'Create integration', settings: 'Settings', backups: 'Backups & portability' };
   for (const [route, title] of Object.entries(routes)) {
     await check(`Route ${route}: real content, title, active navigation and labels`, async () => {
       await go(`#/${route}`); await page.getByRole('heading', { level: 1, name: title, exact: true }).waitFor();
@@ -199,21 +254,76 @@ try {
   }
   await go('#/integrations', '[data-id]');
   for (const width of [375, 768, 1440]) {
-    await check(`Cards ${width}px: equal heights with long descriptions and no overflow`, async () => {
+    await check(`Cards ${width}px: independent account rows with no overflow`, async () => {
       await page.setViewportSize({ width, height: 1000 }); await pause(150);
       const heights = await page.locator('.integration-card:visible').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().height));
       evidence[`cardHeights${width}`] = heights;
-      assert.equal(heights.length, 12); assert(Math.max(...heights) - Math.min(...heights) <= 1);
+      assert.equal(heights.length, 12); assert(heights.every((height) => height >= 44), 'Each account row has usable touch height');
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     });
     await check(`Cards ${width}px: Copy endpoint is upfront without details`, async () => {
       assert(await card().locator('[data-copy]').isVisible()); assert.equal(await card().locator('details').count(), 0);
       const endpoint = await card().locator('.endpoint code').innerText(); await card().locator('[data-copy]').click(); await clipboardEquals(endpoint); await noDialog();
     });
+    await check(`Cards ${width}px: icon controls, one-line tests and unified vertical switch`, async () => {
+      const row = card();
+      const sizes = await row.locator('.row-icon-action,.client-count-box,.tool-count-box,.vertical-enable').evaluateAll(els => els.map(el => ({w:el.getBoundingClientRect().width,h:el.getBoundingClientRect().height})));
+      assert.equal(sizes.length,6); assert(sizes.every(r=>r.w===44 && r.h===44));
+      assert.equal(await row.getByRole('link',{name:/^Access/}).count(),0);
+      assert.equal(await row.locator('.status-pill').filter({hasText:/^Enabled$|^Disabled$/}).count(),0);
+      assert.equal(await row.getByRole('link',{name:'Repair, tweak or add to MCP',exact:true}).count(),1);
+      const repair = row.getByRole('link',{name:'Repair, tweak or add to MCP',exact:true});
+      assert(await repair.evaluate(el=>el.classList.contains('btn') && el.getBoundingClientRect().height>=44));
+      assert(await repair.locator('.repair-action-icon').evaluate(el=>parseFloat(getComputedStyle(el).borderRightWidth)>=1));
+      assert(await repair.locator('svg').isVisible());
+      for(const control of await row.locator('.row-icon-action').all()) {
+        assert.equal((await control.innerText()).trim(),''); assert(await control.getAttribute('aria-label'));
+      }
+      for (const name of ['Configure', 'Test connection']) {
+        const svg = row.getByRole(name === 'Configure' ? 'link' : 'button', { name, exact: true }).locator('svg');
+        assert(await svg.evaluate(el => getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility === 'visible' && el.getBoundingClientRect().width > 0 && el.getBoundingClientRect().height > 0));
+      }
+      await until(async () => (await row.locator('[data-tool-count] span').innerText()) === '1');
+      assert.equal(await row.getByRole('link', { name: '1 registered tools — view tools', exact: true }).count(), 1);
+      const summary = row.locator('[data-result]');
+      await summary.evaluate(el=>{el.textContent='Long test result with extra details '.repeat(30);el.title=el.textContent;});
+      assert(await summary.evaluate(el=>getComputedStyle(el).whiteSpace==='nowrap' && el.getBoundingClientRect().height<=parseFloat(getComputedStyle(el).lineHeight)+1));
+      assert.match(await row.locator('.client-count-box').getAttribute('aria-label'),/authorized clients/);
+      const positions = await row.locator('.vertical-enable').evaluate(el=>{const face=el.querySelector('.vertical-switch-face').getBoundingClientRect(), thumb=el.querySelector('.vertical-switch-thumb').getBoundingClientRect();return {up:thumb.top-face.top,checked:el.querySelector('input').checked}});
+      assert(positions.checked ? positions.up<10 : positions.up>20);
+    });
     await check(`Cards ${width}px: axe serious/critical`, () => audit(`cards-${width}`));
     await screenshot(`cards-${width}`);
   }
   await page.setViewportSize({ width: 1440, height: 1000 });
+  await check('Install footer follows all ten selected appearance palettes', async () => {
+    const previous=await page.evaluate(()=>({theme:document.documentElement.dataset.theme,style:document.documentElement.dataset.style}));
+    await page.evaluate(()=>window.dispatchEvent(new Event('offline')));
+    try {
+      for (const theme of ['light','dark']) for(const style of ['default','mono','paper','moderno','ocean']) {
+        await page.evaluate(({theme,style})=>{document.documentElement.dataset.theme=theme;document.documentElement.dataset.style=style;},{theme,style});
+        assert(await page.locator('.station-pwa').evaluate(el=>{
+          const probe=document.createElement('span');probe.style.background='var(--panel)';probe.style.color='var(--text)';el.append(probe);
+          const matches=getComputedStyle(el).backgroundColor===getComputedStyle(probe).backgroundColor && getComputedStyle(el).color===getComputedStyle(probe).color;probe.remove();return matches;
+        }));
+      }
+    } finally {
+      await page.evaluate(({theme,style})=>{document.documentElement.dataset.theme=theme;document.documentElement.dataset.style=style;window.dispatchEvent(new Event('online'));},previous);
+    }
+  });
+  await check('Client and tool count links open the selected account workspace tabs', async () => {
+    await card().getByRole('link', { name: /authorized clients — view activity/ }).click();
+    await page.locator('[data-usage-body] .stats-grid').waitFor();
+    assert.equal(await page.evaluate(() => location.hash), work('activity'));
+    assert.equal(await page.locator('.workspace-tabs [aria-current=page]').innerText(), 'Activity');
+    await go('#/integrations', '[data-id]');
+    await until(async () => (await card().locator('[data-tool-count] span').innerText()) === '1');
+    await card().getByRole('link', { name: '1 registered tools — view tools', exact: true }).click();
+    await until(async () => /qa_echo/.test(await surface().innerText()));
+    assert.equal(await page.evaluate(() => location.hash), work('tools'));
+    assert.equal(await page.locator('.workspace-tabs [aria-current=page]').innerText(), 'Tools');
+    await go('#/integrations', '[data-id]');
+  });
   await check('Configure opens full-page settings with labelled controls, no dialog', async () => {
     await card().getByRole('link', { name: 'Configure', exact: true }).click(); await page.locator('#setForm').waitFor();
     assert((await page.evaluate(() => location.hash)).startsWith(work())); await noDialog(); await labels();
@@ -238,6 +348,29 @@ try {
     await saveSettings(accountB.id, 'Work fixture');
   });
   assert(accountB, 'Second account creation is a prerequisite');
+  await check('Account row counts reflect real account-dependent capabilities and link to that account', async () => {
+    await go('#/integrations', '[data-id]');
+    for (const [account, expected] of [[accountA, 1], [accountB, 2]]) {
+      const row = page.locator(`[data-id="${account.id}"]`);
+      const capabilities = await api(`/mcps/${account.id}/capabilities`);
+      assert.equal(capabilities.tools.length, expected);
+      await until(async () => (await row.locator('[data-tool-count] span').innerText()) === String(expected));
+      const source = (await api('/mcps')).mcps.find(m => m.id === sourceId);
+      const records = Number(source.instances.find(m => m.id === account.id).clients || 0);
+      assert.match(await row.locator('.client-count-box').getAttribute('aria-label'), new RegExp(`^${records} authorized clients`));
+      await row.locator('.client-count-box').click();
+      await page.locator('[data-usage-body] .stats-grid').waitFor();
+      assert.equal(await page.evaluate(() => location.hash), work('activity', account.id));
+      assert.equal(await page.locator('[data-account]').inputValue(), account.id);
+      await go('#/integrations', '[data-id]');
+      await row.locator('[data-tool-count]').click();
+      await page.locator('#toolList').waitFor();
+      assert.equal(await page.evaluate(() => location.hash), work('tools', account.id));
+      assert.equal(await page.locator('[data-account]').inputValue(), account.id);
+      assert.equal(await page.locator('#toolList .tool').count(), expected);
+      await go('#/integrations', '[data-id]');
+    }
+  });
   await check('One source has three independent configurations and unchanged code', async () => {
     const list = (await api('/mcps')).mcps; assert.equal(list.length, 12);
     const source = list.find((m) => m.id === sourceId); assert.equal(source.instances.length, 3);
@@ -267,19 +400,18 @@ try {
   await check('Account settings: axe serious/critical', () => audit('account-settings'));
   await screenshot('account-settings');
   await check('Connections dropdown and Copy use selected endpoint', async () => {
-    await go('#/connect', '[data-source]'); const row = page.locator(`[data-source=${sourceId}]`);
-    await row.locator('[data-account]').selectOption(accountB.id);
+    await go('#/integrations', '[data-source]'); const row = page.locator(`[data-id="${accountB.id}"]`);
     const endpoint = await row.locator('.endpoint code').innerText(); assert.match(endpoint, new RegExp(`/${accountB.id}/mcp$`));
     await row.locator('[data-copy]').click(); await clipboardEquals(endpoint); await noDialog();
   });
   await check('Connections Test calls selected account and shows actual result', async () => {
-    const row = page.locator(`[data-source=${sourceId}]`);
+    const row = page.locator(`[data-id="${accountB.id}"]`);
     const response = page.waitForResponse((r) => r.url().endsWith(`/api/mcps/${accountB.id}/test`));
     await row.locator('[data-test]').click(); assert((await (await response).json()).ok);
-    await until(async () => (await page.locator(`[data-source=${sourceId}] [data-result]`).innerText()).includes('Work fixture'));
+    await until(async () => (await page.locator(`[data-id="${accountB.id}"] [data-result]`).innerText()).includes('Work fixture'));
   });
   await check('Connections Configure opens selected account full page', async () => {
-    await page.locator(`[data-source=${sourceId}]`).getByRole('link', { name: 'Configure', exact: true }).click();
+    await page.locator(`[data-id="${accountB.id}"]`).getByRole('link', { name: 'Configure', exact: true }).click();
     await page.locator('#setForm').waitFor(); assert.equal(await surface().locator('[name=account]').inputValue(), 'Work fixture'); await noDialog();
   });
   await check('Library Back preserves search, filter and real nonzero scroll', async () => {
@@ -413,7 +545,7 @@ try {
     await go('#/integrations', '[data-id]');
     await page.locator('[data-filter=all]').click();
     await page.locator('[data-search-clear]').click();
-    const link = card().getByRole('link', {name: 'Ask assistant', exact:true});
+    const link = card().getByRole('link', {name: 'Repair, tweak or add to MCP', exact:true});
     assert(await link.isVisible());
     await link.click(); await page.locator('[data-module-assistant] textarea').waitFor();
     assert.match(await page.evaluate(() => location.hash), /\/assistant/);
@@ -532,7 +664,7 @@ try {
       for (const [route, title] of Object.entries(routes)) {
         await page.getByRole('button', { name: 'Open navigation', exact: true }).click();
         const menu = page.locator('dialog[open] .mobile-nav'); await menu.waitFor();
-        assert.equal(await menu.locator('a').count(), 6);
+        assert.equal(await menu.locator('a').count(), 5);
         for (const label of Object.values(routes)) assert(await menu.getByRole('link', { name: label, exact: true }).isVisible());
         await menu.getByRole('link', { name: title, exact: true }).click(); await noDialog();
         await until(() => page.evaluate((h) => location.hash === h, '#/' + route));
@@ -550,23 +682,23 @@ try {
     assert.equal(baseline.tone, ['forest', 'ocean', 'plum', 'slate'][hash % 4]);
     assert.equal(await page.locator('[data-id="qa-card-01"] .service-category').innerText(), 'Custom integration');
     assert.equal(await page.locator('[data-id="qa-card-01"] .service-monogram').innerText(), 'QC');
-    await card().locator('[data-account]').selectOption(accountB.id); assert.deepEqual(await identity(), baseline);
-    const enabled = (await api('/mcps')).mcps.find((m) => m.id === sourceId).instances.find((a) => a.id === accountB.id).enabled;
+    assert.equal(await page.locator(`[data-id="${sourceId}"] .service-monogram`).innerText(), baseline.monogram);
+    const enabled = (await api('/mcps')).mcps.find((m) => m.id === sourceId).instances.find((a) => a.id === sourceId).enabled;
     try {
-      const patched = page.waitForResponse((r) => r.request().method() === 'PATCH' && r.url().endsWith(`/api/mcps/${accountB.id}`));
+      const patched = page.waitForResponse((r) => r.request().method() === 'PATCH' && r.url().endsWith(`/api/mcps/${sourceId}`));
       await card().locator('[data-toggle]').click(); assert((await patched).ok()); await pause(180); assert.deepEqual(await identity(), baseline);
-      const tested = page.waitForResponse((r) => r.url().endsWith(`/api/mcps/${accountB.id}/test`));
+      const tested = page.waitForResponse((r) => r.url().endsWith(`/api/mcps/${sourceId}/test`));
       await card().locator('[data-test]').click(); assert((await tested).ok()); await pause(180); assert.deepEqual(await identity(), baseline);
       for (const theme of ['dark', 'light']) {
         await page.evaluate((t) => { document.documentElement.dataset.theme = t; }, theme);
         for (const width of [375, 768, 1440]) {
           await page.setViewportSize({ width, height: 1000 }); await pause(100);
           const heights = await page.locator('.integration-card:visible').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().height));
-          assert.equal(heights.length, 12); assert(Math.max(...heights) - Math.min(...heights) <= 1); assert.deepEqual(await identity(), baseline);
+          assert.equal(heights.length, 14); assert(heights.every((height) => height >= 44), 'Independent account metadata may wrap without clipping'); assert.deepEqual(await identity(), baseline);
           assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
         }
       }
-    } finally { await api(`/mcps/${accountB.id}`, 'PATCH', { enabled }); }
+    } finally { await api(`/mcps/${sourceId}`, 'PATCH', { enabled }); }
   });
   for (const theme of ['light', 'dark']) await check(`Navigation collapsed ${theme}: axe serious/critical`, async () => {
     await page.setViewportSize({ width: 1440, height: 1000 }); await page.evaluate((t) => { document.documentElement.dataset.theme = t; }, theme);

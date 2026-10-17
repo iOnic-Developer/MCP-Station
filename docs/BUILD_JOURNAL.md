@@ -160,3 +160,31 @@ source-only NAS adapters join ten existing modules; private/business and depende
 adapters are deferred, with provenance and offline test limits documented in MODULE_BUNDLE_AUDIT.md.
 Alternative credential metadata prevents blank Google adapters appearing configured.
 No live credentials or production container are changed. PR remains the application merge gate.
+
+
+## 2026-10-17 — Simple integration creation on the latest appearance release
+
+Branch `feat/simple-integration-create` starts at main
+`e548e02ce613d186b7ed5f59af6b10c006b8b99c` (2.7.1), not the older product-redesign
+or assistant-first branch. Selectively reuse source chat ownership/persistence from
+PR6 and its isolated local provider fixture; do not merge its outdated shell or CSS.
+
+Integration means reusable service source; account means independent credentials,
+endpoint, enable state, test and access. Show one row per account on Integrations,
+not separate library and Connections management pages. Keep account creation from
+installed services and every existing source workspace tab. Create integration is
+now the primary plus action: service name required, optional goal/docs progressively
+revealed, existing configured AI immediately authors the disabled source. No global
+AI configuration, key, provider, model or retained instructions are modified.
+Application-owned chats survive route changes; logout disposes them. Browser reload
+ends a stream, but saved source and persisted conversation remain. Provider completion
+is not presented as successful configuration or a live service test.
+
+Validation: 98/98 isolated end-user workflow checks and 26 axe audits; 83 focused
+creation assertions over all five styles in light/dark at 375/768/1440px, including
+real mock-provider write/reload/read-back, no global settings mutations, transport
+failure/retry without duplicates, missing-key prevention and retained drafts.
+Existing smoke: 36; OAuth: 44; scoping: 15; self-contained: 10; OpenAI: 10;
+Anthropic/Gemini assistant streaming: 57, all passed. PWA 16/16, configuration 85,
+instances, usage and all 18 bundled modules passed. See design.md for limits.
+No production, merge, image build/push or release performed.

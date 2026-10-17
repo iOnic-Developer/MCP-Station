@@ -8,7 +8,6 @@ import { openCapabilities } from './capabilities.js';
 import { openEditor } from './editor.js';
 import { renderUsage } from './usage.js';
 import { renderModuleAssistant } from './moduleAssistant.js';
-import { openAddNew } from './addNew.js';
 const tabs = [['settings','Settings'],['connect','Connect'],['tools','Tools'],['code','Code'],['activity','Activity'],['assistant','Assistant']];
 export async function renderIntegration(root, ctx, route) {
   const source = ctx.mcps.find((s) => s.id === route.sourceId);
@@ -62,7 +61,7 @@ export async function renderIntegration(root, ctx, route) {
 }
 async function perform(fn) { try { await fn(); } catch (e) { toast(e.message,'err'); } }
 export function renderAddAccount(root,ctx,sourceId = '') {
-  root.innerHTML = `<a class="back-link" href="#/integrations">← Back to integrations</a><div class="page-heading"><div><p class="eyebrow">Connect another account</p><h1>Add an account</h1><p class="page-description">Reuse an installed service with separate settings and its own endpoint. No credentials are copied.</p></div></div><section class="panel account-create"><form data-create-account><div class="field"><label for="accountService">Which service do you want to connect?</label><select id="accountService" class="input" required><option value="">Choose an installed service</option>${ctx.mcps.filter((m) => m.manifest && !m.error).map((m) => `<option value="${esc(m.id)}" ${sourceId === m.id ? 'selected' : ''}>${esc(m.manifest.name)}</option>`).join('')}</select></div><div class="field"><label for="accountName">Account name</label><input class="input" id="accountName" required maxlength="100" placeholder="e.g. Work or Personal" autocomplete="off"><p class="help">A name you recognize. Your endpoint address is created automatically.</p></div><p class="error-text" data-create-error role="alert"></p><button class="btn primary" type="submit">Continue to settings ${icon('arrow')}</button></form></section><section class="panel workspace-portability"><h2>Need a different service?</h2><p class="desc">If the service is not installed yet, create a new integration template and build its tools with the Assistant or code editor.</p><button class="btn" data-build>Create a new service · advanced</button><div data-new-service></div></section>`;
+  root.innerHTML = `<a class="back-link" href="#/integrations">← Back to integrations</a><div class="page-heading"><div><p class="eyebrow">Connect another account</p><h1>Add an account</h1><p class="page-description">Reuse an installed service with separate settings and its own endpoint. No credentials are copied.</p></div></div><section class="panel account-create"><form data-create-account><div class="field"><label for="accountService">Which service do you want to connect?</label><select id="accountService" class="input" required><option value="">Choose an installed service</option>${ctx.mcps.filter((m) => m.manifest && !m.error).map((m) => `<option value="${esc(m.id)}" ${sourceId === m.id ? 'selected' : ''}>${esc(m.manifest.name)}</option>`).join('')}</select></div><div class="field"><label for="accountName">Account name</label><input class="input" id="accountName" required maxlength="100" placeholder="e.g. Work or Personal" autocomplete="off"><p class="help">A name you recognize. Your endpoint address is created automatically.</p></div><p class="error-text" data-create-error role="alert"></p><button class="btn primary" type="submit">Continue to settings ${icon('arrow')}</button></form></section><section class="panel workspace-portability"><h2>Need a different service?</h2><p class="desc">If the service is not installed yet, create an integration with your configured AI, then review and test its tools.</p><a class="btn" href="#/create">Create integration with AI</a></section>`;
   const form = root.querySelector('[data-create-account]');
   form.onsubmit = async (e) => {
     e.preventDefault(); const button = form.querySelector('button'); button.disabled = true;
@@ -75,5 +74,4 @@ export function renderAddAccount(root,ctx,sourceId = '') {
     } catch (err) { root.querySelector('[data-create-error]').textContent = err.message; }
     finally { button.disabled = false; }
   };
-  root.querySelector('[data-build]').onclick = () => { const target = root.querySelector('[data-new-service]'); target.dataset.back = '/integrations'; openAddNew(ctx,target); target.querySelector('input')?.focus(); };
 }

@@ -1,5 +1,34 @@
 # Changelog
 
+## 2.7.5_beta — 2026-10-17
+
+- Installation footer surface, text, borders and interaction colours follow selected application appearance tokens in all five light/dark styles, rather than hardcoded light colours.
+- Repair action is a single bordered button-style link with an icon compartment, vertical divider and text, retaining correct navigation semantics.
+- Public PWA cache advances to v5-beta-275 for the updated cached stylesheet. 105 workflow checks and 26 axe audits passed; regressions verify footer palette pairing and repair icon/divider at 375/768/1440.
+
+## 2.7.4_beta — 2026-10-17
+
+- Fix legacy CSS hiding Configure/Test SVGs; regression checks now verify rendered icons, not merely button size.
+- Client icon/count links to the selected account Activity tab; add matching Tools icon/count linking to Tools.
+- Counts come from real account capabilities introspection with two concurrent requests, 20-second timeout and 60-second memory-only cache. Failed/unknown counts show a dash, never fabricated zero. No upstream tools invoked by counting.
+- Verified 104 workflow checks and 26 accessibility audits. Existing AI settings and source/account contracts unchanged.
+
+## 2.7.3_beta — 2026-10-17
+
+- Integration rows use uniform 44px icon-only Copy, Configure and Test actions with accessible labels and tooltips. Remove the duplicate Access shortcut; access controls remain available inside the workspace.
+- Replace On/Off text and redundant Enabled/Disabled badges with one square vertical switch: up enabled, down disabled, keyboard-operable. Preserve setup/error warnings.
+- Add a matching client-icon/count box in the former Access position; counts are authorized-client records, not a live-presence claim.
+- Rename the account assistant shortcut to Repair, tweak or add to MCP. Test summaries are single-line with ellipsis and full tooltip.
+- Verified 101 workflow checks, 26 axe audits, 83 AI-creation assertions, frontend syntax and PWA checks. No AI provider/settings changes.
+
+## 2.7.2_beta — 2026-10-17
+
+- Based on 2.7.1: retain all five appearance styles, sidebar preferences, independent accounts, usage and bundled modules.
+- One Integrations page now shows an independent row per account with endpoint copy, Configure, Test, Access and square enable control. Legacy `#/connect` redirects here.
+- Replace primary Assistant navigation with Create integration: one required service field, optional goal/documentation, real AI authoring through the existing configured provider/model, no AI settings changes.
+- Create sources disabled before load; show actual streamed tool output, retain drafts and running streams across routes, retry on the same source, then review/configure/test explicitly. Manual creation and installed-service account reuse remain secondary options.
+- Add isolated real-server/browser regression coverage and keep it in PR CI. No image publication or deployment in this change.
+
 ## 2.7.1 — 2026-10-17
 
 - Appearance moves to the bottom of the sidebar: a System / Light / Dark choice replaces the top-bar toggle.

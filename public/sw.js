@@ -2,7 +2,7 @@
  * Change the version when any precached resource changes.
  */
 const CACHE_PREFIX = 'mcp-station-public-product-';
-const CACHE_NAME = 'mcp-station-public-product-v4-stable-271';
+const CACHE_NAME = 'mcp-station-public-product-v5-beta-275';
 const OFFLINE_URL = '/offline.html';
 const PUBLIC_ASSETS = Object.freeze([
   '/offline.html',

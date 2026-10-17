@@ -1,0 +1,96 @@
+# Simple integration creation
+
+## Base and scope
+
+Base: `e548e02ce613d186b7ed5f59af6b10c006b8b99c`, latest supplied main 2.7.1.
+Branch: `feat/simple-integration-create`. Runtime version: `2.7.2_beta`;
+package version: `2.7.2-beta.1`. No merge, deployment or Docker Hub publishing.
+PR6 is a reference, not a merge source. Reuse only chat/session implementation and
+an isolated local-provider test fixture. Preserve main's five styles, appearance
+controls, account/source separation, usage, bundles and existing workspace routes.
+
+## Vocabulary and navigation
+
+A service source supplies shared tool code. An account owns its credentials,
+endpoint, test state and client access. Previously Integrations and Connections
+were two management entry points for the same installed sources. Integrations now
+lists every account as a boxed row: service, account, endpoint/copy, Configure,
+Test, Access and a native square enable control; small test/client metadata below.
+Filters count accounts, not sources. Legacy `#/connect` redirects to Integrations.
+Installed services remain searchable; Add existing account opens the existing
+service picker. Source details retain Settings/Connect/Tools/Code/Activity/Assistant.
+
+## Creation flow
+
+Primary navigation and top plus action open `#/create`, not AI settings.
+Only service name is required. Goal and API docs URL are optional details.
+Creation explicitly authorizes the current assistant to author one new source:
+1. Validate input and reject credential-bearing documentation URLs.
+2. If no provider key is configured, show Settings guidance and create nothing.
+3. Create a source with disabled state persisted before its first load.
+4. Load its source-scoped chat and POST the authoring brief to `/api/assistant`.
+5. Display actual text, tool results and errors from the existing streaming loop.
+6. Offer review code, configure credentials, then Test/Access; never auto-enable.
+
+No `/api/global` updates, provider/model default changes, credentials-in-prompt,
+new AI endpoint or runtime dependency. Existing session/CSRF and source tool scope
+are reused unchanged. Prompt constraints forbid other-source changes, AI settings
+changes, credential reuse and destructive/live writes. They are not an executable
+code sandbox: generated code must be reviewed before use, just like existing
+assistant-authored modules. No changes to existing tool authorization boundaries.
+
+## Lifecycle and failure
+
+Creation form and chat sessions are application-owned. Navigation preserves input,
+stream and progress. Returning remounts the same session. Failed generation retains
+the source and fields; Retry builds on that source instead of creating a duplicate.
+Create another starts a fresh form. Logout clears private in-memory chat state.
+Browser reload does not resume an in-flight HTTP stream; persisted source and chat
+remain accessible from the integration workspace. The page states this explicitly.
+A completed AI reply is not claimed as a configured account or successful live test.
+Network ambiguity on source creation requires checking Integrations before retry.
+
+## Files
+
+- `app.js`: primary navigation, create route, legacy redirect, session teardown.
+- `views/list.js`, scoped additions to `app.css`: account rows and responsive UI.
+- `views/build.js`: small form, authoring request, truthful progress/retry lifecycle.
+- `chat.js`, `chatSessions.js`, assistant views: owned streams and serialized saves.
+- `views/integration.js`: keep installed-account flow, link new service to creation.
+- `server/index.js`: optional boolean enabled=false draft persisted before load.
+- `env.js`, package metadata, changelog/build journal: beta version and rationale.
+- `test-simple-create.mjs`, `test-workflows.mjs`, product workflow: regression gate.
+
+## Validation and limits
+
+98/98 real-browser workflow checks, 26 axe audits, 83 focused creation assertions.
+Focused tests use a local scripted OpenAI-compatible provider and real backend
+module-writing tools; verify actual saved code, hot reload, source scoping,
+CSRF, no global AI mutations, route persistence, missing-key block, failure/retry,
+independent rows and no overflow at 375/768/1440 in light/dark across five styles.
+Latest smoke (36), OAuth (44), scoping (15), self-contained (10), OpenAI (10),
+assistant streaming (57), PWA (16), configuration (85), instances, usage and all
+18 bundled sources pass. Frontend syntax: 23 modules; git diff whitespace clean.
+No paid/live model quality, real third-party credentials or production service
+connectivity tested. GitHub CI status is reported in the PR/hand-off, not assumed.
+
+Product page: static contracts and explicit Playwright/axe browser audit passed.
+
+
+## 2026-10-17 — Integration row refinement
+
+Revision 2.7.3_beta refines the deployed latest-base 2.7.2_beta implementation, not the obsolete 2.5.x branch. Copy/Configure/Test are equally sized icon-only controls with accessible names and titles. The redundant Access row link is removed without removing workspace access management. A matching client count box replaces it, explicitly labelled as authorized records rather than online presence. One square native checkbox switch moves its face vertically and exposes enabled state, removing duplicate On and Enabled UI. Error/setup badges remain important diagnostic information. Account chat now reads Repair, tweak or add to MCP. Long test text stays on one line with ellipsis; full text remains in the DOM and tooltip.
+
+Regression checks assert control dimensions, icon-only accessible labels, no Access shortcut, no redundant Enabled/Disabled badge, updated assistant label, vertical thumb positions, one-line long results and responsive overflow at 375/768/1440. Full workflow101 and creation83 assertions pass with 26 axe audits; no AI configuration is modified.
+
+
+## 2026-10-17 — Visible icons and count navigation (2.7.4_beta)
+
+The blank Configure and Test controls came from an inherited `.integration-primary .btn svg { display:none }` rule. A narrowly scoped override restores their SVGs. Tests now verify rendered icon visibility and geometry, so a correctly sized but empty button fails regression. Client counts now navigate to account-specific Activity; a matching Tools count navigates to account-specific Tools. Registered tool counts come from existing capabilities introspection rather than guessed manifest metadata. Fetching is bounded to two concurrent requests, with a 20-second abort and 60-second memory-only cache; logout clears pending work. Unavailable counts stay unknown (dash), including broken modules. No tools are executed just to count them; trusted module registration is invoked by the existing introspection path.
+
+104 real-server workflow checks and 26 axe audits passed, including account-dependent tools, destinations and visible icons.
+
+
+## 2.7.5_beta — Theme-aware install footer and segmented repair button
+
+The footer had its own fixed light palette. Its local tokens now reference the application's semantic surface/text/muted/border/accent values, with standalone offline fallbacks unchanged. This respects manually selected theme and all five styles rather than relying on OS preference. The cached public stylesheet changes are accompanied by a cache-name bump. The repair action remains a link because it navigates, but visually becomes one bordered button with a 44px icon compartment, vertical divider and text compartment. Its visible text and accessible name are unchanged. 105 workflow assertions and 26 axe audits pass, including all ten footer palettes and responsive button geometry.
