@@ -100,6 +100,7 @@ async function boot() {
     if (version !== bootVersion) return;
     ctx.me = me;
     if (!me.authed) {
+      window.dispatchEvent(new Event('station:unauthed'));
       document.body.classList.remove('assistant-workspace', 'station-authenticated', 'sidebar-collapsed');
       resetBuild();
       resetAssistant();

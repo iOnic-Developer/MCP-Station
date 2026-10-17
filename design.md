@@ -82,3 +82,10 @@ Product page: static contracts and explicit Playwright/axe browser audit passed.
 Revision 2.7.3_beta refines the deployed latest-base 2.7.2_beta implementation, not the obsolete 2.5.x branch. Copy/Configure/Test are equally sized icon-only controls with accessible names and titles. The redundant Access row link is removed without removing workspace access management. A matching client count box replaces it, explicitly labelled as authorized records rather than online presence. One square native checkbox switch moves its face vertically and exposes enabled state, removing duplicate On and Enabled UI. Error/setup badges remain important diagnostic information. Account chat now reads Repair, tweak or add to MCP. Long test text stays on one line with ellipsis; full text remains in the DOM and tooltip.
 
 Regression checks assert control dimensions, icon-only accessible labels, no Access shortcut, no redundant Enabled/Disabled badge, updated assistant label, vertical thumb positions, one-line long results and responsive overflow at 375/768/1440. Full workflow101 and creation83 assertions pass with 26 axe audits; no AI configuration is modified.
+
+
+## 2026-10-17 — Visible icons and count navigation (2.7.4_beta)
+
+The blank Configure and Test controls came from an inherited `.integration-primary .btn svg { display:none }` rule. A narrowly scoped override restores their SVGs. Tests now verify rendered icon visibility and geometry, so a correctly sized but empty button fails regression. Client counts now navigate to account-specific Activity; a matching Tools count navigates to account-specific Tools. Registered tool counts come from existing capabilities introspection rather than guessed manifest metadata. Fetching is bounded to two concurrent requests, with a 20-second abort and 60-second memory-only cache; logout clears pending work. Unavailable counts stay unknown (dash), including broken modules. No tools are executed just to count them; trusted module registration is invoked by the existing introspection path.
+
+104 real-server workflow checks and 26 axe audits passed, including account-dependent tools, destinations and visible icons.

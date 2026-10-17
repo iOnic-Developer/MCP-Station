@@ -2239,10 +2239,16 @@ body.sidebar-collapsed .sidebar .appearance { display:none; }
 /* Compact account controls: one visual size, one enable state, no duplicate Access link. */
 .account-rows .row-icon-action,
 .account-rows .client-count-box,
+.account-rows .tool-count-box,
 .account-rows .vertical-enable { box-sizing:border-box; width:44px; height:44px; min-width:44px; min-height:44px; padding:0; margin:0; flex:0 0 44px; border:1px solid var(--border-2); border-radius:4px; display:inline-flex; align-items:center; justify-content:center; background:var(--panel-2); color:var(--text); }
+.account-rows .row-icon-action svg,
+.account-rows .client-count-box svg,
+.account-rows .tool-count-box svg { display:inline-block; }
 .account-rows .row-icon-action .icon { width:20px; height:20px; }
-.account-rows .client-count-box { gap:3px; font-size:12px; font-variant-numeric:tabular-nums; }
-.account-rows .client-count-box .icon { width:17px; height:17px; flex-shrink:0; }
+.account-rows .client-count-box,
+.account-rows .tool-count-box { text-decoration:none; gap:3px; font-size:12px; font-variant-numeric:tabular-nums; }
+.account-rows .client-count-box .icon,
+.account-rows .tool-count-box .icon { width:17px; height:17px; flex-shrink:0; }
 .account-rows .integration-primary { flex-wrap:nowrap; justify-content:flex-end; }
 .account-rows .vertical-enable { position:relative; overflow:visible; cursor:pointer; border:0; }
 .account-rows .vertical-enable input { position:absolute; inset:0; opacity:0; width:44px; height:44px; margin:0; z-index:1; cursor:pointer; }

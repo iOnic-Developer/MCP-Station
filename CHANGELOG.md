@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.7.4_beta — 2026-10-17
+
+- Fix legacy CSS hiding Configure/Test SVGs; regression checks now verify rendered icons, not merely button size.
+- Client icon/count links to the selected account Activity tab; add matching Tools icon/count linking to Tools.
+- Counts come from real account capabilities introspection with two concurrent requests, 20-second timeout and 60-second memory-only cache. Failed/unknown counts show a dash, never fabricated zero. No upstream tools invoked by counting.
+- Verified 104 workflow checks and 26 accessibility audits. Existing AI settings and source/account contracts unchanged.
+
 ## 2.7.3_beta — 2026-10-17
 
 - Integration rows use uniform 44px icon-only Copy, Configure and Test actions with accessible labels and tooltips. Remove the duplicate Access shortcut; access controls remain available inside the workspace.
