@@ -126,6 +126,11 @@ try {
     await go('#/overview', '.welcome-panel');
   }
   assert((await page.locator('[data-assistant-status]').innerText()).includes('2 assistant replies'));
+  await page.setViewportSize({ width:375, height:812 });
+  assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Running conversations overflow mobile');
+  const statusBox = await page.locator('[data-assistant-status]').boundingBox();
+  assert(statusBox.width <= 375 && statusBox.x >= 0, 'Running links must stay inside mobile viewport');
+  await page.setViewportSize({ width:1440, height:1000 });
   assert(!(await page.locator('[data-assistant-status]').innerText()).includes('partial-'));
   second.finish();
   await until(async () => (await page.locator('[data-assistant-status]').getAttribute('data-running-count')) === '1', 'Status failed to decrement from two to one');

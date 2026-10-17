@@ -127,3 +127,11 @@ The final harness was also run against the five original lifecycle files from
 With the fix, three consecutive full harness runs passed. Existing workflow checks
 also passed: **102/102**, including **27 axe audits**. `npm run test:ui` checked all
 22 frontend modules. No backend changes, commits, pushes or deployments were made.
+
+## Integrated review
+
+The final branch contains 23 frontend modules and atomic disabled starter creation.
+Running conversations occupy a bounded, scrollable link row on narrow screens rather
+than overflowing the utility bar. The delayed-provider regression checks two
+simultaneous scopes at 375px as well as same-tab persistence. Code/docs remain in
+a review PR; stable images and the public site are not changed automatically.

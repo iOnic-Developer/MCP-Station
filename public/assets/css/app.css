@@ -374,6 +374,17 @@ a,button,input,textarea,summary,select {
   border-bottom:1px solid var(--border);
   background:var(--bg);
 }
+[data-assistant-status] {
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr);
+  align-items:center;
+  gap:8px;
+  max-width:min(480px,42vw);
+  min-width:0;
+  font-size:12px;
+}
+[data-session-links] { display:flex; gap:6px; min-width:0; overflow-x:auto; }
+[data-session-links] a { flex:none; white-space:nowrap; }
 .breadcrumbs {
   display:flex;
   align-items:center;
@@ -1820,6 +1831,10 @@ body.station-authenticated>.station-pwa {
     gap:16px;
     align-items:flex-start;
   }
+}
+@media(max-width:960px) {
+  .workspace-bar:has([data-assistant-status]:not([hidden])) { height:auto; min-height:64px; flex-wrap:wrap; }
+  [data-assistant-status] { order:5; flex-basis:100%; max-width:100%; width:100%; }
 }
 @media(max-width:720px) {
   body.station-authenticated,body.station-authenticated.sidebar-collapsed { --sidebar-width:0px; }
