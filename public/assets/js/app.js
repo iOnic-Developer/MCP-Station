@@ -4,13 +4,15 @@ import { icon } from './icons.js';
 import { initPwa } from './pwa.js';
 import { renderLogin } from './views/login.js';
 import { renderList } from './views/list.js';
-import { renderIntegration, renderAddAccount } from './views/integration.js';
+import { renderCreateMcp } from './views/build.js';
+import { renderIntegration } from './views/integration.js';
 import { renderConnections } from './views/connections.js';
 import { renderUsage } from './views/usage.js';
 import { accounts, workspaceUrl } from './views/accounts.js';
 import { openBackup } from './views/backup.js';
 import { openStation } from './views/station.js';
-import { renderAssistant, resetAssistant } from './views/assistant.js';
+import { renderAssistant, resetAssistant, parkAssistant } from './views/assistant.js';
+import { assistantStatus } from './chatSessions.js';
 const root = document.getElementById('app');
 // Use the visible keyboard viewport without treating pinch zoom as a layout resize.
 const syncViewport = () => {
@@ -45,7 +47,7 @@ try { document.documentElement.dataset.theme = localStorage.getItem('station.the
 initPwa();
 window.addEventListener('station:unauthed', () => {
   // A wrong login password also returns 401: leave that form intact to show its error.
-  if (ctx.me?.authed) { ctx.me = null; boot(); }
+  if (ctx.me?.authed) { resetAssistant(); ctx.pendingAssistantPrompt = ''; ctx.me = null; routeVersion++; boot(); }
 });
 window.addEventListener('station:mcps-changed', () => boot());
 window.addEventListener('hashchange', async () => {
@@ -87,7 +89,9 @@ async function boot() {
     ctx.me = me;
     if (!me.authed) {
       document.body.classList.remove('assistant-workspace', 'station-authenticated', 'sidebar-collapsed');
+      routeVersion++;
       resetAssistant();
+      ctx.pendingAssistantPrompt = '';
       root.querySelectorAll('.page-surface').forEach((el) => el.dispatchEvent(new Event('station:dispose')));
       document.querySelectorAll('dialog').forEach((d) => d.close());
       ctx.accountSelection = new Map();
@@ -100,12 +104,18 @@ async function boot() {
       return;
     }
     try { ctx.mcps = (await api('/mcps')).mcps; ctx.loadError = ''; }
-    catch (e) { ctx.loadError = e.message; }
+    catch (e) { if (e instanceof TypeError) throw e; ctx.loadError = e.message; }
     if (version !== bootVersion) return;
     if (!root.querySelector('.app-shell')) renderShell();
     await renderRoute(false);
   } catch {
     if (version !== bootVersion) return;
+    resetAssistant();
+    ctx.pendingAssistantPrompt = ''; ctx.accountSelection = new Map();
+    ctx.me = null; routeVersion++; renderedRoute = '';
+    root.querySelectorAll('.page-surface').forEach((el) => el.dispatchEvent(new Event('station:dispose')));
+    document.querySelectorAll('dialog').forEach((dialog) => dialog.close());
+    ctx.workspaceRefresh = null;
     document.body.classList.remove('assistant-workspace', 'station-authenticated', 'sidebar-collapsed');
     root.innerHTML = `<main id="main-content" class="login-wrap" tabindex="-1"><section class="login"><img class="login-mark" src="/assets/brand/station-mark.svg" alt=""><h1>We couldn’t reach your station</h1><p>Check your connection and that MCP Station is running, then try again.</p><button class="btn primary" id="retryBoot">Try again</button></section></main>`;
     root.querySelector('#retryBoot').onclick = boot;
@@ -121,9 +131,10 @@ function renderShell() {
       <div class="nav-caption">Manage</div><nav>${['settings', 'backups'].map((k) => navLink(k)).join('')}</nav>
       <div class="sidebar-foot"><span class="sidebar-version">Self-hosted · v${esc(ctx.me.version)}</span><button class="nav-link" data-logout aria-label="Sign out">${icon('logout')}<span class="nav-label">Sign out</span><span class="nav-tooltip" aria-hidden="true">Sign out</span></button></div>
     </aside>
-    <div class="workspace"><header class="workspace-bar"><button class="btn icon-btn mobile-menu" data-menu aria-label="Open navigation">${icon('menu')}</button><div class="breadcrumbs"><span>Workspace</span>${icon('chevron')}<span id="crumb">Overview</span></div><div class="spacer"></div><button class="btn icon-btn" data-theme aria-label="Switch color theme"></button><button class="btn primary" data-add>${icon('plus')}<span>Add integration</span></button></header>
+    <div class="workspace"><header class="workspace-bar"><button class="btn icon-btn mobile-menu" data-menu aria-label="Open navigation">${icon('menu')}</button><div class="breadcrumbs"><span>Workspace</span>${icon('chevron')}<span id="crumb">Overview</span></div><div class="spacer"></div><button class="btn icon-btn" data-theme aria-label="Switch color theme"></button><button class="btn primary" data-add>${icon('plus')}<span>Create an MCP</span></button></header>
       <main id="main-content" class="main" tabindex="-1"><div id="routeRoot"></div></main>
     </div><nav class="bottom-nav" aria-label="Mobile navigation">${['overview', 'integrations', 'connect', 'assistant'].map((k) => navLink(k, true)).join('')}</nav></div>`;
+  renderAssistantStatus();
   const toggle = root.querySelector('[data-sidebar-toggle]');
   const updateSidebar = () => {
     document.body.classList.toggle('sidebar-collapsed', sidebarCollapsed);
@@ -165,10 +176,29 @@ function renderShell() {
     d.el.querySelector('[data-signout]').onclick = () => { d.close(); logout(); };
   };
 }
+function renderAssistantStatus() {
+  const bar = root.querySelector('.workspace-bar');
+  if (!bar) return;
+  let status = bar.querySelector('[data-assistant-status]');
+  if (!status) {
+    status = document.createElement('nav');
+    status.dataset.assistantStatus = '';
+    status.setAttribute('aria-label', 'Running assistant conversations');
+    status.innerHTML = '<span role="status" aria-live="polite" aria-atomic="true"></span><span data-session-links></span>';
+    bar.querySelector('.spacer').after(status);
+  }
+  const { count, sessions } = assistantStatus();
+  status.hidden = !count;
+  status.dataset.runningCount = String(count);
+  const message = count ? `${count} assistant ${count === 1 ? 'reply' : 'replies'} running. ` : '';
+  if (status.firstElementChild.textContent !== message) status.firstElementChild.textContent = message;
+  status.querySelector('[data-session-links]').innerHTML = sessions.map((session) => `<a class="btn sm" href="${esc(session.href)}">${esc(session.label)}</a>`).join(' ');
+}
+window.addEventListener('station:assistant-status', renderAssistantStatus);
 async function logout() {
   const guard = root.querySelector('#routeRoot .page-surface')?.stationBeforeClose;
   if (guard && !await guard()) return;
-  try { await api('/logout', { method: 'POST' }); await boot(); }
+  try { await api('/logout', { method: 'POST' }); resetAssistant(); ctx.pendingAssistantPrompt = ''; await boot(); }
   catch (e) { toast(`Could not sign out: ${e.message}. Try again.`, 'err'); }
 }
 async function renderRoute(focus) {
@@ -183,7 +213,7 @@ async function renderRoute(focus) {
   if (same && !focus && (['assistant', 'settings', 'backups'].includes(key) || route.sourceId)) { ctx.workspaceRefresh?.(); return; }
   const wasLibrary = renderedRoute.split('?')[0] === '#/integrations';
   if (wasLibrary) { ctx.listState ||= { q: '', filter: 'all' }; ctx.listState.scroll = window.scrollY; }
-  if (renderedRoute.startsWith('#/assistant') && key !== 'assistant') resetAssistant();
+  if (renderedRoute.startsWith('#/assistant') && key !== 'assistant') parkAssistant();
   page.querySelectorAll('.page-surface').forEach((el) => el.dispatchEvent(new Event('station:dispose')));
   ctx.workspaceRefresh = null;
   renderedRoute = signature;
@@ -199,7 +229,7 @@ async function renderRoute(focus) {
     page.innerHTML = '<div id="viewRoot"></div>';
     const content = page.querySelector('#viewRoot');
     if (ctx.loadError) content.innerHTML = `<p class="error-text" role="alert">Could not load integrations: ${esc(ctx.loadError)}. Return to the library to retry.</p><a href="#/integrations">Back to integrations</a>`;
-    else if (route.create) renderAddAccount(content, ctx);
+    else if (route.create) renderCreateMcp(content, ctx);
     else await renderIntegration(content, ctx, route);
     if (version !== routeVersion) return;
     if (focus) { window.scrollTo(0,0); root.querySelector('#main-content').focus({preventScroll:true}); }
@@ -238,7 +268,7 @@ function renderOverview(el) {
   const enabled = allAccounts.filter((m) => m.enabled).length;
   const errors = allAccounts.filter((m) => m.error || m.lastTest?.ok === false).length;
   const needs = allAccounts.filter((m) => !m.configured || m.error || m.lastTest?.ok === false);
-  el.innerHTML = `<section class="welcome-panel"><div><p class="eyebrow">Less setup. More possibility.</p><h2>A home for your AI’s tools.</h2><p>MCP connects an AI assistant to real services — like your files, messages or projects. This station keeps those connections in one place, on your own server.</p><a class="btn primary" href="#/integrations">Explore integrations ${icon('arrow')}</a></div><div class="welcome-aside">${icon('plug')}<span>Your services</span><span class="connection-line"></span>${icon('assistant')}<span>Your assistant</span></div></section>
+  el.innerHTML = `<section class="welcome-panel"><div><p class="eyebrow">Less setup. More possibility.</p><h2>Describe it. Build it with AI.</h2><p>Tell the Assistant which service you want to connect and what your AI should be able to do. It can build the module, explain its tools, and help you fix or extend it. Review the code, add credentials in Settings, then test before enabling.</p><a class="btn primary" href="#/integrations/new">Create an MCP with AI ${icon('arrow')}</a></div><div class="welcome-aside">${icon('plug')}<span>Your services</span><span class="connection-line"></span>${icon('assistant')}<span>Your assistant</span></div></section>
   <section class="stats-grid" aria-label="Integration summary">${[['Integrations', ctx.mcps.length, 'Installed on this station'], ['Accounts configured', configured, 'Required settings supplied'], ['Accounts enabled', enabled, 'Available to connect'], ['Needs attention', errors, 'Load errors or failed last tests']].map(([title, number, desc]) => `<article class="stat"><span>${title}</span><strong>${number}</strong><small>${desc}</small></article>`).join('')}</section>
   <p class="metric-note">Enabled does not mean verified. Run a connection test from an integration to check its service.</p>
   <div class="overview-columns"><section class="panel"><div class="section-heading"><h2>Make your first connection</h2><span class="tag">Quick start</span></div><ol class="setup-steps"><li><span class="step-number">01</span><div><a href="#/integrations">Choose an integration</a><p>Configure the service and save its credentials.</p></div></li><li><span class="step-number">02</span><div><a href="#/integrations">Test the connection</a><p>Run a test, review the result, then enable the integration.</p></div></li><li><span class="step-number">03</span><div><a href="#/connect">Connect your AI client</a><p>Copy its endpoint and approve access from your client.</p></div></li></ol></section>

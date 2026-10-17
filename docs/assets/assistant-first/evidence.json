@@ -1,0 +1,97 @@
+{
+  "disclosure": "Accelerated demo · local scripted AI provider · no live credentials",
+  "build": "Unreleased feat/assistant-first; app reports 2.7.0",
+  "provider": "Local scripted Responses API mock; dummy key; no paid model",
+  "weather": "Loopback deterministic fixture; not real weather",
+  "recording": "Real Chromium viewport frames; accelerated waits; disclosure and explanatory captions added outside app pixels",
+  "demos": [
+    {
+      "name": "create",
+      "frames": 24,
+      "durationMs": 12000,
+      "bytes": 916784
+    },
+    {
+      "name": "fix",
+      "frames": 24,
+      "durationMs": 12000,
+      "bytes": 728403
+    },
+    {
+      "name": "modify",
+      "frames": 24,
+      "durationMs": 12000,
+      "bytes": 706910
+    }
+  ],
+  "assertions": {
+    "isolatedBundledModules": 18,
+    "assistantRequests": 3,
+    "realToolCalls": [
+      {
+        "mode": "create",
+        "stage": "manifest-read",
+        "name": "read_module_file"
+      },
+      {
+        "mode": "create",
+        "stage": "source-read",
+        "name": "read_module_file"
+      },
+      {
+        "mode": "create",
+        "stage": "docs",
+        "name": "fetch_url"
+      },
+      {
+        "mode": "create",
+        "stage": "manifest-write",
+        "name": "write_module_file"
+      },
+      {
+        "mode": "create",
+        "stage": "source-write",
+        "name": "write_module_file"
+      },
+      {
+        "mode": "create",
+        "stage": "verify",
+        "name": "read_module_file"
+      },
+      {
+        "mode": "fix",
+        "stage": "source-read",
+        "name": "read_module_file"
+      },
+      {
+        "mode": "fix",
+        "stage": "source-write",
+        "name": "write_module_file"
+      },
+      {
+        "mode": "fix",
+        "stage": "verify",
+        "name": "read_module_file"
+      },
+      {
+        "mode": "modify",
+        "stage": "source-read",
+        "name": "read_module_file"
+      },
+      {
+        "mode": "modify",
+        "stage": "source-write",
+        "name": "write_module_file"
+      },
+      {
+        "mode": "modify",
+        "stage": "verify",
+        "name": "read_module_file"
+      }
+    ],
+    "localWeatherRequests": 3,
+    "endpointEnabled": false,
+    "pageErrors": 0,
+    "externalBrowserRequests": 0
+  }
+}

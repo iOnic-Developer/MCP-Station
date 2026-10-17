@@ -973,3 +973,12 @@ h1 {
   h1 { font-size:clamp(2.5rem,8vw,3.8rem); }
   .client-names { gap:12px 20px; }
 }
+
+/* Assistant demos reuse the existing type, palette and touch-target styles. */
+.demos { padding-bottom:var(--space-section); }
+.demo-grid { display:grid; gap:28px; margin-top:28px; }
+.demo-grid figure { min-width:0; }
+.demo-grid img { width:100%; background:var(--soft); }
+.demo-controls { display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:12px 20px; }
+.demo-controls [role="status"] { color:var(--muted); font-size:.8rem; }
+.session-note { margin-top:20px; }

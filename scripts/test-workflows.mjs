@@ -456,7 +456,7 @@ try {
     }
   }
   await check('Refinement: numbered setup strip removed from new account page',async()=>{
-    await go('#/integrations/new','#accountName');assert.equal(await page.locator('.account-progress').count(),0);
+    await go('#/integrations/new','#buildGoal');assert.equal(await page.locator('.account-progress').count(),0);
   });
   // Real served-app navigation regressions. No intercepted API responses or injected PWA state.
   const navigationRoutes = [...Object.keys(routes).map((r) => '#/' + r), work('settings', accountA.id)];

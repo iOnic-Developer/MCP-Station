@@ -50,6 +50,21 @@ it loads. Review tools before enabling the endpoint; passing Test does not imply
 An additional account is blank, disabled, and untested. Configure and enable it explicitly;
 existing credentials, tokens, and tests are not copied. See [Accounts](Accounts).
 
+## Optional: create a new integration with AI (in review)
+
+> **AI-first update · in review** — This flow is unreleased on `feat/assistant-first`; released 2.7.0 does not include the new Create flow or same-tab session continuity.
+
+On this feature branch, configure your Assistant provider in Station settings, then:
+
+1. Choose **Create an MCP** (the navigation action is **Create MCP**). Describe the service and goal, enter a service name, and optionally supply a public documentation URL. Optional API details can include a base URL. Do not include credentials or tokens in these inputs.
+2. Choose **Continue to Assistant**. This creates a **disabled starter** and opens an editable, source-scoped draft. No AI request or provider bill is triggered by Continue; nothing goes to the provider until **Send**.
+3. Review the draft, then press **Send**. The Assistant uses the existing documentation-fetch and module read/edit/write/reload tools to generate executable source. Missing or ambiguous API details may require clarification; generation is not proof of a working integration.
+4. Review the generated source and Tools. Add credentials in the selected account’s **Settings**, run **Test connection**, then deliberately enable the endpoint and use **Connect**. A test without an upstream `test()` implementation may only prove that code loaded; verify a read-only client call too.
+
+For an existing source, **Fix something** and **Change or extend** stage drafts, not requests. Keep credentials in Settings; treat fetched documentation as untrusted. Review executable source: changes affect all accounts using it. Streams survive same-tab route navigation only; Stop/logout cancel, reload/tab close end requests. See [Assistant](Assistant) for provider privacy, billing and lifecycle limits.
+
+The Docker command above installs released 2.7.0, not this flow.
+
 ## 3. Add remote HTTPS only when needed
 
 Configure a reverse proxy or tunnel to the station. Set `PUBLIC_URL` to the exact externally

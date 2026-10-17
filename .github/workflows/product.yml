@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main, redesign/public-product]
+    branches: [main, redesign/public-product, feat/assistant-first]
   workflow_dispatch:
 
 permissions:
@@ -38,6 +38,8 @@ jobs:
         env:
           QA_SCREENSHOT_DIR: ${{ runner.temp }}/station-workflow-qa
         run: npm run test:workflows
+      - name: AI creation and navigation continuity
+        run: npm run test:ai-first && npm run test:chat-navigation
       - name: Audit public product page
         env:
           PRODUCT_BROWSER_MODULE: ${{ github.workspace }}/node_modules/playwright/index.mjs

@@ -23,8 +23,8 @@ if (!hasScreenshot) {
   console.log('PENDING: parent screenshot docs/assets/product/integrations.png; only this missing image is tolerated.');
 }
 assert.equal((html.match(/<h1\b/g) || []).length, 1);
-assert.match(html, /Turn your APIs and services<br><span>into MCP tools\./);
-assert.match(html, /One integration\. Multiple accounts\. Your local and cloud AI clients\./);
+assert.match(html, /Describe it\.<br><span>Build it with AI\./);
+assert.match(html, /Create, repair and extend MCP integrations with your Assistant\./);
 assert.match(html, /Local models require an MCP-capable client/);
 assert.match(html, /Live end-to-end compatibility has not been verified/);
 assert.match(html, /This is not universal website automation/);
@@ -45,6 +45,28 @@ if (hasScreenshot) {
   assert.equal(Number(image[1]), png.readUInt32BE(16));
   assert.equal(Number(image[2]), png.readUInt32BE(20));
 }
+assert.equal((html.match(/AI-first update · in review/g) || []).length, 1, 'One prominent release-boundary badge');
+assert.match(html, /Released 2\.7\.0 does not include them/);
+assert.match(html, /Continue to Assistant creates a disabled starter/);
+assert.match(html, /no AI request or provider bill/);
+assert.match(html, /Fix something and Change or extend prefill/);
+assert.match(html, /same tab/);
+assert.match(html, /reload or tab close ends requests/);
+assert.match(html, /not durable jobs/);
+assert.match(html, /untrusted reference data/);
+assert.doesNotMatch(js, /innerHTML|insertAdjacentHTML/);
+assert.equal((html.match(/<figure data-demo>/g) || []).length, 3);
+for (const key of ['create', 'fix', 'modify']) {
+  const poster = await readFile(path.join(root, `docs/assets/assistant-first/${key}-poster.png`));
+  const img = html.match(new RegExp(`<img id="demo-${key}"[^>]*width="(\\d+)" height="(\\d+)"`));
+  assert.ok(img, `Reserve ${key} poster dimensions`);
+  assert.equal(Number(img[1]), poster.readUInt32BE(16));
+  assert.equal(Number(img[2]), poster.readUInt32BE(20));
+  assert.ok(await exists(path.join(root, `docs/assets/assistant-first/${key}.gif`)));
+  assert.ok(html.includes(`data-gif="../assets/assistant-first/${key}.gif"`));
+}
+assert.doesNotMatch(html, /<img[^>]*src="[^"]+\.gif"/);
+assert.equal((html.match(/Accelerated demonstration using a local scripted AI provider, not a live commercial model\. Real app source writes\/testing shown\./g) || []).length, 3);
 assert.match(html, /href="#main"/);
 assert.match(html, /<main id="main" tabindex="-1"/);
 assert.match(css, /:focus-visible/);
@@ -75,8 +97,8 @@ for (const [, attr, target] of html.matchAll(/\b(src|href)="([^"]+)"/g)) {
     const url = new URL(target.replaceAll('&amp;', '&'));
     assert.ok(['github.com', 'hub.docker.com'].includes(url.hostname), `Unexpected external link ${target}`);
     if (url.hostname === 'github.com' && url.pathname.includes('/blob/')) {
-      const relative = url.pathname.split('/blob/main/')[1];
-      assert.ok(relative, `Docs not linked to main source: ${target}`);
+      const relative = url.pathname.match(/^\/iOnic-Developer\/MCP-Station\/blob\/(?:main|feat\/assistant-first)\/(.+)$/)?.[1];
+      assert.ok(relative, `Docs must target main or the in-review feature branch: ${target}`);
       assert.ok(await exists(path.join(root, relative)), `Missing linked source ${relative}`);
     }
     continue;
@@ -104,7 +126,7 @@ for (const [name, width, height] of [['social-card', 1200, 630], ['brand-banner'
   assert.match(svg, /One integration\. Multiple accounts\. Your local and cloud AI clients\./);
   assert.doesNotMatch(svg, /<text[\s>]|https?:\/\/(?!www\.w3\.org)/);
 }
-console.log('PASS: static contracts, local assets/licenses, main documentation targets, metadata and outlined SVG/PNG dimensions.');
+console.log('PASS: static contracts, local assets/licenses, stable/feature-branch documentation targets, metadata and outlined SVG/PNG dimensions.');
 if (!process.env.PRODUCT_BROWSER_MODULE) {
   console.log('SKIP: browser checks; set PRODUCT_BROWSER_MODULE and PRODUCT_AXE_MODULE to existing test dependencies.');
 } else {
@@ -112,7 +134,7 @@ if (!process.env.PRODUCT_BROWSER_MODULE) {
   const { chromium } = await import(pathToFileURL(process.env.PRODUCT_BROWSER_MODULE).href);
   const axeModule = require(process.env.PRODUCT_AXE_MODULE);
   const AxeBuilder = axeModule.default || axeModule;
-  const mime = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.txt': 'text/plain' };
+  const mime = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png', '.gif': 'image/gif', '.woff2': 'font/woff2', '.txt': 'text/plain' };
   const server = createServer(async (req, res) => {
     try {
       let pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
@@ -129,7 +151,7 @@ if (!process.env.PRODUCT_BROWSER_MODULE) {
   const origin = `http://127.0.0.1:${server.address().port}`;
   let browser;
   try {
-    browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+    browser = await chromium.launch({ headless: true, executablePath: process.env.QA_BROWSER_EXECUTABLE || undefined, args: ['--no-sandbox'] });
     const context = await browser.newContext({ reducedMotion: 'reduce', permissions: ['clipboard-read', 'clipboard-write'] });
     await context.addInitScript(() => {
       window.productCLS = 0;
@@ -171,6 +193,32 @@ if (!process.env.PRODUCT_BROWSER_MODULE) {
       if (process.env.PRODUCT_TEST_OUTPUT) await page.screenshot({ path: path.join(process.env.PRODUCT_TEST_OUTPUT, `product-${width}.png`), fullPage: true });
       console.log(`PASS: ${width} × ${height}: no overflow, CLS ≤ 0.01, 44px targets, axe WCAG AA.`);
     }
+    // Both normal and reduced motion must start with PNGs and no GIF request.
+    for (const reducedMotion of ['no-preference', 'reduce']) {
+      await page.emulateMedia({ reducedMotion });
+      const gifRequests = [];
+      const onRequest = (request) => { if (request.url().endsWith('.gif')) gifRequests.push(request.url()); };
+      page.on('request', onRequest);
+      await page.goto(origin + '/docs/site/', { waitUntil: 'networkidle' });
+      assert.deepEqual(gifRequests, [], 'No animation fetched before explicit Play');
+      for (const key of ['create', 'fix', 'modify']) {
+        const image = page.locator(`#demo-${key}`);
+        assert.equal(await image.getAttribute('src'), `../assets/assistant-first/${key}-poster.png`);
+        const control = page.locator(`[data-demo-play][aria-controls="demo-${key}"]`);
+        assert.equal(await control.getAttribute('aria-pressed'), 'false');
+        await control.focus();
+        await page.keyboard.press('Enter');
+        await page.waitForFunction((id) => { const img = document.getElementById(id); return img.src.endsWith('.gif') && img.complete && img.naturalWidth > 0; }, `demo-${key}`);
+        assert.equal(await control.getAttribute('aria-pressed'), 'true');
+        assert.match(await control.textContent(), /^Stop /);
+        await page.keyboard.press('Enter');
+        assert.equal(await image.getAttribute('src'), `../assets/assistant-first/${key}-poster.png`);
+        assert.equal(await control.getAttribute('aria-pressed'), 'false');
+      }
+      assert.equal(gifRequests.length, 3, 'Only the three explicitly chosen animations load');
+      page.off('request', onRequest);
+    }
+    console.log('PASS: all three demos: poster-first, no autoplay fetch, keyboard Play/Stop, aria state, normal/reduced motion.');
     await page.goto(origin + '/docs/site/');
     const cta = page.getByRole('link', { name: 'Get MCP Station 2.7.0' });
     assert.equal(await cta.count(), 1);
@@ -199,6 +247,8 @@ if (!process.env.PRODUCT_BROWSER_MODULE) {
     const plain = await noJS.newPage();
     await plain.goto(origin + '/docs-root/site/');
     assert.ok(await plain.locator('[data-copy]').isHidden());
+    assert.equal(await plain.locator('[data-demo-image]').count(), 3);
+    for (const button of await plain.locator('[data-demo-play]').all()) assert.ok(await button.isHidden());
     await plain.locator('a[href="#start"]').click();
     assert.ok(plain.url().endsWith('#start'));
     assert.match(await plain.locator('#pull-command').textContent(), /^docker pull /);

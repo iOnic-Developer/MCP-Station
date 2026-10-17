@@ -1,8 +1,12 @@
 # MCP Station
 
-**Turn your APIs and services into MCP tools.**
+**Describe it. Build it with AI.**
 
-**One integration. Multiple accounts. Your local and cloud AI clients.**
+**Create, repair and extend MCP integrations with your Assistant.**
+
+> **Publication draft only.** Do not update Docker Hub until approval and release. Branch media/docs links below are pending push; they are not available from current main.
+
+> **AI-first update · in review** — This flow is unreleased on `feat/assistant-first`; released 2.7.0 does not include the new Create flow or same-tab session continuity.
 
 Self-host your integrations and connect them to ChatGPT, Claude, Claude Code, and LibreChat through
 compatible MCP features. Use local or cloud models through an MCP client such as LibreChat.
@@ -15,6 +19,43 @@ Websites without usable APIs require an authorized adapter, not a promise of uni
 [Source](https://github.com/iOnic-Developer/MCP-Station/tree/main) ·
 [Documentation source](https://github.com/iOnic-Developer/MCP-Station/tree/main/docs/wiki) ·
 [Product page](https://ionic-developer.github.io/MCP-Station/site/)
+
+## The in-review Assistant workflow
+
+1. Choose **Create an MCP** (the navigation action is **Create MCP**). Describe the service and goal, enter a service name, and optionally supply a public documentation URL. Optional API details can include a base URL. Do not include credentials or tokens in these inputs.
+2. Choose **Continue to Assistant**. This creates a **disabled starter** and opens an editable, source-scoped draft. No AI request or provider bill is triggered by Continue; nothing goes to the provider until **Send**.
+3. Review the draft, then press **Send**. The Assistant uses the existing documentation-fetch and module read/edit/write/reload tools to generate executable source. Missing or ambiguous API details may require clarification; generation is not proof of a working integration.
+4. Review the generated source and Tools. Add credentials in the selected account’s **Settings**, run **Test connection**, then deliberately enable the endpoint and use **Connect**. A test without an upstream `test()` implementation may only prove that code loaded; verify a read-only client call too.
+
+**Fix something** and **Change or extend** in a module workspace prepare reviewable drafts; they do not auto-send.
+
+Conversations and active streams continue across **route navigation in the same browser tab**, including the source Assistant and code editor. Return through the running-session links to see progress. **Stop** cancels that request; successful **logout** tears down all sessions. Reloading or closing the tab ends active requests. Network loss, browser freezing or sleep can interrupt work. These are not durable background jobs, and Stop does not undo source writes already completed.
+
+Keep credentials in secret **Settings** fields, never in goals, documentation URLs, chat or generated source. Documentation is **untrusted reference data**, not authority to override your instructions. Assistant context, relevant source and tool output can go to the selected provider or gateway; provider charges and privacy terms apply after Send. Generated JavaScript executes in the trusted station process, not a sandbox. Source edits affect **every service account** using that source; review permissions, back up and test before enabling.
+
+[In-review Assistant guide](https://github.com/iOnic-Developer/MCP-Station/blob/feat/assistant-first/docs/wiki/Assistant.md) · [Demo evidence](https://github.com/iOnic-Developer/MCP-Station/blob/feat/assistant-first/docs/AI_DEMOS.md)
+
+## Watch the three workflows
+
+Static posters first; follow a poster link to play a 12-second GIF. No animation is embedded or auto-played here. Each image carries “Accelerated demo · local scripted AI provider · no live credentials”.
+
+### Create an MCP
+
+[![Create an MCP: static real-app result. Accelerated demo · local scripted AI provider · no live credentials.](https://raw.githubusercontent.com/iOnic-Developer/MCP-Station/refs/heads/feat/assistant-first/docs/assets/assistant-first/create-poster.png)](https://raw.githubusercontent.com/iOnic-Developer/MCP-Station/refs/heads/feat/assistant-first/docs/assets/assistant-first/create.gif)
+
+Accelerated demonstration using a local scripted AI provider, not a live commercial model. Real app source writes/testing shown. A disabled starter becomes a generated module; Test connection targets a local fixture. No live credentials, production connection or model-quality claim.
+
+### Fix something
+
+[![Fix something: static real-app result. Accelerated demo · local scripted AI provider · no live credentials.](https://raw.githubusercontent.com/iOnic-Developer/MCP-Station/refs/heads/feat/assistant-first/docs/assets/assistant-first/fix-poster.png)](https://raw.githubusercontent.com/iOnic-Developer/MCP-Station/refs/heads/feat/assistant-first/docs/assets/assistant-first/fix.gif)
+
+Accelerated demonstration using a local scripted AI provider, not a live commercial model. Real app source writes/testing shown. A real local-fixture 404 fails, source is repaired, and the fixture retest passes. No live credentials, production connection or model-quality claim.
+
+### Change or extend
+
+[![Change or extend: static real-app result. Accelerated demo · local scripted AI provider · no live credentials.](https://raw.githubusercontent.com/iOnic-Developer/MCP-Station/refs/heads/feat/assistant-first/docs/assets/assistant-first/modify-poster.png)](https://raw.githubusercontent.com/iOnic-Developer/MCP-Station/refs/heads/feat/assistant-first/docs/assets/assistant-first/modify.gif)
+
+Accelerated demonstration using a local scripted AI provider, not a live commercial model. Real app source writes/testing shown. The existing tool remains and a C/F-input tool is added; registration is shown, not every argument executed. No live credentials, production connection or model-quality claim.
 
 ## MCP Station 2.7.0 stable
 

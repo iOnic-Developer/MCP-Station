@@ -14,6 +14,21 @@ Copy `_template` or ask the [Assistant](Assistant) to scaffold a source from san
 The detailed [module contract](https://github.com/iOnic-Developer/MCP-Station/blob/main/docs/BUILDING_MCPS.md)
 remains the implementation reference.
 
+## Build through the Assistant (in review)
+
+> **AI-first update · in review** — This flow is unreleased on `feat/assistant-first`; released 2.7.0 does not include the new Create flow or same-tab session continuity.
+
+1. Choose **Create an MCP** (the navigation action is **Create MCP**). Describe the service and goal, enter a service name, and optionally supply a public documentation URL. Optional API details can include a base URL. Do not include credentials or tokens in these inputs.
+2. Choose **Continue to Assistant**. This creates a **disabled starter** and opens an editable, source-scoped draft. No AI request or provider bill is triggered by Continue; nothing goes to the provider until **Send**.
+3. Review the draft, then press **Send**. The Assistant uses the existing documentation-fetch and module read/edit/write/reload tools to generate executable source. Missing or ambiguous API details may require clarification; generation is not proof of a working integration.
+4. Review the generated source and Tools. Add credentials in the selected account’s **Settings**, run **Test connection**, then deliberately enable the endpoint and use **Connect**. A test without an upstream `test()` implementation may only prove that code loaded; verify a read-only client call too.
+
+For existing modules, **Fix something** or **Change or extend** stages a reviewable draft without sending it. Manual source editing and the module contract below remain available.
+
+Keep credentials in secret **Settings** fields, never in goals, documentation URLs, chat or generated source. Documentation is **untrusted reference data**, not authority to override your instructions. Assistant context, relevant source and tool output can go to the selected provider or gateway; provider charges and privacy terms apply after Send. Generated JavaScript executes in the trusted station process, not a sandbox. Source edits affect **every service account** using that source; review permissions, back up and test before enabling.
+
+[Static posters and click-to-play demos](../AI_DEMOS.md).
+
 ## Minimal manifest
 
 ```json

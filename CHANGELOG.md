@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased — Assistant-first module building
+
+- Make Create an MCP an AI-led goal/docs flow, with account reuse and manual code secondary.
+- Prepare reviewable source-scoped build, repair and extension requests; keep new starters disabled.
+- Keep replies and drafts alive across same-tab route navigation; share editor/module conversations.
+- Preserve deliberate Stop/logout cancellation and expose running conversations.
+- Add three accelerated, disclosed local-provider walkthroughs and reproducible regressions.
+- Product rename and new identity await owner selection; existing names/endpoints are unchanged.
+
+
 ## 2.7.0 — 2026-10-16
 
 Stable release of the account-aware product workspace, including all **18 bundled service modules**.

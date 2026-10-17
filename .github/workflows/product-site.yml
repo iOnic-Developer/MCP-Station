@@ -2,7 +2,7 @@ name: Publish product page
 on:
   push:
     branches: [main]
-    paths: ['docs/site/**', 'docs/assets/product/**', '.github/workflows/product-site.yml']
+    paths: ['docs/site/**', 'docs/assets/product/**', 'docs/assets/assistant-first/**', '.github/workflows/product-site.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -26,10 +26,11 @@ jobs:
         run: REQUIRE_PRODUCT_SCREENSHOT=1 node scripts/test-product-page.mjs
       - name: Assemble static site only
         run: |
-          mkdir -p _site/site _site/assets/product
+          mkdir -p _site/site _site/assets/product _site/assets/assistant-first
           cp -R docs/site/. _site/site/
           rm -f _site/site/generate-media.mjs
           cp docs/assets/product/*.png _site/assets/product/
+          cp docs/assets/assistant-first/*.png docs/assets/assistant-first/*.gif _site/assets/assistant-first/
           printf '%s\n' '<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0;url=site/"><title>MCP Station</title><a href="site/">Open MCP Station product page</a></html>' > _site/index.html
           touch _site/.nojekyll
       - uses: actions/configure-pages@v5

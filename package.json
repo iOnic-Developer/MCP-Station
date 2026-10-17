@@ -19,7 +19,9 @@
     "test:workflows": "node scripts/test-workflows.mjs",
     "test:bundled": "node scripts/test-bundled.mjs",
     "test:configuration": "node scripts/test-configuration.mjs",
-    "test:product-page": "REQUIRE_PRODUCT_SCREENSHOT=1 node scripts/test-product-page.mjs"
+    "test:product-page": "REQUIRE_PRODUCT_SCREENSHOT=1 node scripts/test-product-page.mjs",
+    "test:ai-first": "node scripts/test-ai-first.mjs",
+    "test:chat-navigation": "node scripts/test-chat-navigation.mjs"
   },
   "engines": {
     "node": ">=20"

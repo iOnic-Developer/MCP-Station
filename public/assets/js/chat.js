@@ -12,10 +12,21 @@ import { esc, toast, md, copyText } from './ui.js';
  * `station:mcps-changed` per turn), {error}, then {done}. A stream that ends without
  * {done} was cut by something between here and the station — say so instead of going quiet.
  */
-export function chatPane({ el, greeting, history = [], persist = () => {}, extra = () => ({}), placeholder = 'Ask…', fields = [] }) {
+export function chatPane({ el, greeting, history = [], persist = () => {}, extra = () => ({}), placeholder = 'Ask…', fields = [], onStatus = () => {} }) {
   let controller = null;
   let disposed = false;
-  const saveHistory = async () => { if (disposed) return; try { await persist(history); } catch { toast('Conversation could not be saved. Your current messages are still visible.', 'err'); } };
+  let saving = Promise.resolve();
+  let running = false;
+  const saveHistory = () => {
+    if (disposed) return saving;
+    const snapshot = history.map((message) => ({ ...message }));
+    saving = saving.then(async () => {
+      if (disposed) return;
+      try { await persist(snapshot); }
+      catch { if (!disposed) toast('Conversation could not be saved. Your current messages are still visible.', 'err'); }
+    });
+    return saving;
+  };
   el.innerHTML = `
     <div class="a-msgs" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions"></div>
     ${fields.length ? `<details class="chat-options"><summary>Add API context (optional)</summary><div class="a-fields">${fields
@@ -58,9 +69,11 @@ export function chatPane({ el, greeting, history = [], persist = () => {}, extra
 
   async function send() {
     const typed = input.value.trim();
-    if (!typed || sendBtn.disabled || disposed) return;
+    if (!typed || running || sendBtn.disabled || disposed) return;
     errorEl.hidden = true;
     controller = new AbortController();
+    running = true;
+    onStatus();
     stopBtn.hidden = false;
     // Optional context fields (API host / docs) ride along inside the message so they
     // persist in history and work identically on both providers.
@@ -88,7 +101,7 @@ export function chatPane({ el, greeting, history = [], persist = () => {}, extra
     // Text before a tool call is its own bubble in the transcript; close it out and save it,
     // so a turn that dies half-way keeps what already arrived.
     const closeSegment = () => {
-      if (!acc) return;
+      if (!acc || disposed) return;
       history.push({ role: 'assistant', content: acc });
       acc = '';
       bubble = null;
@@ -112,7 +125,7 @@ export function chatPane({ el, greeting, history = [], persist = () => {}, extra
       let buf = '';
       for (;;) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done || disposed) break;
         buf += dec.decode(value, { stream: true });
         const lines = buf.split('\n');
         buf = lines.pop();
@@ -155,10 +168,11 @@ export function chatPane({ el, greeting, history = [], persist = () => {}, extra
       closeSegment();
       if (!gotDone) throw new Error('The connection dropped before the reply finished (a proxy timeout, usually) — try again.');
     } catch (e) {
+      controller?.abort(); // A broken transport must not leave an upstream turn running.
       const message = e.name === 'AbortError' ? 'Reply stopped. Any completed tool changes are kept.' : e.message;
       if (!disposed) { errorEl.textContent = message; errorEl.hidden = false; }
       closeSegment();
-      if (history[history.length - 1]?.role === 'user') {
+      if (!disposed && history[history.length - 1]?.role === 'user') {
         // Nothing came back: roll the turn back and hand the text back for a clean retry.
         history.pop();
         userBubble.remove();
@@ -166,10 +180,13 @@ export function chatPane({ el, greeting, history = [], persist = () => {}, extra
       }
     } finally {
       think.remove();
+      if (!disposed) await saveHistory();
       sendBtn.disabled = false;
       stopBtn.hidden = true;
-      if (input.isConnected && !disposed) input.focus();
-      if (!disposed) await saveHistory();
+      if (input.isConnected && input.getClientRects().length && !disposed) input.focus();
+      controller = null;
+      running = false;
+      onStatus();
       if (modulesChanged && !disposed) {
         toast('Modules updated — refreshing');
         window.dispatchEvent(new CustomEvent('station:mcps-changed'));
@@ -193,8 +210,16 @@ export function chatPane({ el, greeting, history = [], persist = () => {}, extra
     msgsEl,
     input,
     render,
-    dispose: () => { disposed = true; controller?.abort(); },
-    clear: async () => { if (sendBtn.disabled) return toast('Stop the current reply before clearing the conversation.', 'err'); history.length = 0; await saveHistory(); render(); }
+    get running() { return running; },
+    stop: () => controller?.abort(),
+    dispose: () => {
+      if (disposed) return;
+      disposed = true; controller?.abort(); running = false;
+      history.length = 0; input.value = ''; msgsEl.replaceChildren();
+      fieldEls.forEach((field) => { field.value = ''; });
+      onStatus();
+    },
+    clear: async () => { if (disposed) return; if (running) return toast('Stop the current reply before clearing the conversation.', 'err'); history.length = 0; await saveHistory(); render(); }
   };
 }
 

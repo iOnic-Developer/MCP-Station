@@ -1,16 +1,16 @@
 import { icon } from '../icons.js';
 import { api } from '../api.js';
 import { esc, toast, workspaceSurface, confirmModal } from '../ui.js';
-import { chatPane } from '../chat.js';
+import { getSourceSession } from '../chatSessions.js';
 import { workspaceUrl } from './accounts.js';
 
 export async function openEditor(m, ctx, target) {
   let files = [];
-  let history = [];
+  let session;
   try {
-    [{ files }, { messages: history }] = await Promise.all([
+    [{ files }, session] = await Promise.all([
       api(`/mcps/${m.id}/files`),
-      api(`/mcps/${m.id}/chat`)
+      getSourceSession(m)
     ]);
   } catch (ex) {
     if (target?.isConnected) target.innerHTML = `<p class="error-text" role="alert">Could not load source: ${esc(ex.message)}. Reopen this tab to retry.</p>`;
@@ -54,14 +54,9 @@ export async function openEditor(m, ctx, target) {
   d.el.stationDirty = () => dirty;
   d.el.stationBeforeClose = async () => !dirty || await confirmModal('Discard unsaved edits?', 'Your changes in the editor have not been saved to the server.', 'Discard edits');
 
-  const chat = chatPane({
-    el: chatBox.querySelector('.chat-body'),
-    history,
-    persist: (h) => api(`/mcps/${m.id}/chat`, { method: 'PUT', body: { messages: h } }),
-    extra: () => ({ mcpId: m.id }),
-    placeholder: `e.g. add a delete_message tool, or: why does get_updates 409?`,
-    greeting: `I can see <b>${esc(name)}</b>'s files (manifest.json, index.js, …) and the module contract.<br><br>Ask me to add a tool, fix a bug or explain what it does — I <b>edit the files directly</b> and reload the module, and the open tab refreshes when I change it. Nothing to copy.<br><br>If you'd rather paste something yourself, ask to see the code: <b>⤵ Replace file</b> on a code block swaps the whole open file for it (complete files only).`
-  });
+  const chatTarget = chatBox.querySelector('.chat-body');
+  session.mount(chatTarget);
+  const chat = session.chat;
 
   chat.msgsEl.tabIndex = 0;
 
@@ -79,6 +74,7 @@ export async function openEditor(m, ctx, target) {
     if (dirty && !(await confirmModal('File changed on disk', `The assistant changed ${p}. Reload it into the editor and discard your unsaved edits?`))) return;
     try {
       const r = await api(`/mcps/${m.id}/file?path=${encodeURIComponent(p)}`);
+      if (!d.el.isConnected) return;
       area.value = r.content;
       dirty = false;
       mark();
@@ -90,7 +86,7 @@ export async function openEditor(m, ctx, target) {
 
   // A code block the assistant shows can still replace the open file — deliberately, and only
   // the whole file: a snippet pasted over index.js is how modules used to get wrecked.
-  chat.msgsEl.addEventListener('click', async (e) => {
+  const onInsertCode = async (e) => {
     const btn = e.target.closest('[data-insert-code]');
     if (!btn) return;
     if (!current) return toast('Open a file tab first', 'err');
@@ -110,7 +106,8 @@ export async function openEditor(m, ctx, target) {
     dirty = true;
     mark();
     toast(`Replaced ${current} in the editor — Save to write it`);
-  });
+  };
+  chat.msgsEl.addEventListener('click', onInsertCode);
   const addInsertButtons = () => {
     for (const pre of chat.msgsEl.querySelectorAll('pre')) {
       if (pre.querySelector('[data-insert-code]')) continue;
@@ -124,7 +121,7 @@ export async function openEditor(m, ctx, target) {
   };
   const observer = new MutationObserver(addInsertButtons);
   observer.observe(chat.msgsEl, { childList: true, subtree: true });
-  d.el.addEventListener('station:dispose', () => { observer.disconnect(); chat.dispose(); window.removeEventListener('station:module-file-changed', onFileChanged); });
+  d.el.addEventListener('station:dispose', () => { observer.disconnect(); session.detach(chatTarget); chat.msgsEl.removeEventListener('click', onInsertCode); chat.msgsEl.querySelectorAll('[data-insert-code]').forEach((button) => button.remove()); window.removeEventListener('station:module-file-changed', onFileChanged); });
   addInsertButtons();
 
   function renderTabs() {
@@ -138,6 +135,7 @@ export async function openEditor(m, ctx, target) {
     try {
       const r = await api(`/mcps/${m.id}/file?path=${encodeURIComponent(p)}`);
       current = p;
+      if (!d.el.isConnected) return;
       area.value = r.content;
       dirty = false;
       mark();
